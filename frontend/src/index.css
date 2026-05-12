@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -22,7 +22,7 @@ body,
 
 body {
     margin: 0;
-    font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco,
+    font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco,
         Consolas, monospace;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -48,8 +48,8 @@ h4,
 h5,
 h6,
 .font-display {
-    font-family: "Outfit", system-ui, sans-serif;
-    letter-spacing: -0.02em;
+    font-family: "Chakra Petch", "JetBrains Mono", system-ui, sans-serif;
+    letter-spacing: -0.01em;
 }
 
 /* Selection */

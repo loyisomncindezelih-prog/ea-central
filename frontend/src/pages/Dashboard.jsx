@@ -11,6 +11,9 @@ import {
   Server,
   Copy,
   CheckCircle2,
+  Download,
+  MonitorDown,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -41,7 +44,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-black text-white" data-testid="dashboard-page">
       <Header />
 
-      <main className="max-w-7xl mx-auto px-6 md:px-10 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-8 sm:py-12">
         {/* Header strip */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
@@ -155,6 +158,48 @@ export default function Dashboard() {
               <Row k="Email" v={user?.email} />
               <Row k="Contact" v={user ? `${user.country_code} ${user.contact_number}` : ""} />
               <Row k="Role" v={user?.role} />
+            </div>
+          </div>
+        </div>
+
+        {/* Downloads */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 mt-8 sm:mt-10">
+          <div className="ea-glass p-5 sm:p-6" data-testid="dashboard-download-bridge">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex items-center justify-center border border-[#1E90FF]/40 bg-[#1E90FF]/10 text-[#1E90FF]">
+                <MonitorDown className="w-5 h-5" strokeWidth={1.5} />
+              </div>
+              <div>
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45">for you (mentor)</div>
+                <h3 className="font-display text-base sm:text-lg font-semibold">PC Bot Bridge</h3>
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-white/60">
+              Pair your trading bot to ea-central. Install once on the PC running your EA.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a href="#"><Button className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-10 px-4" data-testid="dl-bridge-win"><Download className="w-4 h-4 mr-2" />Windows</Button></a>
+              <a href="#"><Button className="bg-transparent border border-white/20 hover:border-[#1E90FF] text-white rounded-none h-10 px-4" data-testid="dl-bridge-mac">macOS</Button></a>
+              <a href="#"><Button className="bg-transparent border border-white/20 hover:border-[#1E90FF] text-white rounded-none h-10 px-4" data-testid="dl-bridge-linux">Linux</Button></a>
+            </div>
+          </div>
+
+          <div className="ea-glass p-5 sm:p-6" data-testid="dashboard-download-mobile">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex items-center justify-center border border-[#1E90FF]/40 bg-[#1E90FF]/10 text-[#1E90FF]">
+                <Smartphone className="w-5 h-5" strokeWidth={1.5} />
+              </div>
+              <div>
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45">for your clients</div>
+                <h3 className="font-display text-base sm:text-lg font-semibold">Mobile EA app</h3>
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-white/60">
+              Share the download link with subscribers. They install, add their license, and they're live.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a href="#"><Button className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-10 px-4" data-testid="dl-mobile-ios">iOS</Button></a>
+              <a href="#"><Button className="bg-transparent border border-white/20 hover:border-[#1E90FF] text-white rounded-none h-10 px-4" data-testid="dl-mobile-android">Android APK</Button></a>
             </div>
           </div>
         </div>
