@@ -37,9 +37,9 @@ export default function Signup() {
     }
     setLoading(true);
     try {
-      await register(form);
-      toast.success("Welcome aboard, mentor!");
-      navigate("/dashboard");
+      const res = await register(form);
+      toast.success("Account created — pending admin approval");
+      navigate("/pending", { state: { email: res?.user?.email } });
     } catch (err) {
       const msg = formatApiErrorDetail(err.response?.data?.detail) || err.message;
       setError(msg);

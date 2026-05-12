@@ -91,7 +91,9 @@ def public_user(doc: dict) -> dict:
         "country_code": doc.get("country_code", ""),
         "contact_number": doc.get("contact_number", ""),
         "role": doc.get("role", "mentor"),
+        "status": doc.get("status", "approved"),
         "created_at": doc["created_at"],
+        "approved_at": doc.get("approved_at"),
     }
 
 
@@ -110,11 +112,20 @@ async def get_current_user(request: Request) -> dict:
         user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
+        status = user.get("status", "approved")
+        if status != "approved":
+            raise HTTPException(status_code=403, detail="Account not approved")
         return public_user(user)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
 
 
 # ----------------------- Pydantic schemas -----------------------
@@ -165,7 +176,7 @@ async def clear_failures(identifier: str) -> None:
 
 # ----------------------- Auth endpoints -----------------------
 @api_router.post("/auth/register")
-async def register(payload: RegisterIn, response: Response):
+async def register(payload: RegisterIn):
     email = payload.email.lower()
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:
@@ -180,14 +191,13 @@ async def register(payload: RegisterIn, response: Response):
         "contact_number": payload.contact_number.strip(),
         "password_hash": hash_password(payload.password),
         "role": "mentor",
+        "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
 
-    access = create_access_token(user_id, email)
-    refresh = create_refresh_token(user_id)
-    set_auth_cookies(response, access, refresh)
-    return {"user": public_user(doc), "access_token": access}
+    # Do not log the user in — admin must approve first.
+    return {"user": public_user(doc), "pending": True}
 
 
 def _client_ip(request: Request) -> str:
@@ -215,6 +225,14 @@ async def login(payload: LoginIn, request: Request, response: Response):
     if not user or not verify_password(payload.password, user["password_hash"]):
         await record_failure(identifier)
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    status = user.get("status", "approved")
+    if status == "pending":
+        await clear_failures(identifier)
+        raise HTTPException(status_code=403, detail="Your account is awaiting admin approval. You'll be notified once it's approved.")
+    if status == "rejected":
+        await clear_failures(identifier)
+        raise HTTPException(status_code=403, detail="Your account has been rejected. Please contact support.")
 
     await clear_failures(identifier)
     access = create_access_token(user["id"], email)
@@ -252,6 +270,61 @@ async def dashboard_summary(user: dict = Depends(get_current_user)):
     }
 
 
+# ----------------------- Admin endpoints -----------------------
+@api_router.get("/admin/stats")
+async def admin_stats(_: dict = Depends(get_admin_user)):
+    pending = await db.users.count_documents({"status": "pending"})
+    approved = await db.users.count_documents({"status": "approved"})
+    rejected = await db.users.count_documents({"status": "rejected"})
+    total = await db.users.count_documents({})
+    return {"pending": pending, "approved": approved, "rejected": rejected, "total": total}
+
+
+@api_router.get("/admin/users")
+async def admin_list_users(
+    status: Optional[str] = None,
+    _: dict = Depends(get_admin_user),
+):
+    query = {}
+    if status in ("pending", "approved", "rejected"):
+        query["status"] = status
+    users = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
+    # Ensure legacy users have a status field surfaced
+    for u in users:
+        u.setdefault("status", "approved")
+    return users
+
+
+@api_router.post("/admin/users/{user_id}/approve")
+async def admin_approve_user(user_id: str, admin: dict = Depends(get_admin_user)):
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "status": "approved",
+            "approved_at": datetime.now(timezone.utc).isoformat(),
+            "approved_by": admin["id"],
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True, "user_id": user_id, "status": "approved"}
+
+
+@api_router.post("/admin/users/{user_id}/reject")
+async def admin_reject_user(user_id: str, admin: dict = Depends(get_admin_user)):
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "status": "rejected",
+            "rejected_at": datetime.now(timezone.utc).isoformat(),
+            "rejected_by": admin["id"],
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True, "user_id": user_id, "status": "rejected"}
+
+
 @api_router.get("/")
 async def root():
     return {"service": "ea-central", "status": "ok"}
@@ -283,6 +356,7 @@ async def on_startup():
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
     existing = await db.users.find_one({"email": admin_email}, {"_id": 0})
     if not existing:
+        now = datetime.now(timezone.utc).isoformat()
         await db.users.insert_one({
             "id": str(uuid.uuid4()),
             "username": "admin",
@@ -291,15 +365,29 @@ async def on_startup():
             "contact_number": "0000000000",
             "password_hash": hash_password(admin_password),
             "role": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": "approved",
+            "approved_at": now,
+            "created_at": now,
         })
         logger.info("Admin seeded: %s", admin_email)
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password)}},
-        )
-        logger.info("Admin password updated: %s", admin_email)
+    else:
+        updates = {}
+        if not verify_password(admin_password, existing["password_hash"]):
+            updates["password_hash"] = hash_password(admin_password)
+        if existing.get("role") != "admin":
+            updates["role"] = "admin"
+        if existing.get("status") != "approved":
+            updates["status"] = "approved"
+            updates["approved_at"] = datetime.now(timezone.utc).isoformat()
+        if updates:
+            await db.users.update_one({"email": admin_email}, {"$set": updates})
+            logger.info("Admin record updated: %s", admin_email)
+
+    # Backfill: legacy users without a status field => approved
+    await db.users.update_many(
+        {"status": {"$exists": False}},
+        {"$set": {"status": "approved"}},
+    )
 
 
 @app.on_event("shutdown")

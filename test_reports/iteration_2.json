@@ -1,0 +1,38 @@
+{
+  "summary": "Full backend (pytest, 25/25 passing) + frontend (Playwright E2E) verification of the admin-approval workflow added on top of the existing JWT auth. All requested features verified end-to-end: register=>pending(no token), login pending=>403, login approved=>200, /admin login, /admin/dashboard stats/tabs/rows, approve and reject flows refresh the list, admin role enforcement on /api/admin/* (401 unauth, 403 non-admin), brute-force lockout (X-Forwarded-For fix from iter_1) now passes, admin row reject button is hidden, approved-user can subsequently log in and reach /dashboard. Previous iter_1 single failure is now resolved.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is approaching 400 lines but still well-organized; consider splitting auth, admin, and dashboard into separate routers/modules before adding more business logic.",
+    "@app.on_event('startup'/'shutdown') is deprecated in newer FastAPI — migrate to lifespan handlers when convenient.",
+    "Refresh token cookie is issued at login but there is no /api/auth/refresh endpoint to consume it. Either implement the refresh flow or stop issuing the refresh_token cookie to avoid confusion.",
+    "Admin endpoints do not paginate (.to_list(500) cap). For scale, add cursor-based pagination on /api/admin/users.",
+    "is_locked/record_failure use ip+email as the identifier — good for typical bruteforce, but does not protect against a distributed attack from many IPs. Acceptable for MVP.",
+    "Dashboard summary is intentionally MOCKED static data — acknowledged in the request."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (rewritten — pending/approved login, admin stats/list/approve/reject, role enforcement)"
+  ],
+  "success_rate": {
+    "backend": "100% (25/25)",
+    "frontend": "100% (all listed flows verified: signup->pending, pending-login=403 toast, /admin login page, admin->dashboard, stat cards, tabs, approve, reject, logout, approved-user login->dashboard, non-admin admin login error, unauth /admin/dashboard redirect, admin-row reject hidden)"
+  },
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123 (auto-seeded). Per-run mentor users created with prefix qa_signup_<ts>@test.com / Passw0rd! and TEST_*@example.com via API.",
+  "seed_data_creation": "Admin seeded by backend on startup. pytest creates TEST_*@example.com users; Playwright run created qa_signup_<ts>@test.com. Several were intentionally left in pending/rejected for visual verification of the admin dashboard.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite at /app/backend/tests/backend_test.py covers all admin and auth endpoints incl. role enforcement, pending->approved->login flow, reject flow, list filter by status. Run: REACT_APP_BACKEND_URL=https://copy-trading-hub-2.preview.emergentagent.com pytest /app/backend/tests/backend_test.py -v. Frontend has data-testids on every key element. For signup, the Radix Checkbox at [data-testid='signup-agree'] must be clicked with force=True (overlay) BEFORE the submit, otherwise the form blocks with 'Please accept the Terms & Conditions to continue.'. Admin dashboard correctly hides Approve when status=approved and Reject when status=rejected or role=admin.",
+  "rca_of_the_issue": "No outstanding issues. Iter_1 brute-force lockout bug is confirmed fixed: server.py _client_ip() now derives the first hop from X-Forwarded-For (falling back to X-Real-IP / request.client.host) and test_login_brute_force_lockout_429 passes against the preview ingress."
+}

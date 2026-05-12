@@ -31,9 +31,8 @@ export function AuthProvider({ children }) {
 
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
-    if (data.access_token) localStorage.setItem("ea_access_token", data.access_token);
-    setUser(data.user);
-    return data.user;
+    // Registration no longer auto-logs the user in — admin must approve first.
+    return data; // { user, pending: true }
   };
 
   const logout = async () => {
