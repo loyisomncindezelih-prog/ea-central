@@ -1,0 +1,131 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 7 (Electric & Neon) modified to strict Black & Blue constraint",
+  "typography": {
+    "fonts": {
+      "heading": "Outfit",
+      "body": "IBM Plex Mono",
+      "install_command": "npx @fontsource/outfit && npx @fontsource/ibm-plex-mono"
+    },
+    "scales": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed font-light",
+      "labels": "text-xs tracking-[0.2em] uppercase font-medium"
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "#000000",
+      "secondary": "#050505",
+      "tertiary": "#0A0A0A"
+    },
+    "brand": {
+      "primary": "#1E90FF",
+      "accent": "#2A8BFF",
+      "glow": "rgba(30, 144, 255, 0.4)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A"
+    },
+    "border": {
+      "primary": "rgba(30, 144, 255, 0.2)",
+      "secondary": "rgba(255, 255, 255, 0.1)"
+    },
+    "forbidden_colors": ["purple", "green", "orange", "#9D4CDD", "#1B93A4"]
+  },
+  "spacing_and_layout": {
+    "philosophy": "Technical Grid & Asymmetry",
+    "container_padding": "p-6 md:p-12",
+    "section_gap": "gap-16 md:gap-32",
+    "bento_grid": {
+      "marketing": "grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-8",
+      "dashboard": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
+    }
+  },
+  "surfaces": {
+    "cards": {
+      "style": "Glassmorphism & Grid Borders",
+      "classes": "bg-black/60 backdrop-blur-xl border border-white/10 hover:border-blue-500/40 shadow-sm hover:shadow-[0_0_20px_rgba(30,144,255,0.15)] transition-all duration-300 rounded-xl"
+    },
+    "inputs": {
+      "style": "Retro-Futurism",
+      "classes": "bg-transparent border border-white/20 focus:border-[#1E90FF] focus:ring-1 focus:ring-[#1E90FF] text-white rounded-md"
+    },
+    "buttons": {
+      "primary": "bg-[#1E90FF] hover:bg-[#2A8BFF] text-white font-semibold rounded-none tracking-wide px-8 py-4 transition-all duration-300 border border-[#1E90FF]",
+      "secondary": "bg-transparent hover:bg-white/5 border border-white/20 text-white font-medium rounded-none px-6 py-3 transition-colors"
+    }
+  },
+  "media": {
+    "images": {
+      "logo": {
+        "url": "https://customer-assets.emergentagent.com/job_6adc55b9-79fd-4114-b9ca-50702872ede7/artifacts/lmvx6afo_ChatGPT%20Image%20May%2012%2C%202026%2C%2009_13_48%20PM.png",
+        "description": "ea-central brand mark",
+        "usage": "Header, Footer, Auth pages"
+      },
+      "hero_background": {
+        "url": "https://images.unsplash.com/photo-1764258560730-d167e5deda65?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjB0ZWNobm9sb2d5JTIwYmx1ZSUyMGxpbmVzfGVufDB8fHx8MTc3ODYxNTM0MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract blue and white lines on black background",
+        "usage": "Landing page hero section background (overlay with bg-black/60)"
+      },
+      "features_trading": {
+        "url": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHx0cmFkaW5nJTIwY2hhcnRzJTIwY2FuZGxlc3RpY2slMjBkYXJrJTIwYmx1ZXxlbnwwfHx8fDE3Nzg2MTUzNDB8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract dark trading chart",
+        "usage": "Features section visual for PC bot representation"
+      },
+      "mobile_mockup": {
+        "url": "https://images.unsplash.com/photo-1557680784-6db47c6f56ab?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwyfHxtb2JpbGUlMjBwaG9uZSUyMGRhcmslMjBzY3JlZW4lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc3ODYxNTM0MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Black smartphone",
+        "usage": "Mobile EA preview section mockup frame background"
+      }
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-1.5, sharp and minimal"
+    }
+  },
+  "key_components": {
+    "header": {
+      "style": "Crystal Glass backdrop-blur-xl bg-black/60 border-b border-white/10 sticky top-0 z-50",
+      "cta": "Be a Mentor (Primary Button style)"
+    },
+    "hero_section": {
+      "layout": "Asymmetrical overlay over abstract background",
+      "headline": "Host Your PC Bot as Mobile EA",
+      "subheadline": "Your bot trades, clients copy from their phones. No VPS needed for clients."
+    },
+    "how_it_works": {
+      "layout": "3-step Grid with tracing beam borders",
+      "items": [
+        "Host your PC bot",
+        "Clients connect via phone",
+        "Copy trading runs automatically"
+      ]
+    },
+    "auth_pages": {
+      "layout": "Split screen. Left: dark branded abstract art. Right: strict functional forms.",
+      "signup_fields": ["Username", "Email", "Country Code + Contact Number", "Password", "T&C Checkbox"],
+      "login_fields": ["Email", "Password"]
+    },
+    "mentor_dashboard": {
+      "layout": "Control Room Grid (Dense, sharp borders)",
+      "widgets": ["Bot Status Placeholder", "Connected Clients Count", "Latest Trades Feed"]
+    },
+    "client_mobile_preview": {
+      "layout": "Center column representing mobile frame. Deep black with blue data highlights showing mock trades."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette. Pure black backgrounds (#000000 or #050505) and #1E90FF electric blue only. No purples, greens, or oranges.",
+    "Ensure all buttons, form inputs, and interactive elements have data-testid attributes (e.g., data-testid='login-submit-button').",
+    "Use standard pure HTML + Tailwind for marketing sections for deep layout control, but use customized Shadcn UI components for complex interactions like Modals, Selects, and Forms.",
+    "Implement the font stack correctly: Outfit for Headings and IBM Plex Mono for Body to give it a 'trading terminal' vibe.",
+    "In the mentor dashboard, use recharts or Shadcn chart components customized with the #1E90FF stroke on pure black.",
+    "Ensure the hero image has a heavy black overlay (bg-black/60 or more) to ensure perfect text readability."
+  ]
+}
