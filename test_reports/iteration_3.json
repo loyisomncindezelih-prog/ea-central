@@ -1,0 +1,48 @@
+{
+  "summary": "Full backend (pytest 15/15 new mentor tests + existing 25/25 auth/admin) and frontend Playwright E2E verification of the new mentor portal feature drop. All endpoints in /api/mentor/* validated incl. stats shape & dynamic counts, EA CRUD with 3-EA limit, cascade-delete of keys when EA deleted, symbol add/upper/dedupe/remove, key creation (404 on cross-tenant EA, 400 on invalid plan), reactivate (sets expires_at per PLAN_DAYS, lifetime->null), delete frees slot. Frontend: login -> /dashboard renders greeting/Mentor ID badge/system banner/3 KPI cards, sidebar navigates correctly. Generate Key empty-state shown with 0 EAs; after creating EAs the form submits and redirects to /dashboard/generate-key/success/{id} where the EAC-XXXX-XXXX-XXXX-XXXX key, holder/EA/plan/status/created are rendered after fetch. Manage EAs: 3/3 badge, limit notice + disabled submit at cap. EA detail: 32-char hex private code, copy, delete card, symbol add/remove (case normalised). Key Stats tabs and Re-activate present. Dashboard KPIs reflect EA/key actions after navigating back.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/dashboard (initial load)", "issues": ["License usage progress bar shows '0% used' when generated=1/500. Mathematically 0.2% but visually a flat bar gives the impression nothing is generated. Consider showing one decimal or rendering a minimum pixel width for non-zero values."]},
+      {"screen": "/dashboard/generate-key/success/{id}", "issues": ["Page shows em-dash placeholders for ~300-700ms while useEffect fetches /mentor/keys/{id}. Consider a skeleton loader or pre-passing the key from navigation state to avoid the flicker. (Not a bug — data renders correctly once fetch resolves.)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_mentor.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/mentor_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now ~660 lines spanning auth, admin, dashboard, mentor (EAs+keys). Split into routers: routers/auth.py, routers/admin.py, routers/mentor.py with shared deps in a deps.py. Easier to maintain as the mentor surface grows.",
+    "FastAPI @app.on_event('startup'|'shutdown') is deprecated — migrate to lifespan handler.",
+    "GET /api/mentor/keys caps at KEY_CAP_PER_USER+1 (501) with no pagination. As usage approaches cap, add cursor/limit pagination on /api/mentor/keys and /api/mentor/eas for clean lazy-loading on the Key Stats page.",
+    "stats endpoint loads ALL active keys into memory (to_list(KEY_CAP_PER_USER+1)) just to count active vs expired. Convert to a MongoDB aggregation pipeline with $cond on expires_at to avoid O(N) per dashboard hit.",
+    "key_status() compares datetime.fromisoformat(expires_at) > now without normalising tz. Since the code always stores .isoformat() of an aware UTC datetime, this works today; add a safety guard (assume UTC when tzinfo is missing) so legacy/manually inserted rows don't crash.",
+    "list_eas does N+1 queries (per EA: 1 count + 1 find). For up to 3 EAs it's fine, but a single $facet/$lookup aggregation is cleaner if EA_LIMIT_PER_USER is ever raised.",
+    "DELETE /api/mentor/eas/{id} cascade-deletes keys but does not return how many keys were removed — consider returning {ok:true, keys_deleted:N} so the UI can warn the mentor.",
+    "Refresh-token cookie is still being issued at login but there is no /api/auth/refresh endpoint to consume it (called out in iter_2, still outstanding).",
+    "Frontend axios baseURL has withCredentials:true and also attaches a Bearer from localStorage — redundant but safe. Document the precedence (server prefers cookie, falls back to header) in the api.js comment.",
+    "GenerateKeySuccess.jsx swallows the fetch error in .catch(() => {}) — if /mentor/keys/{id} 401s/404s, the user just sees em-dashes forever. Add a toast.error + redirect to /dashboard/key-stats.",
+    "PLAN_DAYS / PLAN_LABEL are duplicated in backend and in the frontend GenerateKey.jsx UI tiles. Expose them via GET /api/mentor/plans so any future plan additions land in one place."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_mentor.py (new — 15 pytest cases covering the mentor portal)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 new mentor tests + 25/25 prior tests still passing)",
+    "frontend": "100% (all flows in the review request verified end-to-end: dashboard KPIs/greeting/mentor-id, sidebar nav, generate-key empty state, manage-eas add up to 3 + limit disable, EA detail symbol add/remove, generate-key submit -> success page with EAC- key, key-stats tabs + reactivate, dashboard KPI refresh after actions)"
+  },
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123 (seeded). Existing approved mentor: alpha@test.com / Pass1234. Fresh approved mentor created this run: qa_mentor_1778619831@test.com / Passw0rd! (used for Playwright; now has 3 EAs and 2 license keys, 1 active).",
+  "seed_data_creation": "Backend pytest created TEST_mentor_*, TEST_cascade_*, TEST_other_* approved users with up to 3 EAs and a handful of license keys each. Playwright created qa_mentor_1778619831@test.com with 3 EAs (Scalper Bot v1, Trend Rider v2, Grid Master v3) and 2 license keys (1 reactivated).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend mentor regression at /app/backend/tests/test_mentor.py — run alongside backend_test.py for full coverage. Frontend has data-testid on every key element listed in the request (mentor-layout, nav-*, dashboard-*, kpi-*, gk-*, new-ea-*, ea-*, ks-*, success-*). GenerateKey form uses a native <select> for gk-ea-select (use page.select_option). The Radix checkbox at gk-confirm and new-ea-confirm requires force=True. After clicking gk-submit / nav-* / new-ea-submit, ALWAYS wait_for_timeout(800-1500ms) before reading data-testid text — components mount instantly but their useEffect fetches resolve a beat later; reading too early returns the em-dash placeholder (this is by design, not a bug). KPI counts on /dashboard reflect actions after a route revisit (no live refresh).",
+  "rca_of_the_issue": "None — no functional or contract bugs were found. Initial test run showed '—' on the success page; root cause was the test reading textContent immediately after navigation while the useEffect-driven GET /api/mentor/keys/{id} was still in flight. Re-run with a 3s wait confirmed the key (EAC-95C2-9370-0364-6C12) and all metadata fields render correctly. Filed as a UX-polish item (loading skeleton) under design_issues."
+}

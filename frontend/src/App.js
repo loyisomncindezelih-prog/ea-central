@@ -10,10 +10,17 @@ import Landing from "@/pages/Landing";
 import Signup from "@/pages/Signup";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import GenerateKey from "@/pages/GenerateKey";
+import GenerateKeySuccess from "@/pages/GenerateKeySuccess";
+import ManageEAs from "@/pages/ManageEAs";
+import EADetail from "@/pages/EADetail";
+import KeyStats from "@/pages/KeyStats";
 import MobilePreview from "@/pages/MobilePreview";
 import PendingApproval from "@/pages/PendingApproval";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
+
+const Protected = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
 function App() {
   return (
@@ -26,22 +33,18 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/pending" element={<PendingApproval />} />
             <Route path="/mobile-preview" element={<MobilePreview />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
+
+            <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+            <Route path="/dashboard/generate-key" element={<Protected><GenerateKey /></Protected>} />
+            <Route path="/dashboard/generate-key/success/:id" element={<Protected><GenerateKeySuccess /></Protected>} />
+            <Route path="/dashboard/manage-eas" element={<Protected><ManageEAs /></Protected>} />
+            <Route path="/dashboard/manage-eas/:id" element={<Protected><EADetail /></Protected>} />
+            <Route path="/dashboard/key-stats" element={<Protected><KeyStats /></Protected>} />
+
             <Route path="/admin" element={<AdminLogin />} />
             <Route
               path="/admin/dashboard"
-              element={
-                <AdminRoute>
-                  <AdminDashboard />
-                </AdminRoute>
-              }
+              element={<AdminRoute><AdminDashboard /></AdminRoute>}
             />
           </Routes>
           <Toaster

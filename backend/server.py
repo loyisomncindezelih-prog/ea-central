@@ -6,11 +6,12 @@ load_dotenv(ROOT_DIR / ".env")
 
 import os
 import uuid
+import secrets
 import logging
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
 from starlette.middleware.cors import CORSMiddleware
@@ -270,6 +271,269 @@ async def dashboard_summary(user: dict = Depends(get_current_user)):
     }
 
 
+# ----------------------- Mentor portal: EAs + License keys -----------------------
+EA_LIMIT_PER_USER = 3
+KEY_CAP_PER_USER = 500
+
+PLAN_DAYS = {
+    "3d": 3, "5d": 5, "30d": 30,
+    "3m": 90, "6m": 180, "1y": 365,
+    "lifetime": None,
+}
+PLAN_LABEL = {
+    "3d": "3 Days", "5d": "5 Days", "30d": "30 Days",
+    "3m": "3 Months", "6m": "6 Months", "1y": "1 Year",
+    "lifetime": "Lifetime",
+}
+
+
+def mentor_id_for(user_id: str) -> str:
+    # Stable 6-digit ID derived from user UUID
+    n = int(user_id.replace("-", "")[:8], 16) % 900000 + 100000
+    return str(n)
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def parse_iso(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
+        return None
+
+
+def public_ea(doc: dict) -> dict:
+    return {
+        "id": doc["id"],
+        "name": doc["name"],
+        "private_code": doc["private_code"],
+        "symbols": doc.get("symbols", []),
+        "created_at": doc["created_at"],
+    }
+
+
+def make_license_key() -> str:
+    raw = secrets.token_hex(8).upper()  # 16 hex chars
+    return "EAC-" + "-".join([raw[i:i + 4] for i in range(0, 16, 4)])
+
+
+def key_status(doc: dict) -> str:
+    if not doc.get("activated"):
+        return "inactive"
+    exp = parse_iso(doc.get("expires_at"))
+    if exp is None:
+        return "active"  # lifetime
+    return "active" if exp > datetime.now(timezone.utc) else "expired"
+
+
+def public_key(doc: dict) -> dict:
+    return {
+        "id": doc["id"],
+        "key": doc["key"],
+        "ea_id": doc["ea_id"],
+        "ea_name": doc["ea_name"],
+        "holder_username": doc["holder_username"],
+        "plan": doc["plan"],
+        "plan_label": PLAN_LABEL.get(doc["plan"], doc["plan"]),
+        "activated": bool(doc.get("activated", False)),
+        "activated_at": doc.get("activated_at"),
+        "expires_at": doc.get("expires_at"),
+        "status": key_status(doc),
+        "created_at": doc["created_at"],
+    }
+
+
+async def is_key_active(doc: dict) -> bool:
+    return key_status(doc) == "active"
+
+
+# ---------- Mentor stats ----------
+@api_router.get("/mentor/stats")
+async def mentor_stats(user: dict = Depends(get_current_user)):
+    uid = user["id"]
+    total_eas = await db.eas.count_documents({"owner_id": uid})
+    generated = await db.license_keys.count_documents({"owner_id": uid})
+    keys = await db.license_keys.find({"owner_id": uid, "activated": True}, {"_id": 0}).to_list(KEY_CAP_PER_USER + 1)
+    active = sum(1 for k in keys if key_status(k) == "active")
+    return {
+        "license_usage": {"generated": generated, "cap": KEY_CAP_PER_USER},
+        "active_subscriptions": active,
+        "total_eas": total_eas,
+        "ea_limit": EA_LIMIT_PER_USER,
+        "mentor_id": mentor_id_for(uid),
+    }
+
+
+# ---------- EAs ----------
+class EACreateIn(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+
+
+@api_router.get("/mentor/eas")
+async def list_eas(user: dict = Depends(get_current_user)):
+    docs = await db.eas.find({"owner_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    out = []
+    for d in docs:
+        users = await db.license_keys.count_documents({"owner_id": user["id"], "ea_id": d["id"]})
+        keys = await db.license_keys.find(
+            {"owner_id": user["id"], "ea_id": d["id"], "activated": True}, {"_id": 0}
+        ).to_list(KEY_CAP_PER_USER + 1)
+        active = sum(1 for k in keys if key_status(k) == "active")
+        out.append({**public_ea(d), "users": users, "active": active})
+    return out
+
+
+@api_router.post("/mentor/eas")
+async def create_ea(payload: EACreateIn, user: dict = Depends(get_current_user)):
+    count = await db.eas.count_documents({"owner_id": user["id"]})
+    if count >= EA_LIMIT_PER_USER:
+        raise HTTPException(status_code=400, detail=f"EA limit reached ({EA_LIMIT_PER_USER}). Delete an EA to add a new one.")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": user["id"],
+        "name": payload.name.strip(),
+        "private_code": secrets.token_hex(16),
+        "symbols": [],
+        "created_at": now_iso(),
+    }
+    await db.eas.insert_one(doc)
+    return public_ea(doc)
+
+
+@api_router.get("/mentor/eas/{ea_id}")
+async def get_ea(ea_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.eas.find_one({"id": ea_id, "owner_id": user["id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="EA not found")
+    return public_ea(doc)
+
+
+@api_router.delete("/mentor/eas/{ea_id}")
+async def delete_ea(ea_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.eas.find_one({"id": ea_id, "owner_id": user["id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="EA not found")
+    await db.eas.delete_one({"id": ea_id, "owner_id": user["id"]})
+    # Cascade: drop all keys for this EA
+    await db.license_keys.delete_many({"owner_id": user["id"], "ea_id": ea_id})
+    return {"ok": True}
+
+
+class SymbolIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=20)
+
+
+@api_router.post("/mentor/eas/{ea_id}/symbols")
+async def add_symbol(ea_id: str, payload: SymbolIn, user: dict = Depends(get_current_user)):
+    sym = payload.symbol.strip().upper()
+    doc = await db.eas.find_one({"id": ea_id, "owner_id": user["id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="EA not found")
+    if sym in doc.get("symbols", []):
+        raise HTTPException(status_code=400, detail=f"{sym} already in this EA")
+    await db.eas.update_one(
+        {"id": ea_id, "owner_id": user["id"]},
+        {"$addToSet": {"symbols": sym}},
+    )
+    updated = await db.eas.find_one({"id": ea_id, "owner_id": user["id"]}, {"_id": 0})
+    return public_ea(updated)
+
+
+@api_router.delete("/mentor/eas/{ea_id}/symbols/{symbol}")
+async def remove_symbol(ea_id: str, symbol: str, user: dict = Depends(get_current_user)):
+    sym = symbol.strip().upper()
+    result = await db.eas.update_one(
+        {"id": ea_id, "owner_id": user["id"]},
+        {"$pull": {"symbols": sym}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="EA not found")
+    updated = await db.eas.find_one({"id": ea_id, "owner_id": user["id"]}, {"_id": 0})
+    return public_ea(updated)
+
+
+# ---------- License keys ----------
+class KeyCreateIn(BaseModel):
+    ea_id: str
+    holder_username: str = Field(min_length=1, max_length=80)
+    plan: str
+
+
+@api_router.get("/mentor/keys")
+async def list_keys(user: dict = Depends(get_current_user)):
+    docs = await db.license_keys.find({"owner_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(KEY_CAP_PER_USER + 1)
+    return [public_key(d) for d in docs]
+
+
+@api_router.get("/mentor/keys/{key_id}")
+async def get_key(key_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.license_keys.find_one({"id": key_id, "owner_id": user["id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Key not found")
+    return public_key(doc)
+
+
+@api_router.post("/mentor/keys")
+async def create_key(payload: KeyCreateIn, user: dict = Depends(get_current_user)):
+    if payload.plan not in PLAN_DAYS:
+        raise HTTPException(status_code=400, detail="Invalid subscription plan")
+    count = await db.license_keys.count_documents({"owner_id": user["id"]})
+    if count >= KEY_CAP_PER_USER:
+        raise HTTPException(status_code=400, detail=f"License key cap reached ({KEY_CAP_PER_USER}).")
+    ea = await db.eas.find_one({"id": payload.ea_id, "owner_id": user["id"]}, {"_id": 0})
+    if not ea:
+        raise HTTPException(status_code=404, detail="Selected EA not found")
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": user["id"],
+        "ea_id": ea["id"],
+        "ea_name": ea["name"],
+        "holder_username": payload.holder_username.strip(),
+        "plan": payload.plan,
+        "key": make_license_key(),
+        "activated": False,
+        "activated_at": None,
+        "expires_at": None,
+        "created_at": now_iso(),
+    }
+    await db.license_keys.insert_one(doc)
+    return public_key(doc)
+
+
+@api_router.post("/mentor/keys/{key_id}/reactivate")
+async def reactivate_key(key_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.license_keys.find_one({"id": key_id, "owner_id": user["id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Key not found")
+    days = PLAN_DAYS.get(doc["plan"])
+    expires = None
+    if days is not None:
+        expires = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+    await db.license_keys.update_one(
+        {"id": key_id, "owner_id": user["id"]},
+        {"$set": {
+            "activated": True,
+            "activated_at": now_iso(),
+            "expires_at": expires,
+        }},
+    )
+    updated = await db.license_keys.find_one({"id": key_id, "owner_id": user["id"]}, {"_id": 0})
+    return public_key(updated)
+
+
+@api_router.delete("/mentor/keys/{key_id}")
+async def delete_key(key_id: str, user: dict = Depends(get_current_user)):
+    result = await db.license_keys.delete_one({"id": key_id, "owner_id": user["id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Key not found")
+    return {"ok": True}
+
+
 # ----------------------- Admin endpoints -----------------------
 @api_router.get("/admin/stats")
 async def admin_stats(_: dict = Depends(get_admin_user)):
@@ -351,6 +615,9 @@ async def on_startup():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.login_attempts.create_index("identifier")
+    await db.eas.create_index([("owner_id", 1), ("created_at", -1)])
+    await db.license_keys.create_index([("owner_id", 1), ("created_at", -1)])
+    await db.license_keys.create_index([("owner_id", 1), ("ea_id", 1)])
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@ea-central.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
