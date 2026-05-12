@@ -1,19 +1,27 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import MentorLayout from "@/components/MentorLayout";
-import { api } from "@/lib/api";
+import { api, formatApiErrorDetail } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckCircle2, Copy, KeyRound, ArrowRight, Calendar, Cpu, User as UserIcon } from "lucide-react";
 
 export default function GenerateKeySuccess() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [k, setK] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    api.get(`/mentor/keys/${id}`).then((r) => setK(r.data)).catch(() => {});
-  }, [id]);
+    api.get(`/mentor/keys/${id}`)
+      .then((r) => setK(r.data))
+      .catch((err) => {
+        toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Could not load key");
+        navigate("/dashboard/key-stats", { replace: true });
+      })
+      .finally(() => setLoading(false));
+  }, [id, navigate]);
 
   const copy = async () => {
     if (!k) return;
@@ -40,13 +48,18 @@ export default function GenerateKeySuccess() {
             </p>
 
             {/* The KEY */}
-            <div className="mt-8 border border-[#1E90FF]/40 bg-[#1E90FF]/5 p-4 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="mt-8 border border-[#1E90FF]/40 bg-[#1E90FF]/5 p-4 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 min-h-[68px]">
               <div className="flex-1 font-mono text-base sm:text-xl tracking-[0.18em] text-white break-all" data-testid="success-key-value">
-                {k?.key || "—"}
+                {loading ? (
+                  <span className="inline-block bg-white/5 animate-pulse h-6 w-48 align-middle" />
+                ) : (
+                  k?.key || "—"
+                )}
               </div>
               <Button
                 onClick={copy}
-                className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-11 px-5"
+                disabled={loading || !k}
+                className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-11 px-5 disabled:opacity-50"
                 data-testid="success-copy-btn"
               >
                 {copied ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}

@@ -30,7 +30,9 @@ export default function Dashboard() {
     return "Good evening";
   })();
   const usage = stats?.license_usage || { generated: 0, cap: 500 };
-  const pct = Math.min(100, Math.round((usage.generated / usage.cap) * 100));
+  const pctRaw = usage.cap > 0 ? (usage.generated / usage.cap) * 100 : 0;
+  const pctLabel = usage.generated > 0 && pctRaw < 1 ? "<1%" : `${Math.round(pctRaw)}%`;
+  const barWidth = usage.generated > 0 ? Math.max(2, pctRaw) : 0;
 
   return (
     <MentorLayout>
@@ -80,11 +82,11 @@ export default function Dashboard() {
               <span className="text-white/40 mb-1.5">/ {usage.cap}</span>
             </div>
             <div className="mt-4 h-1.5 w-full bg-white/5 overflow-hidden">
-              <div className="h-full bg-[#1E90FF]" style={{ width: `${pct}%` }} />
+              <div className="h-full bg-[#1E90FF] transition-all" style={{ width: `${barWidth}%` }} />
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-white/45">
               <span>Generated out of maximum</span>
-              <span className="text-[#1E90FF] font-mono">{pct}% used</span>
+              <span className="text-[#1E90FF] font-mono">{pctLabel} used</span>
             </div>
             <Link to="/dashboard/generate-key">
               <Button
