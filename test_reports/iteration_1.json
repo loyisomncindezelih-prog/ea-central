@@ -1,0 +1,46 @@
+{
+  "summary": "Full backend (pytest, 15 tests) + frontend (Playwright E2E) tests executed for ea-central MVP. 14/15 backend tests pass; 1 fails due to a real bug in brute-force lockout (counter split across ingress IPs). All frontend flows pass: landing, signup with T&C validation, signup -> dashboard, dashboard KPIs/recent trades/invite/profile, logout, protected route redirect, invalid login error, mobile preview, admin login. Theme/branding (black + #1E90FF blue + EA logo) is correctly applied.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/auth/login (brute-force lockout)",
+        "issue": "Lockout never triggers behind kubernetes ingress. record_failure() keys on `request.client.host` which is the immediate proxy IP. The preview ingress rotates between multiple proxy IPs (observed 10.79.131.92 and 10.79.131.93 in db.login_attempts), so 5 wrong attempts get split across separate identifiers and count never reaches MAX_FAILED=5. Result: 6th wrong attempt returned 401 instead of 429. Fix: derive client IP from X-Forwarded-For (first hop) or X-Real-IP, falling back to request.client.host.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix brute-force lockout identifier to use X-Forwarded-For (or X-Real-IP) so the per-IP+email counter is stable behind the ingress. Example: ip = (request.headers.get('x-forwarded-for') or '').split(',')[0].strip() or (request.client.host if request.client else 'unknown')."
+  ],
+  "critical_code_review_comments": [
+    "server.py is_locked()/record_failure() uses request.client.host which is unreliable behind a proxy/ingress — replace with X-Forwarded-For aware extraction.",
+    "Cookies are set with samesite=none, secure=true which is correct for cross-site preview, but app correctly also returns access_token in the response body and the frontend stores it in localStorage as fallback — this is the only thing making /auth/me work in the preview iframe (cookies are blocked). Documented in the request, OK.",
+    "Dashboard summary is intentionally MOCKED static data (acknowledged in the request).",
+    "@app.on_event('startup'/'shutdown') is deprecated in newer FastAPI in favor of lifespan handlers — works fine for now but consider migrating.",
+    "JWT_SECRET is committed in backend/.env — fine for preview, rotate before production.",
+    "No /api/auth/refresh endpoint exposed even though a refresh_token cookie is set — currently unused. Either implement refresh flow or stop issuing the refresh cookie."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new pytest suite)"
+  ],
+  "success_rate": {
+    "backend": "93% (14/15)",
+    "frontend": "100% (13/13 flows tested)"
+  },
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123 (auto-seeded, login verified via API and UI). Test user is created dynamically per run with prefix TEST_ / qa_.",
+  "seed_data_creation": "Tests dynamically register users with TEST_ / qa_ prefix; admin user is seeded by backend on startup.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend suite at /app/backend/tests/backend_test.py covers register (success/duplicate/validation/short-password), login (admin seed/valid/invalid/brute-force), /auth/me (with+without Bearer), /auth/logout (auth+unauth), /dashboard/summary (auth+unauth). The single failure (brute-force) requires the X-Forwarded-For fix in server.py is_locked/record_failure. After fix, rerun: REACT_APP_BACKEND_URL=https://copy-trading-hub-2.preview.emergentagent.com pytest /app/backend/tests/backend_test.py -v. Frontend has data-testids on every interactive element listed in the request; all selectors worked.",
+  "rca_of_the_issue": "Brute-force lockout: identifier = f\"{request.client.host}:{email}\". Behind the k8s ingress, request.client.host is the immediate downstream connection IP, which the ingress controller rotates across pods/connections. Verified by inspecting db.login_attempts after the failing test run: two distinct records existed for the same email (10.79.131.92 count=4, 10.79.131.93 count=2). Neither hit count>=5, so is_locked() always returned False. Reproduction: register a user, then POST /api/auth/login with wrong password 6 times — 6th call returns 401 instead of expected 429. Mitigation: use X-Forwarded-For first hop (or X-Real-IP if your ingress sets it) as the IP component of the identifier, with request.client.host as fallback for local dev."
+}
