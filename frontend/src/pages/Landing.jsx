@@ -256,16 +256,16 @@ export default function Landing() {
               <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#1E90FF] rounded-full" /> No MT terminal required, ever</li>
             </ul>
             <div className="mt-6 flex flex-wrap gap-3">
-              <a href="#" data-testid="download-mobile-ios">
+              <a href="/app" data-testid="download-mobile-ios">
                 <Button className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none px-5 h-11">
                   <Apple className="w-4 h-4 mr-2" />
-                  App Store
+                  Open Mobile EA
                 </Button>
               </a>
-              <a href="#" data-testid="download-mobile-android">
+              <a href="/app" data-testid="download-mobile-android">
                 <Button className="bg-transparent border border-white/20 hover:border-[#1E90FF] hover:text-[#1E90FF] text-white rounded-none px-5 h-11">
                   <Download className="w-4 h-4 mr-2" />
-                  Android APK
+                  Launch web app
                 </Button>
               </a>
             </div>

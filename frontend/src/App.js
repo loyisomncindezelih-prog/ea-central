@@ -16,6 +16,7 @@ import ManageEAs from "@/pages/ManageEAs";
 import EADetail from "@/pages/EADetail";
 import KeyStats from "@/pages/KeyStats";
 import MobilePreview from "@/pages/MobilePreview";
+import MobileApp from "@/pages/MobileApp";
 import PendingApproval from "@/pages/PendingApproval";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
@@ -33,6 +34,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/pending" element={<PendingApproval />} />
             <Route path="/mobile-preview" element={<MobilePreview />} />
+            <Route path="/app" element={<MobileApp />} />
 
             <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
             <Route path="/dashboard/generate-key" element={<Protected><GenerateKey /></Protected>} />

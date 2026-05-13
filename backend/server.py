@@ -534,6 +534,67 @@ async def delete_key(key_id: str, user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
+# ----------------------- Public mobile EA app endpoints (no auth header) -----------------------
+class MobileEmailIn(BaseModel):
+    email: EmailStr
+
+
+class MobileActivateIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+
+
+@api_router.post("/mobile/check-email")
+async def mobile_check_email(payload: MobileEmailIn):
+    email = payload.email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email")
+    if user.get("status") != "approved":
+        raise HTTPException(status_code=403, detail="This account is pending admin approval. You'll be able to use the Mobile EA once it's approved.")
+    return {"ok": True, "username": user["username"]}
+
+
+@api_router.post("/mobile/activate-license")
+async def mobile_activate_license(payload: MobileActivateIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or user.get("status") != "approved":
+        raise HTTPException(status_code=403, detail="Account not authorised")
+
+    key_doc = await db.license_keys.find_one(
+        {"key": license_key, "owner_id": user["id"]}, {"_id": 0}
+    )
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Invalid licence key for this account")
+
+    # Auto-activate on first use
+    if not key_doc.get("activated"):
+        days = PLAN_DAYS.get(key_doc["plan"])
+        expires = None if days is None else (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+        await db.license_keys.update_one(
+            {"id": key_doc["id"]},
+            {"$set": {"activated": True, "activated_at": now_iso(), "expires_at": expires}},
+        )
+        key_doc = await db.license_keys.find_one({"id": key_doc["id"]}, {"_id": 0})
+
+    if key_status(key_doc) == "expired":
+        raise HTTPException(status_code=410, detail="Licence has expired. Please contact your mentor for a new key.")
+
+    return {
+        "ea_id": key_doc["ea_id"],
+        "ea_name": key_doc["ea_name"],
+        "key": key_doc["key"],
+        "plan_label": PLAN_LABEL.get(key_doc["plan"], key_doc["plan"]),
+        "plan": key_doc["plan"],
+        "expires_at": key_doc.get("expires_at"),
+        "holder_username": key_doc["holder_username"],
+        "mentor_username": user["username"],
+    }
+
+
 # ----------------------- Admin endpoints -----------------------
 @api_router.get("/admin/stats")
 async def admin_stats(_: dict = Depends(get_admin_user)):

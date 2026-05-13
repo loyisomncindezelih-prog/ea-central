@@ -44,16 +44,16 @@ export default function MobilePreview() {
             </div>
 
             <div className="mt-10 flex flex-wrap gap-3">
-              <a href="#" data-testid="mp-download-ios">
+              <a href="/app" data-testid="mp-download-ios">
                 <Button className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none px-5 h-12">
                   <Apple className="w-4 h-4 mr-2" />
-                  Download for iOS
+                  Open Mobile EA
                 </Button>
               </a>
-              <a href="#" data-testid="mp-download-android">
+              <a href="/app" data-testid="mp-download-android">
                 <Button className="bg-transparent border border-white/20 hover:border-[#1E90FF] hover:text-[#1E90FF] text-white rounded-none px-5 h-12">
                   <Smartphone className="w-4 h-4 mr-2" />
-                  Download APK
+                  Launch web app
                 </Button>
               </a>
             </div>
