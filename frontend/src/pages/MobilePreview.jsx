@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Apple, Smartphone, Download } from "lucide-react";
 
 const MOBILE_EA_IMG =
-  "https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/sqh4bk78_ChatGPT%20Image%20May%2012%2C%202026%2C%2009_21_01%20PM.png";
+  "https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/ukmwnbqz_ChatGPT%20Image%20May%2013%2C%202026%2C%2009_34_45%20PM.png";
 
 export default function MobilePreview() {
   return (
