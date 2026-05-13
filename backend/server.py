@@ -95,6 +95,8 @@ def public_user(doc: dict) -> dict:
         "status": doc.get("status", "approved"),
         "created_at": doc["created_at"],
         "approved_at": doc.get("approved_at"),
+        "payment_clicked": bool(doc.get("payment_clicked", False)),
+        "payment_clicked_at": doc.get("payment_clicked_at"),
     }
 
 
@@ -246,6 +248,48 @@ async def login(payload: LoginIn, request: Request, response: Response):
 async def logout(response: Response, _: dict = Depends(get_current_user)):
     clear_auth_cookies(response)
     return {"ok": True}
+
+
+# ----------------------- Verify account (payment flow tracking) -----------------------
+PAYMENT_LINK = os.environ.get("PAYMENT_LINK", "https://paypal.me/yourhandle")
+
+
+class VerifyClickIn(BaseModel):
+    email: EmailStr
+
+
+@api_router.get("/verify-account/config")
+async def verify_account_config():
+    return {"payment_link": PAYMENT_LINK}
+
+
+@api_router.post("/verify-account/click")
+async def verify_account_click(payload: VerifyClickIn):
+    email = payload.email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email")
+    await db.users.update_one(
+        {"email": email},
+        {"$set": {
+            "payment_clicked": True,
+            "payment_clicked_at": now_iso() if 'now_iso' in dir() else datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    return {"ok": True, "payment_link": PAYMENT_LINK}
+
+
+@api_router.get("/verify-account/status")
+async def verify_account_status(email: EmailStr, user: dict = Depends(get_current_user)):
+    target = await db.users.find_one({"email": email.lower()}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="No account found")
+    return {
+        "email": target["email"],
+        "status": target.get("status", "pending"),
+        "payment_clicked": bool(target.get("payment_clicked", False)),
+        "payment_clicked_at": target.get("payment_clicked_at"),
+    }
 
 
 @api_router.get("/auth/me")

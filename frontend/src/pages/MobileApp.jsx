@@ -38,6 +38,48 @@ export default function MobileApp() {
   const [eaData, setEaData] = useState(null);
   const [running, setRunning] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [themeKey, setThemeKey] = useState(localStorage.getItem(LS_THEME) || "blue");
+  const theme = THEMES[themeKey] || THEMES.blue;
+  const accent = theme.hex;
+
+  // PWA: install hints for iOS "Add to Home Screen" + standalone full-screen
+  useEffect(() => {
+    const tags = [
+      ["meta", { name: "apple-mobile-web-app-capable", content: "yes" }],
+      ["meta", { name: "mobile-web-app-capable", content: "yes" }],
+      ["meta", { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" }],
+      ["meta", { name: "apple-mobile-web-app-title", content: "ea-central" }],
+      ["meta", { name: "theme-color", content: "#000000" }],
+      ["link", { rel: "apple-touch-icon", href: ROBOT_IMG }],
+    ];
+    const created = tags.map(([t, attrs]) => {
+      const el = document.createElement(t);
+      Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+      document.head.appendChild(el);
+      return el;
+    });
+    const prevViewport = document.querySelector('meta[name="viewport"]')?.getAttribute("content");
+    document.querySelector('meta[name="viewport"]')?.setAttribute(
+      "content",
+      "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    );
+    return () => {
+      created.forEach((el) => el.remove());
+      if (prevViewport) document.querySelector('meta[name="viewport"]')?.setAttribute("content", prevViewport);
+    };
+  }, []);
+
+  const isStandalone = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia?.("(display-mode: standalone)").matches ||
+           window.navigator.standalone === true;
+  }, []);
+
+  const setTheme = (k) => {
+    setThemeKey(k);
+    localStorage.setItem(LS_THEME, k);
+  };
 
   // Auto-resume session on load
   const tryResume = useCallback(async () => {
@@ -150,7 +192,7 @@ export default function MobileApp() {
 
   if (stage === "loading") {
     return (
-      <PhoneFrame>
+      <PhoneFrame standalone={isStandalone} accent={accent}>
         <div className="flex-1 flex items-center justify-center text-white/50 text-sm" data-testid="mobile-loading">
           Connecting…
         </div>
@@ -160,12 +202,13 @@ export default function MobileApp() {
 
   if (stage === "email") {
     return (
-      <PhoneFrame>
+      <PhoneFrame standalone={isStandalone} accent={accent}>
         <AuthScreen
           icon={Mail}
           title="Enter your email"
           subtitle="Use the email tied to your ea-central account."
           testid="mobile-email-screen"
+          accent={accent}
         >
           <form onSubmit={submitEmail} className="space-y-4" data-testid="mobile-email-form">
             <Input
@@ -174,13 +217,15 @@ export default function MobileApp() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="bg-transparent border-[#1E90FF]/40 focus:border-[#1E90FF] focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12 text-center"
+              className="bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12 text-center"
+              style={{ borderColor: `${accent}66` }}
               data-testid="mobile-email-input"
             />
             <Button
               type="submit"
               disabled={busy}
-              className="w-full bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-12 tracking-wide"
+              className="w-full text-black font-bold rounded-none h-12 tracking-wide"
+              style={{ backgroundColor: accent }}
               data-testid="mobile-email-submit"
             >
               {busy ? "Checking…" : (<>Continue <ArrowRight className="w-4 h-4 ml-2" /></>)}
@@ -193,12 +238,13 @@ export default function MobileApp() {
 
   if (stage === "license") {
     return (
-      <PhoneFrame>
+      <PhoneFrame standalone={isStandalone} accent={accent}>
         <AuthScreen
           icon={KeyRound}
           title="Enter licence key"
           subtitle={`Signed in as ${email}`}
           testid="mobile-license-screen"
+          accent={accent}
         >
           <form onSubmit={submitLicense} className="space-y-4" data-testid="mobile-license-form">
             <Input
@@ -206,13 +252,15 @@ export default function MobileApp() {
               value={license}
               onChange={(e) => setLicense(e.target.value)}
               placeholder="EAC-XXXX-XXXX-XXXX-XXXX"
-              className="bg-transparent border-[#1E90FF]/40 focus:border-[#1E90FF] focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12 text-center font-mono tracking-[0.15em] uppercase"
+              className="bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12 text-center font-mono tracking-[0.15em] uppercase"
+              style={{ borderColor: `${accent}66` }}
               data-testid="mobile-license-input"
             />
             <Button
               type="submit"
               disabled={busy}
-              className="w-full bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-12 tracking-wide"
+              className="w-full text-black font-bold rounded-none h-12 tracking-wide"
+              style={{ backgroundColor: accent }}
               data-testid="mobile-license-submit"
             >
               {busy ? "Activating…" : (<>Activate <ArrowRight className="w-4 h-4 ml-2" /></>)}
@@ -239,22 +287,22 @@ export default function MobileApp() {
     : "Lifetime";
 
   return (
-    <PhoneFrame>
+    <PhoneFrame standalone={isStandalone} accent={accent}>
       <div className="flex-1 flex flex-col overflow-y-auto bg-black relative" data-testid="mobile-app-screen">
         {/* Subtle blue grid backdrop */}
         <div className="absolute inset-0 ea-grid opacity-25 pointer-events-none" />
 
         {/* Top bar */}
         <div className="relative flex items-center justify-between px-4 pt-3 pb-2">
-          <button onClick={() => setMenuOpen(true)} className="w-10 h-10 border border-[#1E90FF]/40 flex items-center justify-center text-[#1E90FF]" data-testid="mobile-menu-btn">
+          <button onClick={() => setMenuOpen(true)} className="w-10 h-10 flex items-center justify-center" style={{ borderColor: `${accent}66`, borderWidth: 1, color: accent }} data-testid="mobile-menu-btn">
             <MenuIcon className="w-5 h-5" />
           </button>
           <h1 className="font-display text-base font-bold tracking-[0.2em] uppercase text-white truncate max-w-[55%] text-center" data-testid="mobile-app-title">
             {eaName}
           </h1>
-          <button className="w-10 h-10 border border-[#1E90FF]/40 flex items-center justify-center text-[#1E90FF] relative" data-testid="mobile-bell-btn">
+          <button className="w-10 h-10 flex items-center justify-center relative" style={{ borderColor: `${accent}66`, borderWidth: 1, color: accent }} data-testid="mobile-bell-btn">
             <Bell className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 bg-[#1E90FF] text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent }}>
               {running ? "1" : "0"}
             </span>
           </button>
@@ -262,53 +310,63 @@ export default function MobileApp() {
 
         {/* Robot in ring */}
         <div className="relative flex justify-center py-6">
-          <div className="relative w-[230px] h-[230px] rounded-full border-2 border-[#1E90FF] shadow-[0_0_45px_rgba(30,144,255,0.55),inset_0_0_30px_rgba(30,144,255,0.25)] overflow-hidden">
+          <div className="relative w-[230px] h-[230px] rounded-full overflow-hidden"
+            style={{
+              border: `2px solid ${accent}`,
+              boxShadow: `0 0 45px ${theme.glow}, inset 0 0 30px ${theme.soft}`,
+            }}>
             <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 28%", transform: "scale(2.1)" }} />
           </div>
         </div>
 
         {/* EA name plate */}
-        <div className="relative mx-4 mt-1 border-2 border-[#1E90FF]/70 bg-[#001122]/40 rounded-lg p-4 text-center shadow-[0_0_24px_rgba(30,144,255,0.3)]" data-testid="mobile-ea-nameplate">
-          <div className="font-display text-2xl font-bold text-[#1E90FF] tracking-tight break-words ea-glow">
+        <div className="relative mx-4 mt-1 rounded-lg p-4 text-center"
+          style={{ border: `2px solid ${theme.border}`, backgroundColor: "rgba(0,17,34,0.4)", boxShadow: `0 0 24px ${theme.soft}` }}
+          data-testid="mobile-ea-nameplate">
+          <div className="font-display text-2xl font-bold tracking-tight break-words" style={{ color: accent, textShadow: `0 0 18px ${theme.glow}` }}>
             {eaName}
           </div>
           <div className="text-white/80 text-xs mt-1 tracking-wider">Fully automated EA</div>
         </div>
 
         {/* Action row */}
-        <div className="relative mx-4 mt-4 border-2 border-[#1E90FF]/70 bg-[#001122]/40 rounded-lg grid grid-cols-3 divide-x divide-[#1E90FF]/30">
-          <ActionBtn icon={TrendingUp} label="PAIRS" testid="mobile-action-pairs"
+        <div className="relative mx-4 mt-4 rounded-lg grid grid-cols-3"
+          style={{ border: `2px solid ${theme.border}`, backgroundColor: "rgba(0,17,34,0.4)" }}>
+          <ActionBtn icon={TrendingUp} label="PAIRS" accent={accent} testid="mobile-action-pairs"
             onClick={() => toast.info(`${eaName} pairs synced from server`)} />
-          <ActionBtn icon={Play} label={running ? "STOP" : "START"} testid="mobile-action-start"
+          <ActionBtn icon={Play} label={running ? "STOP" : "START"} accent={accent} testid="mobile-action-start"
             onClick={() => {
               setRunning((r) => !r);
               toast.success(running ? `${eaName} stopped` : `${eaName} is now trading`);
-            }} highlight={running} />
-          <ActionBtn icon={Info} label="INFO" testid="mobile-action-info"
+            }} highlight={running} themeSoft={theme.soft} />
+          <ActionBtn icon={Info} label="INFO" accent={accent} testid="mobile-action-info"
             onClick={() => toast.info(`Mentor: ${eaData?.mentor_username || "—"} · Plan: ${eaData?.plan_label}`)} />
         </div>
 
         {/* Powered by */}
-        <div className="relative mx-4 mt-3 border border-[#1E90FF]/40 bg-[#001122]/30 py-2 px-4 flex items-center justify-center gap-3 rounded-full">
+        <div className="relative mx-4 mt-3 py-2 px-4 flex items-center justify-center gap-3 rounded-full"
+          style={{ border: `1px solid ${accent}66`, backgroundColor: "rgba(0,17,34,0.3)" }}>
           <span className="text-white text-xs tracking-[0.2em] uppercase">Powered by</span>
-          <span className="font-display font-bold text-[#1E90FF] tracking-widest">LOYISO</span>
+          <span className="font-display font-bold tracking-widest" style={{ color: accent }}>LOYISO</span>
         </div>
 
         {/* Robot List */}
         <div className="relative mx-4 mt-5">
           <div className="text-white text-sm font-semibold mb-2 tracking-wide">Robot List</div>
-          <div className="border-2 border-[#1E90FF]/70 rounded-lg p-3 flex items-center gap-3 bg-[#001122]/40" data-testid="mobile-robot-card">
-            <div className="w-12 h-12 rounded-full border border-[#1E90FF] overflow-hidden shrink-0">
+          <div className="rounded-lg p-3 flex items-center gap-3"
+            style={{ border: `2px solid ${theme.border}`, backgroundColor: "rgba(0,17,34,0.4)" }}
+            data-testid="mobile-robot-card">
+            <div className="w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ border: `1px solid ${accent}` }}>
               <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 28%", transform: "scale(2.4)" }} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-white text-sm truncate" data-testid="mobile-robot-name">{eaName}</div>
-              <div className="text-[#1E90FF] text-xs">Adaptive AI Trading</div>
+              <div className="text-xs" style={{ color: accent }}>Adaptive AI Trading</div>
               <div className="text-white/55 text-[10px] tracking-wider mt-0.5" data-testid="mobile-robot-expiry">
                 {expiry ? `Expires ${expiryLabel}` : "Lifetime licence"}
               </div>
             </div>
-            <button onClick={handleExpire} className="w-8 h-8 rounded-full border border-[#1E90FF]/50 flex items-center justify-center text-[#1E90FF] hover:bg-[#1E90FF]/10" data-testid="mobile-robot-disconnect" title="Disconnect this EA">
+            <button onClick={handleExpire} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/5" style={{ border: `1px solid ${accent}80`, color: accent }} data-testid="mobile-robot-disconnect" title="Disconnect this EA">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -317,18 +375,21 @@ export default function MobileApp() {
         <div className="flex-1" />
 
         {/* Bottom nav */}
-        <div className="relative mx-3 mb-3 mt-4 border-2 border-[#1E90FF]/70 bg-[#001122]/40 rounded-lg grid grid-cols-2 divide-x divide-[#1E90FF]/30">
-          <NavBtn icon={Home} label="Home" active testid="mobile-nav-home" />
-          <NavBtn icon={Server} label="Connect" testid="mobile-nav-connect"
+        <div className="relative mx-3 mb-3 mt-4 rounded-lg grid grid-cols-3"
+          style={{ border: `2px solid ${theme.border}`, backgroundColor: "rgba(0,17,34,0.4)" }}>
+          <NavBtn icon={Home} label="Home" active accent={accent} themeSoft={theme.soft} testid="mobile-nav-home" />
+          <NavBtn icon={Server} label="Connect" accent={accent} testid="mobile-nav-connect"
             onClick={() => toast.success(running ? "Bridge connected" : "Start the EA first")} />
+          <NavBtn icon={SettingsIcon} label="Settings" accent={accent} testid="mobile-nav-settings"
+            onClick={() => setSettingsOpen(true)} />
         </div>
 
         {/* Menu drawer */}
         {menuOpen && (
           <div className="absolute inset-0 z-30 bg-black/85 backdrop-blur-sm flex flex-col" data-testid="mobile-menu-drawer">
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
-              <h2 className="font-display tracking-[0.22em] uppercase text-[#1E90FF] text-sm">Menu</h2>
-              <button onClick={() => setMenuOpen(false)} className="w-10 h-10 border border-[#1E90FF]/40 flex items-center justify-center text-[#1E90FF]" data-testid="mobile-menu-close">
+              <h2 className="font-display tracking-[0.22em] uppercase text-sm" style={{ color: accent }}>Menu</h2>
+              <button onClick={() => setMenuOpen(false)} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-menu-close">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -338,12 +399,70 @@ export default function MobileApp() {
               <DrawerInfo label="Licence" value={eaData?.key} mono />
               <DrawerInfo label="Plan" value={eaData?.plan_label} />
               <DrawerInfo label="Expires" value={expiryLabel} />
-              <button onClick={() => navigate("/")} className="mt-6 border border-white/20 hover:border-[#1E90FF] text-white py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" data-testid="mobile-menu-back-site">
+              <button onClick={() => { setMenuOpen(false); setSettingsOpen(true); }} className="mt-2 border border-white/20 hover:border-white/40 text-white py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" data-testid="mobile-menu-settings">
+                <SettingsIcon className="w-4 h-4" /> Settings
+              </button>
+              <button onClick={() => navigate("/")} className="mt-1 border border-white/20 hover:border-white/40 text-white py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" data-testid="mobile-menu-back-site">
                 Back to ea-central.co
               </button>
-              <button onClick={fullLogout} className="border border-[#1E90FF] bg-[#1E90FF]/10 text-[#1E90FF] py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" data-testid="mobile-menu-logout">
+              <button onClick={fullLogout} className="py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" style={{ border: `1px solid ${accent}`, color: accent, backgroundColor: theme.soft }} data-testid="mobile-menu-logout">
                 <LogOut className="w-4 h-4" /> Sign out
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Settings drawer */}
+        {settingsOpen && (
+          <div className="absolute inset-0 z-30 bg-black/90 backdrop-blur-sm flex flex-col" data-testid="mobile-settings-drawer">
+            <div className="flex items-center justify-between px-4 pt-3 pb-2">
+              <h2 className="font-display tracking-[0.22em] uppercase text-sm flex items-center gap-2" style={{ color: accent }}>
+                <SettingsIcon className="w-4 h-4" /> Settings
+              </h2>
+              <button onClick={() => setSettingsOpen(false)} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-settings-close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-5 py-6 flex flex-col gap-5">
+              <div>
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3 flex items-center gap-2">
+                  <Palette className="w-3 h-3" /> Theme
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.entries(THEMES).map(([k, t]) => (
+                    <button
+                      key={k}
+                      onClick={() => { setTheme(k); toast.success(`Theme: ${t.name}`); }}
+                      className="py-4 flex flex-col items-center gap-2 transition"
+                      style={{
+                        border: `2px solid ${themeKey === k ? t.hex : "rgba(255,255,255,0.1)"}`,
+                        backgroundColor: themeKey === k ? `${t.hex}1A` : "transparent",
+                      }}
+                      data-testid={`mobile-theme-${k}`}
+                    >
+                      <span className="w-8 h-8 rounded-full" style={{ backgroundColor: t.hex, boxShadow: `0 0 20px ${t.hex}80` }} />
+                      <span className="text-[10px] tracking-[0.2em] uppercase text-white">{t.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-white/5 pt-5">
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3">Session</div>
+                <button onClick={fullLogout} className="w-full py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" style={{ border: `1px solid ${accent}`, color: accent, backgroundColor: theme.soft }} data-testid="mobile-settings-logout">
+                  <LogOut className="w-4 h-4" /> Sign out
+                </button>
+              </div>
+
+              {!isStandalone && (
+                <div className="border border-white/10 p-4 text-center mt-1">
+                  <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-1">📱 Tip</div>
+                  <div className="text-xs text-white/70 leading-relaxed">
+                    On iPhone: tap <span className="text-white font-semibold">Share → "Add to Home Screen"</span> to install ea-central as a full-screen app.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -354,54 +473,64 @@ export default function MobileApp() {
 
 // ============ small components ============
 
-const PhoneFrame = ({ children }) => (
-  <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 sm:p-8" data-testid="mobile-app-page">
-    <div className="absolute -inset-10 bg-[#1E90FF]/10 blur-3xl pointer-events-none hidden md:block" />
-    <div className="relative w-full max-w-[400px] aspect-[9/19] sm:aspect-[9/19.5] rounded-[44px] border border-white/15 bg-[#050505] p-2 sm:p-3 shadow-[0_0_60px_rgba(30,144,255,0.35)]">
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-b-2xl z-20" />
-      <div className="w-full h-full rounded-[36px] bg-black overflow-hidden flex flex-col">
-        {/* Status bar */}
-        <div className="flex items-center justify-between px-6 pt-3 pb-1 text-[10px] text-white/70 font-mono shrink-0">
-          <span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
-          <div className="flex items-center gap-1.5">
-            <Signal className="w-3 h-3" />
-            <Wifi className="w-3 h-3" />
-            <BatteryFull className="w-3.5 h-3.5 text-[#1E90FF]" />
-          </div>
-        </div>
+const PhoneFrame = ({ children, standalone = false, accent = "#1E90FF" }) => {
+  if (standalone) {
+    // Installed as PWA / Add-to-Home — go full screen, no phone bezel
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col" data-testid="mobile-app-page" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         {children}
       </div>
+    );
+  }
+  return (
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 sm:p-8" data-testid="mobile-app-page">
+      <div className="absolute -inset-10 blur-3xl pointer-events-none hidden md:block" style={{ backgroundColor: `${accent}1A` }} />
+      <div className="relative w-full max-w-[400px] aspect-[9/19] sm:aspect-[9/19.5] rounded-[44px] border border-white/15 bg-[#050505] p-2 sm:p-3" style={{ boxShadow: `0 0 60px ${accent}59` }}>
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-b-2xl z-20" />
+        <div className="w-full h-full rounded-[36px] bg-black overflow-hidden flex flex-col">
+          {/* Status bar */}
+          <div className="flex items-center justify-between px-6 pt-3 pb-1 text-[10px] text-white/70 font-mono shrink-0">
+            <span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+            <div className="flex items-center gap-1.5">
+              <Signal className="w-3 h-3" />
+              <Wifi className="w-3 h-3" />
+              <BatteryFull className="w-3.5 h-3.5" style={{ color: accent }} />
+            </div>
+          </div>
+          {children}
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
-const AuthScreen = ({ icon: Icon, title, subtitle, children, testid }) => (
+const AuthScreen = ({ icon: Icon, title, subtitle, children, testid, accent = "#1E90FF" }) => (
   <div className="flex-1 flex flex-col items-center justify-center px-6 relative" data-testid={testid}>
     <div className="absolute inset-0 ea-grid opacity-25 pointer-events-none" />
-    <div className="relative w-16 h-16 rounded-full border-2 border-[#1E90FF] flex items-center justify-center text-[#1E90FF] shadow-[0_0_30px_rgba(30,144,255,0.45)]">
+    <div className="relative w-16 h-16 rounded-full flex items-center justify-center" style={{ border: `2px solid ${accent}`, color: accent, boxShadow: `0 0 30px ${accent}73` }}>
       <Icon className="w-7 h-7" strokeWidth={1.5} />
     </div>
     <h2 className="relative font-display text-2xl font-bold tracking-tight mt-6 text-center">{title}</h2>
     <p className="relative text-white/55 text-xs text-center mt-2 max-w-xs">{subtitle}</p>
     <div className="relative w-full mt-7">{children}</div>
     <div className="relative mt-auto pb-2 pt-8 text-[10px] tracking-[0.25em] uppercase text-white/30 flex items-center gap-2">
-      <Power className="w-3 h-3 text-[#1E90FF]" />
+      <Power className="w-3 h-3" style={{ color: accent }} />
       ea-central · mobile EA
     </div>
   </div>
 );
 
-const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false }) => (
-  <button onClick={onClick} className={`py-4 flex flex-col items-center gap-1 transition ${highlight ? "bg-[#1E90FF]/15" : "hover:bg-[#1E90FF]/10"}`} data-testid={testid}>
-    <Icon className="w-5 h-5 text-[#1E90FF]" strokeWidth={1.6} />
+const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false, accent = "#1E90FF", themeSoft }) => (
+  <button onClick={onClick} className="py-4 flex flex-col items-center gap-1 transition border-r last:border-r-0" style={{ borderColor: `${accent}33`, backgroundColor: highlight ? (themeSoft || `${accent}26`) : undefined }} data-testid={testid}>
+    <Icon className="w-5 h-5" style={{ color: accent }} strokeWidth={1.6} />
     <span className="text-white text-xs tracking-[0.2em] font-bold">{label}</span>
   </button>
 );
 
-const NavBtn = ({ icon: Icon, label, active = false, onClick, testid }) => (
-  <button onClick={onClick} className={`py-3 flex flex-col items-center gap-1 ${active ? "bg-[#1E90FF]/10" : "hover:bg-white/5"}`} data-testid={testid}>
-    <Icon className={`w-5 h-5 ${active ? "text-[#1E90FF]" : "text-white/70"}`} strokeWidth={1.6} />
-    <span className={`text-[11px] tracking-wider ${active ? "text-[#1E90FF]" : "text-white/70"}`}>{label}</span>
+const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "#1E90FF", themeSoft }) => (
+  <button onClick={onClick} className="py-3 flex flex-col items-center gap-1 border-r last:border-r-0" style={{ borderColor: `${accent}33`, backgroundColor: active ? (themeSoft || `${accent}1A`) : undefined }} data-testid={testid}>
+    <Icon className="w-5 h-5" style={{ color: active ? accent : "rgba(255,255,255,0.7)" }} strokeWidth={1.6} />
+    <span className="text-[11px] tracking-wider" style={{ color: active ? accent : "rgba(255,255,255,0.7)" }}>{label}</span>
   </button>
 );
 

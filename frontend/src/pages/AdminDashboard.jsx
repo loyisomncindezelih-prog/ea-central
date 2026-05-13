@@ -186,6 +186,11 @@ export default function AdminDashboard() {
                 </div>
                 <div className="md:col-span-1">
                   <StatusBadge status={u.status} />
+                  {u.payment_clicked && (
+                    <div className="mt-1 text-[9px] tracking-[0.2em] uppercase text-[#1E90FF] flex items-center gap-1" data-testid={`admin-paid-${u.id}`}>
+                      💳 paid · check
+                    </div>
+                  )}
                 </div>
                 <div className="md:col-span-2 flex md:justify-end gap-2 flex-wrap">
                   {u.status !== "approved" && (
