@@ -49,9 +49,22 @@ export default function MobileApp() {
   const [running, setRunning] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
   const [themeKey, setThemeKey] = useState(localStorage.getItem(LS_THEME) || "blue");
   const theme = THEMES[themeKey] || THEMES.blue;
   const accent = theme.hex;
+
+  // Broker (MetaTrader) credentials — saved locally on this device only.
+  // A future "ea-central bridge" running on the user's PC/VPS will read these
+  // to authenticate against MT4/MT5 on their behalf. The web app never trades directly.
+  const [broker, setBroker] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LS_BROKER);
+      return raw ? JSON.parse(raw) : { server: "", account: "", password: "", host: "" };
+    } catch {
+      return { server: "", account: "", password: "", host: "" };
+    }
+  });
 
   // PWA: install hints for iOS "Add to Home Screen" + standalone full-screen
   useEffect(() => {

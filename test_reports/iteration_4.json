@@ -1,0 +1,47 @@
+{
+  "summary": "End-to-end verification of the Client Mobile App at /app (MobileApp.jsx) and its public backend endpoints (/api/mobile/check-email, /api/mobile/activate-license). Backend: 8/8 pytest cases passed (1 skipped due to no admin endpoint to forcibly expire a key). Frontend Playwright: all 14 review-request scenarios verified — including the just-fixed crash bug where the Connect bottom-nav opens mobile-connect-drawer without crashing (broker form fillable + save persists to ea_mobile_broker + Unlink clears it). Session auto-resume on reload, EA-name branding replaces EA-CENTRAL across header/nameplate/Robot List, expiry label, theme switch (blue/red/green) persists to ea_mobile_theme, and Sign out clears localStorage and returns to email stage all work as specified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/mobile/activate-license", "issue": "410 expired path not directly testable from public API — no admin endpoint to forcibly set expires_at into the past. Logic is correct by code review (key_status() compares parse_iso(expires_at) > now), but recommend adding an admin-only test hook (e.g., POST /api/admin/licenses/{id}/expire) for full E2E coverage."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/app loading", "issues": ["On hard reload while signed in, two transient 401s are emitted by axios (likely /api/auth/me from the shared api client) before tryResume() succeeds. Not user-visible but pollutes the console. Consider gating /auth/me on a token presence check inside the mobile route, or splitting an unauthenticated `mobileApi` client for the /app page."]},
+      {"screen": "PhoneFrame backdrop", "issues": ["The bezel + glow is rendered even on desktop full window — works visually, but on very wide screens the right-edge 'Made with Emergent' badge can overlap the phone frame at narrow heights. Cosmetic only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_mobile.py",
+    "/app/backend/tests/seed_mobile_ui.py",
+    "/app/test_reports/pytest/mobile_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MobileApp.jsx is 630 lines in a single file — fine for now, but PhoneFrame, AuthScreen, ActionBtn, NavBtn, DrawerInfo, BrokerField should move to /components/mobile/* for reuse and to keep MobileApp.jsx focused on state/flow.",
+    "Broker credentials (including password) are stored in plaintext in localStorage under ea_mobile_broker. The inline disclaimer acknowledges this, but consider at minimum a warning on the input row (especially for 'Password') and on a future iteration encrypt with a passphrase-derived key before persisting.",
+    "mobile_activate_license() in server.py uses the *mentor's* email as the binding identity (it looks up users by email then matches owner_id) — this means a single mentor email can only ever bind one of their own keys at a time on a device. If the intent is for each end-client to use *their own* email to activate, the lookup should not require the email to belong to a registered user; it should be a free-form binding identifier. Worth confirming with PM intent vs. current implementation.",
+    "tryResume() catches every non-410 error silently and falls through to the email stage — if the backend is briefly down, the user is dropped back to entering email/license again. Add a retry/backoff or a 'Reconnecting…' state on transient network errors before clearing the session.",
+    "The /app page mounts global <meta> tags (apple-mobile-web-app-*) into <head> on every visit and removes them on unmount. Multiple SPA navigations into/out of /app are fine, but this side effect mutates the host page; safer to gate on `document.querySelector` existence to avoid duplicate meta tags if Strict-Mode double-invokes the effect in dev.",
+    "submitLicense persists `license.trim().toUpperCase()` to localStorage but persists the un-trimmed `email` in submitEmail — minor inconsistency. Normalise (lowercase trim) both.",
+    "/api/mobile/check-email response shape returns `username` but the frontend never uses it — fine, but document or drop to keep the contract minimal.",
+    "There is no rate-limit on /api/mobile/check-email or /api/mobile/activate-license — these are unauthenticated public endpoints and a perfect target for license-key enumeration. Add IP-based throttling (e.g., 10/min) and consider returning 200 with `{ok:false}` instead of 404 to avoid leaking 'this email exists'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_mobile.py (new — 9 pytest cases)",
+    "/app/backend/tests/seed_mobile_ui.py (new — seed helper for Playwright)"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 executed, 1 skipped by design — 410 expiry path)",
+    "frontend": "100% (14/14 scenarios from the review request verified end-to-end on the public URL)"
+  },
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123 (seeded). Fresh mentor created this run: TEST_ui_mentor_1778747056@test.com / Passw0rd! — approved, with EA 'AlphaWave Pro' and license keys EAC-99E8-9060-7028-BD58 (30d, bound to this mentor email on /app) and EAC-66C9-B325-4C10-FE3E (3d, used for 409 test).",
+  "seed_data_creation": "Backend pytest created TEST_mobile_mentor_<ts>@test.com (approved, 1 EA, 2 keys) and TEST_mobile_pending_<ts>@test.com (pending). Playwright used TEST_ui_mentor_1778747056@test.com which now has key EAC-99E8-9060-7028-BD58 bound to its own email. All test data is prefixed with TEST_ for easy cleanup.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend mobile regression at /app/backend/tests/test_mobile.py uses register-response-derived user_id for admin approval (do NOT page admin/users — it caps at 500 docs and the DB now has many TEST_ users). seed_mobile_ui.py prints JSON with credentials/keys for fresh UI runs. Bug under review (missing useState for connectOpen/broker) is FIXED and verified: clicking [data-testid=mobile-nav-connect] opens [data-testid=mobile-connect-drawer] with no crash, form fields broker-server/broker-account/broker-password/broker-host fillable, broker-save persists JSON to ea_mobile_broker localStorage, broker-unlink clears it. PhoneFrame is the wrapper — tests run on desktop viewport (1280x900) without issue. EA branding fully replaces 'EA-CENTRAL' on the app screen (header/nameplate/robot list). Reload on /app while signed in emits 2 transient axios 401s from /api/auth/me — unrelated, non-blocking.",
+  "rca_of_the_issue": "The reported crash bug (MobileApp.jsx referenced setConnectOpen / broker / setBroker without useState declarations) is fixed at lines 52 and 60-67. Confirmed by clicking mobile-nav-connect — the drawer mounts, the four BrokerField inputs are typeable, form submit persists to localStorage and closes the drawer, and Unlink correctly resets state + clears localStorage. No further crashes observed across full E2E flow."
+}
