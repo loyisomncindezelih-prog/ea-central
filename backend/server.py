@@ -390,14 +390,6 @@ class ProfileUpdateIn(BaseModel):
     contact_number: Optional[str] = Field(default=None, min_length=4, max_length=20)
     profile_image: Optional[str] = Field(default=None, max_length=900_000)  # base64 data url
 
-    @classmethod
-    def _validate_image(cls, v: Optional[str]) -> Optional[str]:
-        if v is None or v == "":
-            return v
-        if not v.startswith("data:image/"):
-            raise ValueError("profile_image must be a data:image/* URL")
-        return v
-
 
 @api_router.patch("/auth/profile")
 async def update_profile(payload: ProfileUpdateIn, user: dict = Depends(get_current_user)):
