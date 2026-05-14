@@ -31,6 +31,16 @@
 - Country code dropdown (47 countries) for contact number.
 - Tested: 14/15 backend pytest + 13/13 frontend Playwright flows. Brute force regression verified manually (5x401 → 6th=429).
 
+## What's been implemented (2026-05-14)
+- **Client Mobile App at `/app`** — full phone-style portal (`/app/frontend/src/pages/MobileApp.jsx`):
+  - Stage 1: email check (calls `/api/mobile/check-email`, blocks unknown / pending-approval emails).
+  - Stage 2: license activation (`/api/mobile/activate-license`) — auto-activates on first use, single-use bound to one email, returns 410 on expiry.
+  - Stage 3: phone-style EA dashboard showing mentor's EA name (replaces all "EA-CENTRAL" branding), expiry date, Start/Stop, Pairs, Info, Robot List, theme switcher (blue/red/green), menu drawer, settings drawer.
+  - Session persistence via localStorage (`ea_mobile_email`, `ea_mobile_license`, `ea_mobile_theme`, `ea_mobile_broker`) — reload auto-resumes to app stage.
+  - PWA meta tags for iOS "Add to Home Screen" full-screen mode.
+  - Broker drawer (local-only credential vault for future MT4/MT5 bridge).
+- **Bug fixed**: `MobileApp.jsx` was missing `useState` declarations for `connectOpen` and `broker`, causing the Connect drawer to crash. Now declared (lines 51, 60-67). Verified by testing agent (iteration_4) — 14/14 frontend + 8/8 backend tests passed.
+
 ## Mocked / Placeholder
 - `GET /api/dashboard/summary` returns static demo data (bot status, connected clients, trades). **MOCKED** — no real PC-bot bridge yet.
 - Mobile preview page is fully static UI mock.
@@ -39,12 +49,17 @@
 **P0** — none blocking.
 
 **P1**
+- **MetaTrader broker bridge** (user-requested 2026-05-14): build a small "ea-central bridge" desktop helper (Python or Node service) that runs on the mentor's PC/VPS alongside MT4/MT5. The mobile `/app` Connect drawer already collects server/account/password/host into localStorage — these need to be POSTed to a new `/api/bridge/...` endpoint that pairs the device with the bridge over WebSocket so trades execute via the MetaTrader Python package (e.g. `MetaTrader5` for MT5, ZeroMQ/MT4 EA for MT4). Out of scope for the iframe preview — needs design + research.
 - Real PC-bot bridge protocol (WebSocket from desktop client → backend → mobile EA).
 - Client (subscriber) account type + subscribe-to-mentor flow + per-client risk rules.
 - Payments (Stripe) — mentor sets price, subscribers pay monthly.
 - Live trade stream on dashboard + mobile preview (replace mock).
 
 **P2**
+- Rate-limit `/api/mobile/check-email` and `/api/mobile/activate-license` (currently unauth + no throttle — license enumeration risk).
+- Encrypt broker credentials at rest in localStorage with a passphrase-derived key.
+- Refactor `MobileApp.jsx` (630 lines) — extract `PhoneFrame`, `AuthScreen`, `ActionBtn`, `NavBtn`, `DrawerInfo`, `BrokerField` to `/components/mobile/*`.
+- Loading skeleton on Generate-Key Success page.
 - `/api/auth/refresh` endpoint (refresh cookie is set today but unused).
 - Migrate FastAPI startup/shutdown to lifespan handlers.
 - Password reset flow (`/auth/forgot-password`, `/auth/reset-password`).
@@ -53,5 +68,6 @@
 - Email verification on signup.
 
 ## Next Action Items
-- Confirm with user whether to start the PC-bot bridge work or the Stripe monetization next.
+- **MetaTrader broker bridge architecture** — user wants real broker connectivity via VPS/RDP/PC. Needs design discussion: pick MT5 (Python `MetaTrader5` package, Windows-only) vs MT4 (custom EA + ZeroMQ). Then build bridge installer + `/api/bridge/pair` + WebSocket relay.
+- Confirm whether `/app` email field should be the **client's** own email (free-form binding) or the **mentor's** email (current behavior). Spec is ambiguous.
 - Rotate JWT_SECRET before production deployment.
