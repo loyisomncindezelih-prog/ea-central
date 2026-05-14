@@ -273,7 +273,7 @@ async def verify_account_click(payload: VerifyClickIn):
         {"email": email},
         {"$set": {
             "payment_clicked": True,
-            "payment_clicked_at": now_iso() if 'now_iso' in dir() else datetime.now(timezone.utc).isoformat(),
+            "payment_clicked_at": now_iso(),
         }},
     )
     return {"ok": True, "payment_link": PAYMENT_LINK}
