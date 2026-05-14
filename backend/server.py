@@ -1019,6 +1019,8 @@ async def on_startup():
     await db.eas.create_index([("owner_id", 1), ("created_at", -1)])
     await db.license_keys.create_index([("owner_id", 1), ("created_at", -1)])
     await db.license_keys.create_index([("owner_id", 1), ("ea_id", 1)])
+    await db.pair_configs.create_index([("license_key", 1), ("symbol", 1)], unique=True)
+    await db.broker_connections.create_index("license_key", unique=True)
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@ea-central.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")

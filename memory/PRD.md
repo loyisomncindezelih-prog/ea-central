@@ -41,23 +41,27 @@
 - **Bug fixed**: `MobileApp.jsx` was missing `useState` declarations for `connectOpen` and `broker`. Now declared.
 
 ## What's been implemented (2026-05-14 — Iteration 5)
-- **Paid signup gate (R439.00 via Yoco)**:
-  - `POST /api/auth/login` returns HTTP **402** with `{code:"payment_required", email, message}` when user is pending+unpaid → frontend bounces to `/verify-account?email=<email>`.
-  - After `/api/verify-account/click`, login returns 403 with "Payment received — admin is verifying."
-  - `/signup` now redirects to `/verify-account?email=&new=1` (not `/pending`).
-  - `/verify-account` rebuilt with a big R439.00 price plate and Yoco branding.
-  - `/pending` shows a "Pay R439.00 now" CTA card for unpaid users.
-  - Admin still verifies payment on Yoco dashboard then approves (no Yoco webhook yet — manual flow).
-- **MT4/MT5 broker credentials capture** (real automatic trade execution is a future phase):
-  - `POST /api/mobile/connect-broker` saves platform/server/account/encrypted-password tied to a licence key.
-  - `POST /api/mobile/disconnect-broker` clears it.
-  - `/api/mobile/activate-license` response now includes `broker` summary (null if not configured).
-  - Connect drawer on `/app` has MT4/MT5 selector, server/account/password fields, "Coming soon" notice.
-  - Broker status badge on the app screen shows `MT4 · <server> · #<account>` when configured.
-  - Credentials encrypted at rest using Fernet (key = SHA-256(JWT_SECRET)).
-- **Rate-limiting** (`slowapi`):
-  - `/api/mobile/check-email`, `/api/mobile/activate-license`, `/api/mobile/connect-broker`, `/api/mobile/disconnect-broker` all capped at **60/min** per X-Forwarded-For IP. 429 returned with friendly message.
-- **Tested**: iteration_5.json — 13/13 backend pytest + 18/18 frontend Playwright scenarios PASS.
+- **Paid signup gate (R439.00 via Yoco)** + login 402 redirect, `/verify-account` rebuilt, `/pending` shows pay CTA, admin still manually verifies.
+- **MT4/MT5 broker credentials capture** at `/app` Connect drawer → `/api/mobile/connect-broker` saves platform/server/account/encrypted-password tied to a licence. Broker status badge on app screen.
+- **Rate-limiting** (slowapi) — 60/min per X-Forwarded-For IP on all `/api/mobile/*` endpoints.
+- Tested: 13/13 backend + 18/18 frontend.
+
+## What's been implemented (2026-05-14 — Iteration 6)
+- **`/verify-account` is smart**:
+  - approved → auto-redirect to `/login`
+  - pending + paid → "Awaiting admin approval" (no re-open Yoco)
+  - pending + unpaid → opens Yoco link
+  - unknown email / rejected → friendly error
+- **Animated candlestick chart** on `/app` — 30 candles ticking every 1.6s (0.9s when EA running). Up/down candles re-tint with the active theme accent (blue / red / green). Cosmetic only — no real market data.
+- **Pairs drawer** on `/app` — PAIRS button opens a panel with:
+  - **"Allowed pairs · mentor EA"** — pulls `EA.symbols` from mentor's `/dashboard/manage-eas/:id` page
+  - **"Selected pairs to trade"** — shows configured pairs as cards with chips
+  - Tap an allowed pair → form opens with: Direction (BUY / SELL / BOTH), Platform (MT4 / MT5), Lot size (text input), # Trades (text input)
+  - Saves to backend via `POST /api/mobile/pair-config` (mongo `pair_configs` collection, upsert on `license_key + symbol`)
+  - Selected card has remove button → `POST /api/mobile/pair-config/delete`
+- `/api/mobile/activate-license` response now includes `allowed_symbols` + `pair_configs` so the `/app` page hydrates the Pairs drawer on load.
+- MongoDB indexes added: `pair_configs (license_key, symbol)` unique, `broker_connections (license_key)` unique.
+- Tested: 14/14 backend + 5/5 frontend (chart, theme tint, drawer open, save, remove + VerifyAccount 3-branch).
 
 ## Mocked / Placeholder
 - `GET /api/dashboard/summary` returns static demo data (bot status, connected clients, trades). **MOCKED** — no real PC-bot bridge yet.
