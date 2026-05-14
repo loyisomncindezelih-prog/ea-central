@@ -1,0 +1,24 @@
+{
+  "summary": "Iteration 8 verified end-to-end. Backend: new GET /api/admin/broker-connections endpoint passes auth checks (401 no-token, 403 non-admin, 200 admin), correctly decrypts broker_password (Top$ecret#1 round-trip), returns client_email/client_username/client_contact/license_key/ea_name/mentor_*/platform/broker_server/broker_account/connected_at/status fields, sorts desc by connected_at, and row disappears after /mobile/disconnect-broker. Regression on /mobile/check-email, /mobile/activate-license, /mobile/connect-broker is green. Frontend: /admin/brokers route gated by AdminRoute (unauth → /admin), Brokers nav button on dashboard routes correctly, row renders all required data-testids, password masked by default and reveals decrypted value on toggle, copy buttons rendered, search filter works for client/email/licence/server/account. Emergent badge fully removed from DOM on /, /app, /admin/dashboard; <title> is 'ea-central · Mobile EA'. 9/9 backend tests pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration8.py",
+    "/app/test_reports/pytest/iteration8_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin_broker_connections (server.py:1209-1239) does a per-row DB lookup for license_keys and users — fine at current scale but consider an aggregation $lookup or batched fetch if broker_connections grows beyond a few hundred rows.",
+    "broker_password is returned fully decrypted in the admin API response; ensure this endpoint stays admin-gated and consider auditing access (no audit log currently)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration8.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@ea-central.com / Admin@123 ; TEST_it6_ui_1778753851@test.com / Passw0rd! ; licence EAC-2F9D-E69F-6F75-CEB3",
+  "seed_data_creation": "Created and then deleted broker_connection row for TEST_it6_ui_1778753851@test.com / EAC-2F9D-E69F-6F75-CEB3 (server ICMarketsSC-Demo01, account 5550101, password Top$ecret#1). Final state: disconnected.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration 8 acceptance criteria pass. Broker connections endpoint and admin page are stable. If retesting, re-link the broker via POST /api/mobile/connect-broker (see test_credentials) before exercising /admin/brokers — the test cleans up at the end.",
+  "rca of the issue": "n/a — no bugs found in this iteration."
+}

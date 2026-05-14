@@ -23,6 +23,7 @@ import PendingApproval from "@/pages/PendingApproval";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminLicenses from "@/pages/AdminLicenses";
+import AdminBrokers from "@/pages/AdminBrokers";
 
 const Protected = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
@@ -56,6 +57,10 @@ function App() {
             <Route
               path="/admin/licenses"
               element={<AdminRoute><AdminLicenses /></AdminRoute>}
+            />
+            <Route
+              path="/admin/brokers"
+              element={<AdminRoute><AdminBrokers /></AdminRoute>}
             />
           </Routes>
           <Toaster

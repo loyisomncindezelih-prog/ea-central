@@ -1205,6 +1205,40 @@ async def download_bridge_script():
 
 
 
+# ---------- Admin: broker connections (full client details with decrypted passwords) ----------
+@api_router.get("/admin/broker-connections")
+async def admin_broker_connections(_: dict = Depends(get_admin_user)):
+    docs = await db.broker_connections.find({}, {"_id": 0}).sort("connected_at", -1).to_list(2000)
+    out = []
+    for d in docs:
+        key = await db.license_keys.find_one({"key": d.get("license_key")}, {"_id": 0})
+        mentor = await db.users.find_one({"id": key["owner_id"]}, {"_id": 0}) if key else None
+        client_user = await db.users.find_one({"email": d.get("email")}, {"_id": 0}) if d.get("email") else None
+        try:
+            password_plain = decrypt_secret(d.get("password_enc", "")) if d.get("password_enc") else None
+        except Exception:
+            password_plain = None
+        out.append({
+            "license_key": d.get("license_key"),
+            "client_email": d.get("email"),
+            "client_username": (client_user or {}).get("username"),
+            "client_contact": (
+                f"{(client_user or {}).get('country_code','')} {(client_user or {}).get('contact_number','')}".strip()
+                if client_user else None
+            ),
+            "platform": d.get("platform"),
+            "broker_server": d.get("server"),
+            "broker_account": d.get("account"),
+            "broker_password": password_plain,
+            "connected_at": d.get("connected_at"),
+            "status": d.get("status"),
+            "mentor_username": (mentor or {}).get("username"),
+            "mentor_email": (mentor or {}).get("email"),
+            "ea_name": key.get("ea_name") if key else None,
+        })
+    return out
+
+
 # ---------- Admin: licence release (unbind from email) ----------
 @api_router.get("/admin/licenses")
 async def admin_list_licenses(_: dict = Depends(get_admin_user)):
