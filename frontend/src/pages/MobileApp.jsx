@@ -120,6 +120,15 @@ export default function MobileApp() {
            window.navigator.standalone === true;
   }, []);
 
+  // Register service worker for PWA / APK packaging support.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js", { scope: "/app" }).catch(() => {
+      // Silently ignore — the app still works without offline support.
+    });
+  }, []);
+
   const setTheme = (k) => {
     setThemeKey(k);
     localStorage.setItem(LS_THEME, k);
