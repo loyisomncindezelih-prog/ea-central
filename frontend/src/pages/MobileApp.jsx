@@ -614,13 +614,3 @@ const DrawerInfo = ({ label, value, mono = false }) => (
     <div className={`text-sm text-white truncate ${mono ? "font-mono" : ""}`}>{value || "—"}</div>
   </div>
 );
-5,255,0.7)" }}>{label}</span>
-  </button>
-);
-
-const DrawerInfo = ({ label, value, mono = false }) => (
-  <div className="border border-white/10 px-3 py-2.5">
-    <div className="text-[9px] tracking-[0.25em] uppercase text-white/40">{label}</div>
-    <div className={`text-sm text-white truncate ${mono ? "font-mono" : ""}`}>{value || "—"}</div>
-  </div>
-);
