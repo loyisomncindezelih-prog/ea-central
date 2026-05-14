@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ import {
   Wifi,
   Signal,
   BatteryFull,
+  Settings as SettingsIcon,
+  Palette,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -28,6 +30,13 @@ const ROBOT_IMG =
 
 const LS_EMAIL = "ea_mobile_email";
 const LS_LICENSE = "ea_mobile_license";
+const LS_THEME = "ea_mobile_theme";
+
+const THEMES = {
+  blue:  { name: "Blue",  hex: "#1E90FF", soft: "rgba(30,144,255,0.10)", glow: "rgba(30,144,255,0.55)", border: "rgba(30,144,255,0.70)" },
+  red:   { name: "Red",   hex: "#FF3B3B", soft: "rgba(255,59,59,0.10)",  glow: "rgba(255,59,59,0.55)",  border: "rgba(255,59,59,0.70)" },
+  green: { name: "Green", hex: "#22C55E", soft: "rgba(34,197,94,0.10)",  glow: "rgba(34,197,94,0.55)",  border: "rgba(34,197,94,0.70)" },
+};
 
 export default function MobileApp() {
   const navigate = useNavigate();
