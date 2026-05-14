@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 6 — verified backend POST /api/verify-account/click branching (already_approved for admin, already_paid toggle on second call for pending user, 404 for unknown email); /api/mobile/activate-license now returns allowed_symbols + pair_configs; /api/mobile/pair-config full validation (happy path, upsert behaviour, symbol-not-in-EA 400, direction/platform/lot_size/max_trades 422, invalid licence 404, bound-to-other-email 403, /delete) and the /app frontend pair flow (chart renders 30 candles in SVG, price ticks every interval, theme switch tints chart strokes from #1E90FF blue to #FF3B3B red, PAIRS drawer opens with allowed/selected sections, EURUSD chip click opens config form, save persists and creates pair-card, remove restores chip to allowed). VerifyAccount page 3-branch state machine confirmed on the public URL.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/app pairs drawer", "issues": ["Drawer DOM element remains mounted (data-testid='mobile-pairs-drawer' still queryable) after close; visibility-controlled via CSS. Cosmetic — does not affect UX since pointer-events/opacity gate interaction."]},
+      {"screen": "/app chart", "issues": ["Neutral wicks/grid use rgba(255,255,255,0.55) which stays white across all themes — only the up/down candles re-tint. Acceptable but worth confirming with design that the neutral elements shouldn't also subtly accent."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6.py",
+    "/app/test_reports/pytest/iteration6_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 1064 lines (was 948) — well past the 700-line guideline. The new pair_configs endpoints add another concept (per-licence trade plan) on top of auth/mentor/mobile/broker/admin. Strong recommendation to split into routers: routers/auth.py, routers/mentor.py, routers/mobile.py (incl. broker + pair_configs), routers/admin.py. Same feedback as iteration_5 — still untouched.",
+    "MobileApp.jsx is reported to have grown again (added CandleChart + PairsDrawer + PairCard + PairConfigForm at bottom). Recommend extracting components/mobile/CandleChart.jsx, PairsDrawer.jsx, PairCard.jsx, PairConfigForm.jsx. Single-file mobile page is becoming hard to navigate.",
+    "/api/mobile/pair-config does NOT verify the symbol still belongs to the EA at the moment of trade execution. If a mentor later removes XAUUSD from EA.symbols, existing pair_configs for XAUUSD remain orphaned and would still be returned by activate-license. Two options: (a) cascade delete pair_configs when /api/mentor/eas/{ea_id}/symbols/{symbol} DELETE fires, or (b) re-filter pair_configs in activate-license against current EA.symbols.",
+    "PairConfigIn.symbol uses Field(min_length=1, max_length=24) but doesn't enforce uppercase or strip — the endpoint .strip().upper()'s it manually. Fine as-is, but consider a validator on the model so the schema doc shows the canonical form.",
+    "No DELETE endpoint counterpart to /mobile/pair-config — only POST + POST /delete. Mildly REST-unfriendly but consistent with the rest of /mobile/* (e.g. disconnect-broker also POST). Document or normalise.",
+    "rate-limit of 60/min on /api/mobile/pair-config is generous for one client device but shared across the same X-Forwarded-For IP — same observation as iteration_5: a corporate NAT or the preview-env ingress sharing one IP could rate-limit multiple legitimate clients simultaneously.",
+    "pair_configs collection has no MongoDB index on (license_key, symbol). The upsert filter relies on this compound match — under load it will scan. Add: await db.pair_configs.create_index([('license_key', 1), ('symbol', 1)], unique=True) inside on_startup.",
+    "verify_account_click still has no real Yoco webhook — already_paid is purely a 'user clicked the link' flag. Same risk noted in iteration_5; an attacker can curl this endpoint and flip payment_clicked=true without paying. Acceptable given admin still has to approve, but worth documenting clearly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration6.py (NEW — 14 pytest cases: verify-click branching 3, activate-license enrichment 1, pair-config CRUD + validation 10)"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 pytest)",
+    "frontend": "100% (chart render + theme tint + PAIRS drawer save/remove + VerifyAccount 3-branch all verified on public URL)"
+  },
+  "test_credentials": "Admin admin@ea-central.com / Admin@123. Iteration-6 seed: mentor TEST_it6_ui_1778753851@test.com / Passw0rd! (approved, EA 'AlphaWave Pro' with symbols EURUSD/XAUUSD/GBPJPY, licence EAC-2F9D-E69F-6F75-CEB3 bound). Verify-account: TEST_it6_unpaid_1778754017@test.com (pending+unpaid initially; now payment_clicked=true after test), TEST_it6_paid_1778754017@test.com (pending+paid).",
+  "seed_data_creation": "Backend pytest fixtures create TEST_it6_mentor_<ts>@test.com (approved mentor with 3 EA symbols + bound 30d key) and TEST_it6_vac_<ts>@test.com (pending user for verify-click branching). Frontend test reused seeded mentor TEST_it6_ui_1778753851@test.com. /mobile/pair-config docs created for EURUSD (later updated then removed) and XAUUSD (created then deleted). pair_configs collection is now in use.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration_6 endpoints + UI behaviours pass. Mobile theme testids are mobile-theme-blue / mobile-theme-red / mobile-theme-green (NOT 'theme-red'). Settings drawer is reached via mobile-menu-btn → mobile-menu-settings. Chart strokes: up/down candles re-tint with theme accent (#1E90FF blue, #FF3B3B red, presumably green similarly); neutral grid/wicks stay rgba(255,255,255,0.55). PAIRS drawer remains in DOM after close (CSS-driven visibility) — query for selected/allowed children instead of the drawer node itself when testing closed state. /api/mobile/pair-config + /delete + activate-license{allowed_symbols, pair_configs} all working. The new mongo collection is `pair_configs` (no index yet — see code review).",
+  "rca_of_the_issue": "No bugs found in this iteration's feature set. All 14 backend test cases pass on first run; all 5 frontend UI scenarios pass on the public URL with the existing data-testids."
+}

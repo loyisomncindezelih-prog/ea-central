@@ -742,6 +742,24 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
             "status": "configured",  # actual MT bridge execution coming soon
         }
 
+    # EA allowed symbols (mentor-curated list from /dashboard/manage-eas/:id)
+    ea_doc = await db.eas.find_one({"id": key_doc["ea_id"]}, {"_id": 0})
+    allowed_symbols = ea_doc.get("symbols", []) if ea_doc else []
+
+    # Client's previously saved per-pair trade configs for this licence
+    pair_configs_cur = db.pair_configs.find({"license_key": license_key}, {"_id": 0})
+    pair_configs = [
+        {
+            "symbol": d["symbol"],
+            "lot_size": d.get("lot_size", 0.01),
+            "direction": d.get("direction", "BOTH"),
+            "platform": d.get("platform", "mt5"),
+            "max_trades": d.get("max_trades", 1),
+            "updated_at": d.get("updated_at"),
+        }
+        async for d in pair_configs_cur
+    ]
+
     return {
         "ea_id": key_doc["ea_id"],
         "ea_name": key_doc["ea_name"],
@@ -752,6 +770,8 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
         "holder_username": key_doc["holder_username"],
         "mentor_username": user["username"],
         "broker": broker_summary,
+        "allowed_symbols": allowed_symbols,
+        "pair_configs": pair_configs,
     }
 
 
@@ -814,6 +834,77 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
 async def mobile_disconnect_broker(request: Request, payload: MobileActivateIn):
     license_key = payload.license_key.strip().upper()
     await db.broker_connections.delete_one({"license_key": license_key, "email": payload.email.lower()})
+    return {"ok": True}
+
+
+# ----------------------- Per-pair trade configuration (client picks pairs to trade) -----------------------
+class PairConfigIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+    symbol: str = Field(min_length=1, max_length=24)
+    lot_size: float = Field(gt=0, le=100)
+    direction: str = Field(pattern="^(BUY|SELL|BOTH)$")
+    platform: str = Field(pattern="^(mt4|mt5)$")
+    max_trades: int = Field(ge=1, le=999)
+
+
+class PairDeleteIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+    symbol: str = Field(min_length=1, max_length=24)
+
+
+async def _verify_license_owner(email: str, license_key: str) -> dict:
+    """Return the license doc if (email, license_key) is a valid bound activation, else raise."""
+    key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0})
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Invalid licence key")
+    if key_doc.get("bound_to_email") and key_doc["bound_to_email"] != email:
+        raise HTTPException(status_code=403, detail="This licence is bound to a different email.")
+    if key_status(key_doc) == "expired":
+        raise HTTPException(status_code=410, detail="Licence has expired.")
+    return key_doc
+
+
+@api_router.post("/mobile/pair-config")
+@limiter.limit("60/minute")
+async def mobile_set_pair_config(request: Request, payload: PairConfigIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    symbol = payload.symbol.strip().upper()
+
+    key_doc = await _verify_license_owner(email, license_key)
+    ea_doc = await db.eas.find_one({"id": key_doc["ea_id"]}, {"_id": 0})
+    allowed = [s.upper() for s in (ea_doc.get("symbols", []) if ea_doc else [])]
+    if symbol not in allowed:
+        raise HTTPException(status_code=400, detail=f"{symbol} is not in the EA's allowed symbols list.")
+
+    doc = {
+        "license_key": license_key,
+        "email": email,
+        "symbol": symbol,
+        "lot_size": float(payload.lot_size),
+        "direction": payload.direction,
+        "platform": payload.platform,
+        "max_trades": int(payload.max_trades),
+        "updated_at": now_iso(),
+    }
+    await db.pair_configs.update_one(
+        {"license_key": license_key, "symbol": symbol},
+        {"$set": doc, "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True, "config": doc}
+
+
+@api_router.post("/mobile/pair-config/delete")
+@limiter.limit("60/minute")
+async def mobile_delete_pair_config(request: Request, payload: PairDeleteIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    symbol = payload.symbol.strip().upper()
+    await _verify_license_owner(email, license_key)
+    await db.pair_configs.delete_one({"license_key": license_key, "symbol": symbol})
     return {"ok": True}
 
 
