@@ -749,7 +749,18 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
             "server": broker.get("server"),
             "account": broker.get("account"),
             "connected_at": broker.get("connected_at"),
-            "status": "configured",  # actual MT bridge execution coming soon
+            "status": broker.get("status", "configured"),
+            "decision_reason": broker.get("decision_reason"),
+            "decision_at": broker.get("decision_at"),
+        }
+
+    ea_session = await db.ea_sessions.find_one({"license_key": license_key}, {"_id": 0})
+    ea_session_summary = None
+    if ea_session:
+        ea_session_summary = {
+            "status": ea_session.get("status"),
+            "started_at": ea_session.get("started_at"),
+            "stopped_at": ea_session.get("stopped_at"),
         }
 
     # EA allowed symbols (mentor-curated list from /dashboard/manage-eas/:id)
@@ -780,6 +791,7 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
         "holder_username": key_doc["holder_username"],
         "mentor_username": user["username"],
         "broker": broker_summary,
+        "ea_session": ea_session_summary,
         "allowed_symbols": allowed_symbols,
         "pair_configs": pair_configs,
     }
@@ -821,7 +833,10 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
         "account": payload.account.strip(),
         "password_enc": encrypt_secret(payload.password),
         "connected_at": now_iso(),
-        "status": "configured",
+        "status": "pending_approval",
+        "decision_at": None,
+        "decision_by": None,
+        "decision_reason": None,
     }
     await db.broker_connections.update_one(
         {"license_key": license_key},
@@ -834,8 +849,8 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
         "server": doc["server"],
         "account": doc["account"],
         "connected_at": doc["connected_at"],
-        "status": "configured",
-        "notice": "Credentials saved securely. Automatic trade execution via the ea-central bridge is coming soon.",
+        "status": "pending_approval",
+        "notice": "Broker linking to server… an admin will verify your credentials shortly.",
     }
 
 
@@ -1232,11 +1247,144 @@ async def admin_broker_connections(_: dict = Depends(get_admin_user)):
             "broker_password": password_plain,
             "connected_at": d.get("connected_at"),
             "status": d.get("status"),
+            "decision_at": d.get("decision_at"),
+            "decision_reason": d.get("decision_reason"),
             "mentor_username": (mentor or {}).get("username"),
             "mentor_email": (mentor or {}).get("email"),
             "ea_name": key.get("ea_name") if key else None,
+            "ea_session": await _ea_session_summary(d.get("license_key")),
         })
     return out
+
+
+async def _ea_session_summary(license_key: Optional[str]) -> Optional[dict]:
+    if not license_key:
+        return None
+    sess = await db.ea_sessions.find_one({"license_key": license_key}, {"_id": 0})
+    if not sess:
+        return None
+    pairs = await db.pair_configs.find({"license_key": license_key}, {"_id": 0}).to_list(200)
+    return {
+        "status": sess.get("status"),
+        "started_at": sess.get("started_at"),
+        "stopped_at": sess.get("stopped_at"),
+        "pairs": [{
+            "symbol": p["symbol"],
+            "lot_size": p.get("lot_size"),
+            "direction": p.get("direction"),
+            "platform": p.get("platform"),
+            "max_trades": p.get("max_trades"),
+        } for p in pairs],
+    }
+
+
+# ---------- Admin: approve / decline broker linking ----------
+class BrokerDecideIn(BaseModel):
+    reason: str = Field(default="", max_length=200)
+
+
+@api_router.post("/admin/broker-connections/{license_key}/approve")
+async def admin_approve_broker(license_key: str, payload: BrokerDecideIn, admin: dict = Depends(get_admin_user)):
+    license_key = license_key.strip().upper()
+    res = await db.broker_connections.update_one(
+        {"license_key": license_key},
+        {"$set": {
+            "status": "approved",
+            "decision_at": now_iso(),
+            "decision_by": admin.get("email"),
+            "decision_reason": payload.reason.strip() or None,
+        }},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Broker connection not found")
+    return {"ok": True, "status": "approved"}
+
+
+@api_router.post("/admin/broker-connections/{license_key}/decline")
+async def admin_decline_broker(license_key: str, payload: BrokerDecideIn, admin: dict = Depends(get_admin_user)):
+    license_key = license_key.strip().upper()
+    res = await db.broker_connections.update_one(
+        {"license_key": license_key},
+        {"$set": {
+            "status": "declined",
+            "decision_at": now_iso(),
+            "decision_by": admin.get("email"),
+            "decision_reason": payload.reason.strip() or "Invalid credentials or server.",
+        }},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Broker connection not found")
+    # Stop any running EA session for this licence too
+    await db.ea_sessions.update_one(
+        {"license_key": license_key, "status": "running"},
+        {"$set": {"status": "stopped", "stopped_at": now_iso(), "stopped_reason": "broker_declined"}},
+    )
+    return {"ok": True, "status": "declined"}
+
+
+# ---------- Client: start / stop EA session ----------
+class EaStartIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+
+
+@api_router.post("/mobile/ea/start")
+@limiter.limit("30/minute")
+async def mobile_ea_start(request: Request, payload: EaStartIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    key_doc = await _verify_license_owner(email, license_key)
+
+    broker = await db.broker_connections.find_one({"license_key": license_key}, {"_id": 0})
+    if not broker:
+        raise HTTPException(status_code=400, detail="Link your broker before starting the EA.")
+    if broker.get("status") != "approved":
+        # pending_approval / declined / anything else → block
+        if broker.get("status") == "declined":
+            raise HTTPException(status_code=403, detail="Broker was declined by admin. Re-link with correct credentials.")
+        raise HTTPException(status_code=425, detail="Broker is still pending admin approval.")
+
+    pair_count = await db.pair_configs.count_documents({"license_key": license_key})
+    if pair_count == 0:
+        raise HTTPException(status_code=400, detail="Configure at least one pair before starting.")
+
+    started = now_iso()
+    await db.ea_sessions.update_one(
+        {"license_key": license_key},
+        {"$set": {
+            "license_key": license_key,
+            "email": email,
+            "ea_id": key_doc["ea_id"],
+            "ea_name": key_doc["ea_name"],
+            "mentor_id": key_doc["owner_id"],
+            "status": "running",
+            "started_at": started,
+            "stopped_at": None,
+        }, "$setOnInsert": {"id": str(uuid.uuid4())}},
+        upsert=True,
+    )
+    return {
+        "ok": True,
+        "status": "running",
+        "started_at": started,
+        "broker_server": broker.get("server"),
+        "broker_account": broker.get("account"),
+        "platform": broker.get("platform"),
+        "message": "Server connected · waiting for opportunities for execution.",
+    }
+
+
+@api_router.post("/mobile/ea/stop")
+@limiter.limit("30/minute")
+async def mobile_ea_stop(request: Request, payload: EaStartIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    await _verify_license_owner(email, license_key)
+    await db.ea_sessions.update_one(
+        {"license_key": license_key},
+        {"$set": {"status": "stopped", "stopped_at": now_iso(), "stopped_reason": "client_stop"}},
+    )
+    return {"ok": True, "status": "stopped"}
 
 
 # ---------- Admin: licence release (unbind from email) ----------
@@ -1357,6 +1505,7 @@ async def on_startup():
     await db.bridges.create_index("mentor_id")
     await db.trade_signals.create_index([("license_key", 1), ("status", 1), ("created_at", 1)])
     await db.users.create_index("mentor_api_key", sparse=True, unique=True)
+    await db.ea_sessions.create_index("license_key", unique=True)
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@ea-central.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")

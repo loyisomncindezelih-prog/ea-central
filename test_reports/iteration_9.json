@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 9 backend fully green (16/16 pytest). Broker approval workflow + EA start/stop endpoints behave exactly as specified: connect-broker returns status='pending_approval'; admin /approve and /decline are admin-gated (401 no token, 403 mentor, 404 unknown LK); decline defaults reason to 'Invalid credentials or server.'; declining while EA is running flips ea_session to stopped (reason=broker_declined); ea/start gates correctly with 425 (pending), 403 (declined), 400 (no broker / no pairs), 200 + 'Server connected · waiting for opportunities for execution.' on happy path; activate-license payload now includes broker.status, broker.decision_reason, broker.decision_at, ea_session{status,started_at,stopped_at}, and pair_configs[]; ea/stop sets stopped_at + stopped_reason='client_stop'; admin GET /broker-connections returns ea_session.pairs[] with symbol/lot/direction/platform/max_trades. Frontend /admin/brokers is perfect — pending row shows Approve+Decline buttons, status badge transitions through pending approval → approved → declined live on 6s auto-refresh, 'Declined: <reason>' surfaces, EA running badge + Active pairs panel render after client start. Frontend /app has ONE functional bug (see below). 16/16 backend tests pass, /admin/brokers UI 100%, /app UI ~80% (broker badge transition broken).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MobileApp.jsx (line ~635, broker form onSubmit)",
+        "issue": "After successful POST /api/mobile/connect-broker the local state hard-codes broker.status='configured' instead of using data.status from the response ('pending_approval'). Two visible consequences: (a) the badge mobile-broker-status-badge reads 'configured' (white/accent) instead of 'linking…' (yellow); (b) the polling useEffect only triggers when broker.status is 'pending_approval' or 'declined', so the 4s polling never starts in the same session — the user never sees the live transition to 'approved'/'declined' or the success/decline toast until they reload the page (after reload activate-license correctly returns the real status, which is why a fresh visit shows 'approved' correctly).",
+        "selector": "[data-testid=\"mobile-broker-status-badge\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "MobileApp.jsx StartPopup (line ~1164)",
+        "issue": "Start popup uses absolute inset-0 z-40 so it covers the entire viewport including the START/STOP action row. While the popup is open the STOP button is unreachable — the user must press the close (X) inside the popup first, then press the STOP toggle. Toast 'MT4 broker linking to server… awaiting admin verification' is also never shown after connect (no toast.info call in the connect-broker onSubmit handler — only the badge would have signalled the linking state, and that is broken too — see bug above).",
+        "selector": "[data-testid=\"mobile-start-popup\"]",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Broker approval polling on /app",
+        "issue": "Polling never starts in the same session that submitted the broker because the local broker.status is hard-coded to 'configured'. Approve/decline toasts ('Broker successfully linked' / decline reason) won't fire until the user navigates away and back.",
+        "affected_selectors": ["[data-testid=\"mobile-broker-status-badge\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9.py",
+    "/app/test_reports/pytest/iteration9_results.xml"
+  ],
+  "action_items": [
+    "Fix /app/frontend/src/pages/MobileApp.jsx ~line 635: use `status: data.status || 'pending_approval'` instead of hard-coded 'configured' in setEaData after POST /mobile/connect-broker. This single-line fix also restarts the 4s polling and lets the live approved/declined toasts fire.",
+    "Add a `toast.info('MT4 broker linking to server… awaiting admin verification')` (or similar) right after the successful connect-broker call so the user gets immediate feedback, matching the iteration 9 spec.",
+    "Consider lowering the StartPopup z-index so the action row (and STOP button) stay tappable, or have the STOP button live inside the popup so the user can stop without first dismissing the popup. Right now stopping requires two taps (close X → STOP)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 1551 lines — getting close to the 700-line guideline; consider splitting mobile/admin/bridge concerns into routers.",
+    "ea_sessions has a unique index on license_key (server.py:1508). Good. _ea_session_summary issues a separate find_many on pair_configs per row in admin_broker_connections — fine at current scale but consider $lookup if rows grow.",
+    "admin_decline_broker auto-stops only sessions with status='running'; OK, but if status was already 'stopped' there is no audit trail of the broker-declined event on the session. Optional improvement."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration9.py"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "80% (admin 100%; /app broker badge transition broken)"},
+  "test_credentials": "admin@ea-central.com / Admin@123 ; TEST_it6_ui_1778753851@test.com / Passw0rd! ; licence EAC-2F9D-E69F-6F75-CEB3",
+  "seed_data_creation": "Re-linked broker (ICMarketsSC-Demo01 / 5550101) several times during test; configured EURUSD pair_config (BOTH, mt5, lot=0.01, max=1). Final cleanup: ea session stopped and broker disconnected.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "If retesting: ensure the fix at MobileApp.jsx ~line 635 uses data.status. Reproduce the bug: login on /app, submit broker form, observe badge — it should read 'linking…' (currently reads 'configured'). Then via API approve/decline and observe whether badge updates within ~4s (currently it does not). Backend test file /app/backend/tests/test_iteration9.py exercises all backend paths and cleans up after itself.",
+  "rca of the issue": "MobileApp.jsx broker form onSubmit calls POST /mobile/connect-broker — the response contains status='pending_approval' but the handler discards it and writes status:'configured' into local eaData.broker. Because the polling useEffect (line ~171) only runs when broker.status is in {'pending_approval','declined'}, polling never starts. After page reload, /mobile/activate-license returns the real status from Mongo and the UI renders correctly — which is why the badge looks fine after a refresh but is wrong in-session."
+}

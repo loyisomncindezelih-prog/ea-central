@@ -60,6 +60,7 @@ export default function MobileApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
   const [pairsOpen, setPairsOpen] = useState(false);
+  const [startOpen, setStartOpen] = useState(false);
   const [themeKey, setThemeKey] = useState(localStorage.getItem(LS_THEME) || "blue");
   const theme = THEMES[themeKey] || THEMES.blue;
   const accent = theme.hex;
@@ -164,6 +165,32 @@ export default function MobileApp() {
   useEffect(() => {
     tryResume();
   }, [tryResume]);
+
+  // Poll for broker approval / EA session updates while on the app stage.
+  // Stops when broker is approved AND no ea_session is pending (i.e. terminal state).
+  useEffect(() => {
+    if (stage !== "app" || !email || !license) return;
+    const brokerStatus = eaData?.broker?.status;
+    const needsPolling = !brokerStatus
+      ? false
+      : ["pending_approval", "declined"].includes(brokerStatus);
+    if (!needsPolling) return;
+    const iv = setInterval(async () => {
+      try {
+        const { data } = await api.post("/mobile/activate-license", { email, license_key: license });
+        const oldStatus = eaData?.broker?.status;
+        const newStatus = data?.broker?.status;
+        if (oldStatus === "pending_approval" && newStatus === "approved") {
+          toast.success("Broker successfully linked");
+        }
+        if (oldStatus === "pending_approval" && newStatus === "declined") {
+          toast.error(data?.broker?.decision_reason || "Invalid credentials or server");
+        }
+        setEaData(data);
+      } catch { /* swallow polling errors */ }
+    }, 4000);
+    return () => clearInterval(iv);
+  }, [stage, email, license, eaData?.broker?.status]);
 
   // Auto-kick to license stage if expiry passes while in app
   useEffect(() => {
@@ -385,9 +412,24 @@ export default function MobileApp() {
           <ActionBtn icon={TrendingUp} label="PAIRS" accent={accent} testid="mobile-action-pairs"
             onClick={() => setPairsOpen(true)} />
           <ActionBtn icon={Play} label={running ? "STOP" : "START"} accent={accent} testid="mobile-action-start"
-            onClick={() => {
-              setRunning((r) => !r);
-              toast.success(running ? `${eaName} stopped` : `${eaName} is now trading`);
+            onClick={async () => {
+              if (running) {
+                try {
+                  await api.post("/mobile/ea/stop", { email, license_key: license });
+                } catch { /* ignore */ }
+                setRunning(false);
+                setStartOpen(false);
+                toast.success(`${eaName} stopped`);
+                return;
+              }
+              try {
+                const { data } = await api.post("/mobile/ea/start", { email, license_key: license });
+                setRunning(true);
+                setStartOpen(true);
+                setEaData((d) => ({ ...(d || {}), ea_session: { status: "running", started_at: data.started_at } }));
+              } catch (err) {
+                toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+              }
             }} highlight={running} themeSoft={theme.soft} />
           <ActionBtn icon={Info} label="INFO" accent={accent} testid="mobile-action-info"
             onClick={() => toast.info(`Mentor: ${eaData?.mentor_username || "—"} · Plan: ${eaData?.plan_label}`)} />
@@ -444,9 +486,26 @@ export default function MobileApp() {
                 <div className="text-sm text-white/55">Not configured — tap to link MT4 / MT5</div>
               )}
             </div>
-            <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1" style={{ color: eaData?.broker ? accent : "rgba(255,255,255,0.4)", border: `1px solid ${eaData?.broker ? accent : "rgba(255,255,255,0.15)"}` }}>
-              {eaData?.broker ? "configured" : "setup"}
-            </div>
+            {(() => {
+              const s = eaData?.broker?.status;
+              const label =
+                !eaData?.broker ? "setup" :
+                s === "pending_approval" ? "linking…" :
+                s === "approved" ? "approved" :
+                s === "declined" ? "declined" : "configured";
+              const color =
+                !eaData?.broker ? "rgba(255,255,255,0.4)" :
+                s === "declined" ? "#FF3B3B" :
+                s === "pending_approval" ? "rgba(255,200,80,0.95)" :
+                accent;
+              return (
+                <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1"
+                  style={{ color, border: `1px solid ${color === "rgba(255,255,255,0.4)" ? "rgba(255,255,255,0.15)" : color}` }}
+                  data-testid="mobile-broker-status-badge">
+                  {label}
+                </div>
+              );
+            })()}
           </button>
         </div>
 
@@ -574,7 +633,7 @@ export default function MobileApp() {
                     platform: data.platform, server: data.server, account: data.account, password: "",
                   }));
                   setEaData((d) => ({ ...(d || {}), broker: { platform: data.platform, server: data.server, account: data.account, connected_at: data.connected_at, status: "configured" } }));
-                  toast.success(`${data.platform.toUpperCase()} broker linked · ${data.server}`);
+                  toast.info(`${data.platform.toUpperCase()} broker linking to server… awaiting admin verification`);
                   setConnectOpen(false);
                 } catch (err) {
                   toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
@@ -655,6 +714,18 @@ export default function MobileApp() {
             theme={theme}
             accent={accent}
             onClose={() => setPairsOpen(false)}
+          />
+        )}
+
+        {/* Start popup (server connected · waiting for opportunities) */}
+        {startOpen && (
+          <StartPopup
+            eaName={eaName}
+            broker={eaData?.broker}
+            pairs={eaData?.pair_configs || []}
+            accent={accent}
+            theme={theme}
+            onClose={() => setStartOpen(false)}
           />
         )}
       </div>
@@ -1081,5 +1152,72 @@ const PairConfigForm = ({ symbol, email, license, accent, theme, onCancel, onSav
         {busy ? "Saving…" : `Add ${symbol} to selection`}
       </Button>
     </form>
+  );
+};
+
+
+// ============ Start popup ============
+const StartPopup = ({ eaName, broker, pairs, accent, theme, onClose }) => {
+  const [expanded, setExpanded] = useState(false);
+  // Pulsing dot animation
+  return (
+    <div className="absolute inset-0 z-40 flex items-end justify-center" data-testid="mobile-start-popup">
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+        onClick={onClose}
+      />
+      <div
+        className="relative w-[calc(100%-1.5rem)] rounded-t-2xl p-4 mb-3 cursor-pointer"
+        style={{ border: `2px solid ${accent}`, backgroundColor: "rgba(0,17,34,0.95)", boxShadow: `0 -8px 40px ${theme.glow}` }}
+        onClick={() => setExpanded((v) => !v)}
+        data-testid="mobile-start-popup-card"
+      >
+        <div className="flex items-center gap-3">
+          <span className="relative flex w-3 h-3">
+            <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ backgroundColor: accent }} />
+            <span className="relative inline-flex rounded-full h-3 w-3" style={{ backgroundColor: accent }} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] tracking-[0.28em] uppercase text-white/55">{eaName}</div>
+            <div className="text-white font-semibold text-sm truncate" data-testid="mobile-start-popup-status">
+              {expanded ? "Server connected · waiting for opportunities for execution" : "EA started — tap for details"}
+            </div>
+          </div>
+          <button className="text-white/45 hover:text-white" data-testid="mobile-start-popup-close" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {expanded && (
+          <div className="mt-4 space-y-3 max-h-[40vh] overflow-y-auto pr-1" data-testid="mobile-start-popup-expanded">
+            <div className="border border-white/10 p-3 text-xs">
+              <div className="text-[10px] tracking-[0.22em] uppercase text-white/55">Broker session</div>
+              <div className="font-mono text-white mt-1 truncate" data-testid="popup-broker-line">
+                {broker?.platform?.toUpperCase() || "—"} · {broker?.server || "—"} · #{broker?.account || "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-1">Active pairs ({pairs.length})</div>
+              {pairs.length === 0 ? (
+                <div className="text-xs text-white/45 border border-white/10 p-3 text-center">No pairs selected</div>
+              ) : (
+                <div className="space-y-1">
+                  {pairs.map((p) => (
+                    <div key={p.symbol} className="border px-3 py-2 grid grid-cols-12 gap-2 items-center text-xs"
+                      style={{ borderColor: theme.border }}
+                      data-testid={`popup-pair-${p.symbol}`}>
+                      <div className="col-span-4 font-mono font-bold" style={{ color: accent }}>{p.symbol}</div>
+                      <div className="col-span-3 text-[10px] tracking-[0.18em] uppercase" style={{ color: accent }}>{p.direction}</div>
+                      <div className="col-span-3 text-[10px] tracking-[0.18em] uppercase text-white/55">{p.platform?.toUpperCase()}</div>
+                      <div className="col-span-2 font-mono text-right text-white/75">{p.lot_size} × {p.max_trades}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

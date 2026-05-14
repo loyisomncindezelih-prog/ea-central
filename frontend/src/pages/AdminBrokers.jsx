@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, EyeOff, Copy, Server, Search, RefreshCcw } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Copy, Server, Search, RefreshCcw, CheckCircle2, XCircle, Play, Pause } from "lucide-react";
 
 export default function AdminBrokers() {
   const navigate = useNavigate();
@@ -23,11 +23,28 @@ export default function AdminBrokers() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const iv = setInterval(load, 6000);
+    return () => clearInterval(iv);
+  }, [load]);
 
   const copy = (val, label = "Copied") => {
     navigator.clipboard.writeText(val);
     toast.success(label);
+  };
+
+  const decide = async (license_key, action) => {
+    const reason = action === "decline"
+      ? (window.prompt("Reason shown to client? (optional)", "Invalid credentials or server.") || "")
+      : "";
+    try {
+      await api.post(`/admin/broker-connections/${license_key}/${action}`, { reason });
+      toast.success(action === "approve" ? "Broker approved" : "Broker declined");
+      load();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    }
   };
 
   const filtered = rows.filter((r) => {
@@ -80,6 +97,19 @@ export default function AdminBrokers() {
           )}
           {filtered.map((r, i) => {
             const shown = !!reveal[r.license_key];
+            const status = r.status || "configured";
+            const statusColor =
+              status === "approved" ? "#1E90FF" :
+              status === "declined" ? "#FF3B3B" :
+              status === "pending_approval" ? "#FFC850" :
+              "rgba(255,255,255,0.7)";
+            const statusLabel =
+              status === "approved" ? "approved" :
+              status === "declined" ? "declined" :
+              status === "pending_approval" ? "pending approval" :
+              status;
+            const session = r.ea_session;
+            const ses = session?.status;
             return (
               <div key={r.license_key} className="ea-glass p-5 sm:p-6 relative" data-testid={`admin-broker-row-${i}`}>
                 <div className="flex items-start justify-between flex-wrap gap-3">
@@ -92,10 +122,35 @@ export default function AdminBrokers() {
                       <div className="text-[10px] tracking-[0.22em] uppercase text-white/55">{r.client_username || "—"} · {r.client_contact || "no phone"}</div>
                     </div>
                   </div>
-                  <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 border" style={{ borderColor: "#1E90FF80", color: "#1E90FF" }}>
-                    {r.platform?.toUpperCase()} · {r.status || "configured"}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 border" style={{ borderColor: `${statusColor}80`, color: statusColor }} data-testid={`broker-row-status-${i}`}>
+                      {r.platform?.toUpperCase()} · {statusLabel}
+                    </div>
+                    {ses && (
+                      <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 border flex items-center gap-1" style={{ borderColor: ses === "running" ? "#1E90FF80" : "rgba(255,255,255,0.2)", color: ses === "running" ? "#1E90FF" : "rgba(255,255,255,0.55)" }} data-testid={`broker-row-session-${i}`}>
+                        {ses === "running" ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                        EA {ses}
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Approve / Decline actions (only when pending) */}
+                {status === "pending_approval" && (
+                  <div className="mt-4 flex gap-2 flex-wrap" data-testid={`broker-row-actions-${i}`}>
+                    <Button onClick={() => decide(r.license_key, "approve")} className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-10 px-4 tracking-wide" data-testid={`broker-approve-${i}`}>
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Approve linking
+                    </Button>
+                    <Button onClick={() => decide(r.license_key, "decline")} className="bg-transparent border border-[#FF3B3B]/70 text-[#FF3B3B] hover:bg-[#FF3B3B]/10 rounded-none h-10 px-4 tracking-wide" data-testid={`broker-decline-${i}`}>
+                      <XCircle className="w-4 h-4 mr-2" /> Decline
+                    </Button>
+                  </div>
+                )}
+                {status === "declined" && r.decision_reason && (
+                  <div className="mt-3 text-[11px] tracking-wide text-[#FF3B3B]/85 border border-[#FF3B3B]/30 bg-[#FF3B3B]/5 px-3 py-2" data-testid={`broker-row-decline-reason-${i}`}>
+                    Declined: {r.decision_reason}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 mt-5 text-sm">
                   <Field label="Mentor" value={`${r.mentor_username || "—"} · ${r.mentor_email || ""}`} />
@@ -105,6 +160,25 @@ export default function AdminBrokers() {
                   <Field label="Broker server" value={r.broker_server} mono onCopy={() => copy(r.broker_server, "Server copied")} testid={`broker-server-${i}`} />
                   <Field label="Broker account" value={r.broker_account} mono onCopy={() => copy(r.broker_account, "Account copied")} testid={`broker-account-${i}`} />
                 </div>
+
+                {/* EA session detail */}
+                {session && session.pairs && session.pairs.length > 0 && (
+                  <div className="mt-4 border border-white/10 p-3" data-testid={`broker-row-pairs-${i}`}>
+                    <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-2">
+                      Active pairs ({session.pairs.length}) {session.started_at && <span className="text-white/40 ml-2">started {new Date(session.started_at).toLocaleString()}</span>}
+                    </div>
+                    <div className="space-y-1">
+                      {session.pairs.map((p) => (
+                        <div key={p.symbol} className="grid grid-cols-12 gap-2 items-center text-xs border-l-2 pl-2 py-1" style={{ borderColor: "#1E90FF80" }}>
+                          <div className="col-span-3 font-mono text-white font-bold">{p.symbol}</div>
+                          <div className="col-span-3 text-[10px] tracking-[0.18em] uppercase text-[#1E90FF]">{p.direction}</div>
+                          <div className="col-span-2 text-[10px] tracking-[0.18em] uppercase text-white/55">{p.platform?.toUpperCase()}</div>
+                          <div className="col-span-4 font-mono text-right text-white/75">lot {p.lot_size} · ×{p.max_trades}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3 border-t border-white/10 pt-3">
                   <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-1">Broker password (live)</div>
