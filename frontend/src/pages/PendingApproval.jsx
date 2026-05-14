@@ -1,12 +1,38 @@
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Clock, ArrowRight } from "lucide-react";
+import { api } from "@/lib/api";
+import { CheckCircle2, Clock, ArrowRight, CreditCard, AlertCircle } from "lucide-react";
+
+const PRICE_LABEL = "R439.00";
 
 export default function PendingApproval() {
   const { state } = useLocation();
-  const email = state?.email;
+  const [params] = useSearchParams();
+  const email = state?.email || params.get("email") || "";
+  const [paymentClicked, setPaymentClicked] = useState(null); // null = unknown / not yet checked
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!email) return;
+    // Public probe — uses /verify-account/click flow status info we have. We can't
+    // hit /verify-account/status (auth-only), so we just rely on whether the user
+    // already came back here after clicking pay.
+    api.post("/mobile/check-email", { email })
+      .then(() => { if (!cancelled) setPaymentClicked(true); /* approved already */ })
+      .catch((err) => {
+        if (cancelled) return;
+        const detail = err.response?.data?.detail;
+        // If we get the "pending admin approval" 403, payment may or may not be clicked.
+        // We leave paymentClicked as `null` so we still show the "complete payment" CTA softly.
+        if (err.response?.status === 403) setPaymentClicked(false);
+      });
+    return () => { cancelled = true; };
+  }, [email]);
+
+  const showPayCta = paymentClicked !== true; // hide if account is already approved
 
   return (
     <div className="min-h-screen bg-black text-white" data-testid="pending-page">
@@ -22,18 +48,36 @@ export default function PendingApproval() {
               / account created
             </div>
             <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight mt-3">
-              Pending admin <span className="text-[#1E90FF]">approval</span>.
+              Almost there.
             </h1>
             <p className="text-white/70 mt-4 max-w-xl mx-auto text-sm sm:text-base leading-relaxed">
               Thanks for signing up{email ? <> as <span className="text-white font-semibold">{email}</span></> : ""}.
-              Your mentor account is now in review. You'll be able to log in once an admin approves it.
+              Complete the <span className="text-[#1E90FF] font-semibold">{PRICE_LABEL}</span> verification payment,
+              then an admin will approve your mentor dashboard.
             </p>
+
+            {showPayCta && (
+              <div className="mt-8 mx-auto max-w-md border border-[#1E90FF]/50 bg-[#1E90FF]/[0.07] p-5 flex flex-col gap-3" data-testid="pending-pay-cta">
+                <div className="flex items-center gap-2 text-[11px] tracking-[0.25em] uppercase text-[#1E90FF]">
+                  <AlertCircle className="w-3.5 h-3.5" /> Step 1 — complete payment
+                </div>
+                <p className="text-white/75 text-sm">
+                  Your account is not unlocked until the {PRICE_LABEL} verification fee is paid.
+                </p>
+                <Link to={`/verify-account?email=${encodeURIComponent(email)}`}>
+                  <Button className="w-full bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-11 mt-1" data-testid="pending-pay-btn">
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay {PRICE_LABEL} now
+                  </Button>
+                </Link>
+              </div>
+            )}
 
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left max-w-xl mx-auto">
               {[
                 ["Submitted", "Your details are saved."],
-                ["In review", "Admin verifies your account."],
-                ["Approved", "Log in and pair your bot."],
+                ["Payment", `Pay ${PRICE_LABEL} via Yoco.`],
+                ["Approved", "Admin verifies, then log in."],
               ].map(([t, b], i) => (
                 <div
                   key={t}
@@ -52,7 +96,8 @@ export default function PendingApproval() {
             <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
               <Link to="/">
                 <Button
-                  className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none px-6 h-12 w-full sm:w-auto"
+                  variant="ghost"
+                  className="border border-white/20 hover:border-[#1E90FF] hover:text-[#1E90FF] text-white rounded-none px-6 h-12 w-full sm:w-auto"
                   data-testid="pending-home-btn"
                 >
                   Back to home <ArrowRight className="ml-2 w-4 h-4" />

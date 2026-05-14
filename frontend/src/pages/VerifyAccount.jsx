@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { api, formatApiErrorDetail } from "@/lib/api";
@@ -7,12 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ShieldCheck, CreditCard, ArrowRight, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, CreditCard, ArrowRight, CheckCircle2, Lock } from "lucide-react";
+
+const PRICE_LABEL = "R439.00";
+const PRICE_SUBLABEL = "ZAR · one-time verification";
 
 export default function VerifyAccount() {
-  const [email, setEmail] = useState("");
+  const [params] = useSearchParams();
+  const isNew = params.get("new") === "1";
+  const [email, setEmail] = useState(params.get("email") || "");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (isNew && email) toast.info(`Almost there, ${email} — pay ${PRICE_LABEL} to unlock your mentor dashboard.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -21,9 +31,7 @@ export default function VerifyAccount() {
       const { data } = await api.post("/verify-account/click", { email });
       setDone(true);
       toast.success("Redirecting to payment…");
-      setTimeout(() => {
-        window.open(data.payment_link, "_blank");
-      }, 800);
+      setTimeout(() => window.open(data.payment_link, "_blank"), 800);
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
     } finally {
@@ -41,14 +49,32 @@ export default function VerifyAccount() {
             <div className="w-14 h-14 mx-auto flex items-center justify-center rounded-full border border-[#1E90FF]/50 bg-[#1E90FF]/10 text-[#1E90FF]">
               <ShieldCheck className="w-7 h-7" strokeWidth={1.5} />
             </div>
-            <div className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-[#1E90FF] mt-6 text-center">/ verify account</div>
+            <div className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-[#1E90FF] mt-6 text-center">
+              / verify mentor account
+            </div>
             <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight mt-3 text-center">
-              Verify with <span className="text-[#1E90FF]">payment</span>.
+              Unlock with <span className="text-[#1E90FF]">payment</span>.
             </h1>
             <p className="text-white/65 text-sm mt-3 text-center max-w-lg mx-auto">
-              Enter the email tied to your ea-central account, then complete payment. Once we confirm payment,
-              your mentor account will be fully verified.
+              Mentor accounts on ea-central are activated after a one-time verification payment.
+              Once we confirm it, an admin verifies your details and your dashboard opens up.
             </p>
+
+            {/* Price plate */}
+            <div
+              className="mt-8 mx-auto max-w-sm border border-[#1E90FF]/50 bg-[#1E90FF]/[0.07] p-5 text-center"
+              data-testid="verify-price-plate"
+            >
+              <div className="text-[10px] tracking-[0.3em] uppercase text-white/55">Verification fee</div>
+              <div className="font-display text-4xl sm:text-5xl font-black tracking-tight text-[#1E90FF] mt-1" data-testid="verify-price">
+                {PRICE_LABEL}
+              </div>
+              <div className="text-[11px] tracking-[0.22em] uppercase text-white/45 mt-1">{PRICE_SUBLABEL}</div>
+              <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-white/55">
+                <Lock className="w-3 h-3 text-[#1E90FF]" />
+                Secure checkout via Yoco
+              </div>
+            </div>
 
             {done ? (
               <div className="mt-10 text-center" data-testid="verify-done">
@@ -58,7 +84,7 @@ export default function VerifyAccount() {
                 </div>
                 <p className="text-white/65 text-sm mt-5 max-w-md mx-auto">
                   If the payment page didn't open, click the button below. Our admin team has been
-                  notified to verify your payment shortly.
+                  notified to verify your {PRICE_LABEL} payment shortly.
                 </p>
                 <Button
                   onClick={() => api.get("/verify-account/config").then(r => window.open(r.data.payment_link, "_blank"))}
@@ -67,16 +93,16 @@ export default function VerifyAccount() {
                 >
                   Open payment page again
                 </Button>
-                <div className="mt-8">
-                  <Link to="/dashboard" className="text-xs tracking-[0.22em] uppercase text-white/55 hover:text-[#1E90FF]">
-                    ← Back to dashboard
+                <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+                  <Link to="/pending" className="text-xs tracking-[0.22em] uppercase text-white/55 hover:text-[#1E90FF]" data-testid="verify-to-pending">
+                    Check approval status →
                   </Link>
                 </div>
               </div>
             ) : (
-              <form onSubmit={submit} className="mt-10 max-w-md mx-auto space-y-5" data-testid="verify-form">
+              <form onSubmit={submit} className="mt-8 max-w-md mx-auto space-y-5" data-testid="verify-form">
                 <div>
-                  <Label className="text-[11px] tracking-[0.25em] uppercase text-white/55 mb-2 block">Email</Label>
+                  <Label className="text-[11px] tracking-[0.25em] uppercase text-white/55 mb-2 block">Email tied to your account</Label>
                   <Input
                     required
                     type="email"
@@ -94,11 +120,11 @@ export default function VerifyAccount() {
                   data-testid="verify-pay-btn"
                 >
                   <CreditCard className="w-4 h-4 mr-2" />
-                  {loading ? "Opening…" : "Pay to verify"}
+                  {loading ? "Opening…" : `Pay ${PRICE_LABEL} to verify`}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
                 <p className="text-[10px] tracking-[0.22em] uppercase text-white/35 text-center pt-2">
-                  After payment, our admin will mark your account verified
+                  After payment, an admin will verify it on the Yoco dashboard, then approve your account.
                 </p>
               </form>
             )}

@@ -38,8 +38,8 @@ export default function Signup() {
     setLoading(true);
     try {
       const res = await register(form);
-      toast.success("Account created — pending admin approval");
-      navigate("/pending", { state: { email: res?.user?.email } });
+      toast.success("Account created — complete the R439 payment to unlock your dashboard");
+      navigate(`/verify-account?email=${encodeURIComponent(res?.user?.email || form.email)}&new=1`);
     } catch (err) {
       const msg = formatApiErrorDetail(err.response?.data?.detail) || err.message;
       setError(msg);

@@ -33,6 +33,11 @@ const LS_LICENSE = "ea_mobile_license";
 const LS_THEME = "ea_mobile_theme";
 const LS_BROKER = "ea_mobile_broker";
 
+const PLATFORMS = [
+  { key: "mt5", label: "MetaTrader 5" },
+  { key: "mt4", label: "MetaTrader 4" },
+];
+
 const THEMES = {
   blue:  { name: "Blue",  hex: "#1E90FF", soft: "rgba(30,144,255,0.10)", glow: "rgba(30,144,255,0.55)", border: "rgba(30,144,255,0.70)" },
   red:   { name: "Red",   hex: "#FF3B3B", soft: "rgba(255,59,59,0.10)",  glow: "rgba(255,59,59,0.55)",  border: "rgba(255,59,59,0.70)" },
@@ -60,11 +65,13 @@ export default function MobileApp() {
   const [broker, setBroker] = useState(() => {
     try {
       const raw = localStorage.getItem(LS_BROKER);
-      return raw ? JSON.parse(raw) : { server: "", account: "", password: "", host: "" };
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed || { platform: "mt5", server: "", account: "", password: "" };
     } catch {
-      return { server: "", account: "", password: "", host: "" };
+      return { platform: "mt5", server: "", account: "", password: "" };
     }
   });
+  const [brokerBusy, setBrokerBusy] = useState(false);
 
   // PWA: install hints for iOS "Add to Home Screen" + standalone full-screen
   useEffect(() => {
@@ -395,6 +402,34 @@ export default function MobileApp() {
           </div>
         </div>
 
+        {/* Broker status */}
+        <div className="relative mx-4 mt-3">
+          <button
+            type="button"
+            onClick={() => setConnectOpen(true)}
+            className="w-full rounded-lg p-3 flex items-center gap-3 text-left"
+            style={{ border: `2px solid ${eaData?.broker ? theme.border : "rgba(255,255,255,0.1)"}`, backgroundColor: "rgba(0,17,34,0.4)" }}
+            data-testid="mobile-broker-status"
+          >
+            <div className="w-9 h-9 flex items-center justify-center shrink-0" style={{ border: `1px solid ${accent}`, color: accent }}>
+              <Server className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Broker bridge</div>
+              {eaData?.broker ? (
+                <div className="text-sm text-white truncate" data-testid="mobile-broker-summary">
+                  {eaData.broker.platform?.toUpperCase()} · {eaData.broker.server} · #{eaData.broker.account}
+                </div>
+              ) : (
+                <div className="text-sm text-white/55">Not configured — tap to link MT4 / MT5</div>
+              )}
+            </div>
+            <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1" style={{ color: eaData?.broker ? accent : "rgba(255,255,255,0.4)", border: `1px solid ${eaData?.broker ? accent : "rgba(255,255,255,0.15)"}` }}>
+              {eaData?.broker ? "configured" : "setup"}
+            </div>
+          </button>
+        </div>
+
         <div className="flex-1" />
 
         {/* Bottom nav */}
@@ -503,32 +538,82 @@ export default function MobileApp() {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                localStorage.setItem(LS_BROKER, JSON.stringify(broker));
-                toast.success("Broker linked");
-                setConnectOpen(false);
+                setBrokerBusy(true);
+                try {
+                  const { data } = await api.post("/mobile/connect-broker", {
+                    email,
+                    license_key: license,
+                    platform: broker.platform,
+                    server: broker.server,
+                    account: broker.account,
+                    password: broker.password,
+                  });
+                  localStorage.setItem(LS_BROKER, JSON.stringify({
+                    platform: data.platform, server: data.server, account: data.account, password: "",
+                  }));
+                  setEaData((d) => ({ ...(d || {}), broker: { platform: data.platform, server: data.server, account: data.account, connected_at: data.connected_at, status: "configured" } }));
+                  toast.success(`${data.platform.toUpperCase()} broker linked · ${data.server}`);
+                  setConnectOpen(false);
+                } catch (err) {
+                  toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+                } finally {
+                  setBrokerBusy(false);
+                }
               }}
-              className="px-5 py-4 flex flex-col gap-3"
+              className="px-5 py-4 flex flex-col gap-4"
               data-testid="mobile-broker-form"
             >
-              <BrokerField label="Broker server" value={broker.server} onChange={(v) => setBroker({ ...broker, server: v })} placeholder="e.g. ICMarketsSC-Demo02" accent={accent} testid="broker-server" />
-              <BrokerField label="Account / Username" value={broker.account} onChange={(v) => setBroker({ ...broker, account: v })} placeholder="123456789" accent={accent} testid="broker-account" />
-              <BrokerField label="Password (investor / main)" type="password" value={broker.password} onChange={(v) => setBroker({ ...broker, password: v })} placeholder="••••••••" accent={accent} testid="broker-password" />
-              <BrokerField label="PC / VPS host or IP" value={broker.host} onChange={(v) => setBroker({ ...broker, host: v })} placeholder="e.g. 185.123.45.67 or my-vps.host" accent={accent} testid="broker-host" />
-
-              <div className="border border-white/10 p-3 text-[11px] text-white/55 leading-relaxed">
-                Your credentials are saved locally on this device and sent only to the ea-central bridge
-                running on your PC / VPS for trade execution. Never shared with other clients.
+              {/* Platform selector */}
+              <div>
+                <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block">Trading platform</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PLATFORMS.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => setBroker({ ...broker, platform: p.key })}
+                      className="py-3 text-xs tracking-[0.22em] uppercase transition"
+                      style={{
+                        border: `2px solid ${broker.platform === p.key ? accent : "rgba(255,255,255,0.12)"}`,
+                        color: broker.platform === p.key ? accent : "rgba(255,255,255,0.7)",
+                        backgroundColor: broker.platform === p.key ? theme.soft : "transparent",
+                      }}
+                      data-testid={`broker-platform-${p.key}`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <Button type="submit" className="w-full text-black font-bold rounded-none h-12 tracking-wide" style={{ backgroundColor: accent }} data-testid="broker-save">
-                Link broker
+              <BrokerField label="Broker server" value={broker.server} onChange={(v) => setBroker({ ...broker, server: v })} placeholder="e.g. ICMarketsSC-Demo02" accent={accent} testid="broker-server" />
+              <BrokerField label="Account / Login" value={broker.account} onChange={(v) => setBroker({ ...broker, account: v })} placeholder="123456789" accent={accent} testid="broker-account" />
+              <BrokerField label="Password (investor / main)" type="password" value={broker.password} onChange={(v) => setBroker({ ...broker, password: v })} placeholder="••••••••" accent={accent} testid="broker-password" />
+
+              <div className="border p-3 text-[11px] text-white/65 leading-relaxed" style={{ borderColor: `${accent}40`, backgroundColor: theme.soft }}>
+                <div className="text-[10px] tracking-[0.25em] uppercase mb-1" style={{ color: accent }}>Coming soon</div>
+                Credentials are stored encrypted on the ea-central server and will be picked up by the
+                ea-central bridge (a small desktop helper running on your PC/VPS) for automatic
+                MT4/MT5 trade execution. The bridge installer ships in the next release.
+              </div>
+
+              <Button type="submit" disabled={brokerBusy} className="w-full text-black font-bold rounded-none h-12 tracking-wide" style={{ backgroundColor: accent }} data-testid="broker-save">
+                {brokerBusy ? "Linking…" : "Link broker"}
               </Button>
-              {(broker.server || broker.account) && (
+              {(broker.server || broker.account || eaData?.broker) && (
                 <button
                   type="button"
-                  onClick={() => { setBroker({ server: "", account: "", password: "", host: "" }); localStorage.removeItem(LS_BROKER); toast.success("Broker unlinked"); }}
+                  onClick={async () => {
+                    try {
+                      await api.post("/mobile/disconnect-broker", { email, license_key: license });
+                    } catch { /* ignore */ }
+                    setBroker({ platform: "mt5", server: "", account: "", password: "" });
+                    localStorage.removeItem(LS_BROKER);
+                    setEaData((d) => ({ ...(d || {}), broker: null }));
+                    toast.success("Broker unlinked");
+                  }}
                   className="text-xs tracking-[0.22em] uppercase text-white/45 hover:text-white py-2"
                   data-testid="broker-unlink"
                 >

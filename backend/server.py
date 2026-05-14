@@ -17,6 +17,13 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Respons
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.responses import JSONResponse
+from cryptography.fernet import Fernet
+import base64
+import hashlib
 
 
 # ----------------------- DB -----------------------
@@ -28,6 +35,42 @@ db = client[os.environ["DB_NAME"]]
 # ----------------------- App -----------------------
 app = FastAPI(title="ea-central API")
 api_router = APIRouter(prefix="/api")
+
+
+def _xff_or_remote(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_xff_or_remote, default_limits=[])
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_handler(_request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"Too many requests. Please slow down ({exc.detail})."},
+    )
+
+
+# ----------------------- Symmetric cipher for broker credentials -----------------------
+def _broker_cipher() -> Fernet:
+    secret = os.environ["JWT_SECRET"]
+    key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode("utf-8")).digest())
+    return Fernet(key)
+
+
+def encrypt_secret(plain: str) -> str:
+    return _broker_cipher().encrypt(plain.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_secret(token: str) -> str:
+    return _broker_cipher().decrypt(token.encode("utf-8")).decode("utf-8")
 
 
 # ----------------------- Auth helpers -----------------------
@@ -230,9 +273,26 @@ async def login(payload: LoginIn, request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     status = user.get("status", "approved")
+    role = user.get("role", "mentor")
+    paid = bool(user.get("payment_clicked", False))
+
+    # Mentors must pay R439.00 before they can even sit in the approval queue.
+    # Admins skip the payment gate.
+    if status == "pending" and role != "admin" and not paid:
+        await clear_failures(identifier)
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "payment_required",
+                "message": "Complete the R439.00 verification payment to unlock your mentor account.",
+                "email": email,
+            },
+        )
     if status == "pending":
         await clear_failures(identifier)
-        raise HTTPException(status_code=403, detail="Your account is awaiting admin approval. You'll be notified once it's approved.")
+        msg = "Payment received — admin is verifying. You'll be able to log in shortly." if paid \
+              else "Your account is awaiting admin approval. You'll be notified once it's approved."
+        raise HTTPException(status_code=403, detail=msg)
     if status == "rejected":
         await clear_failures(identifier)
         raise HTTPException(status_code=403, detail="Your account has been rejected. Please contact support.")
@@ -589,7 +649,8 @@ class MobileActivateIn(BaseModel):
 
 
 @api_router.post("/mobile/check-email")
-async def mobile_check_email(payload: MobileEmailIn):
+@limiter.limit("30/minute")
+async def mobile_check_email(request: Request, payload: MobileEmailIn):
     email = payload.email.lower()
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user:
@@ -600,7 +661,8 @@ async def mobile_check_email(payload: MobileEmailIn):
 
 
 @api_router.post("/mobile/activate-license")
-async def mobile_activate_license(payload: MobileActivateIn):
+@limiter.limit("30/minute")
+async def mobile_activate_license(request: Request, payload: MobileActivateIn):
     email = payload.email.lower()
     license_key = payload.license_key.strip().upper()
 
@@ -644,6 +706,17 @@ async def mobile_activate_license(payload: MobileActivateIn):
     if key_status(key_doc) == "expired":
         raise HTTPException(status_code=410, detail="Licence has expired. Please contact your mentor for a new key.")
 
+    broker = await db.broker_connections.find_one({"license_key": key_doc["key"]}, {"_id": 0})
+    broker_summary = None
+    if broker:
+        broker_summary = {
+            "platform": broker.get("platform"),
+            "server": broker.get("server"),
+            "account": broker.get("account"),
+            "connected_at": broker.get("connected_at"),
+            "status": "configured",  # actual MT bridge execution coming soon
+        }
+
     return {
         "ea_id": key_doc["ea_id"],
         "ea_name": key_doc["ea_name"],
@@ -653,7 +726,70 @@ async def mobile_activate_license(payload: MobileActivateIn):
         "expires_at": key_doc.get("expires_at"),
         "holder_username": key_doc["holder_username"],
         "mentor_username": user["username"],
+        "broker": broker_summary,
     }
+
+
+# ----------------------- Broker (MetaTrader) connect — credentials capture -----------------------
+# This stores broker creds tied to a licence key. The actual MT4/MT5 trade bridge
+# (a desktop helper that connects to MetaTrader on the client's PC/VPS) is COMING SOON.
+# For now we persist creds encrypted so the future bridge can pick them up.
+
+class MobileBrokerConnectIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+    platform: str = Field(pattern="^(mt4|mt5)$")
+    server: str = Field(min_length=2, max_length=80)
+    account: str = Field(min_length=2, max_length=40)
+    password: str = Field(min_length=1, max_length=200)
+
+
+@api_router.post("/mobile/connect-broker")
+@limiter.limit("30/minute")
+async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+
+    key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0})
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Invalid licence key")
+    if key_doc.get("bound_to_email") and key_doc["bound_to_email"] != email:
+        raise HTTPException(status_code=403, detail="This licence is bound to a different email.")
+    if key_status(key_doc) == "expired":
+        raise HTTPException(status_code=410, detail="Licence has expired.")
+
+    doc = {
+        "license_key": license_key,
+        "email": email,
+        "platform": payload.platform,
+        "server": payload.server.strip(),
+        "account": payload.account.strip(),
+        "password_enc": encrypt_secret(payload.password),
+        "connected_at": now_iso(),
+        "status": "configured",
+    }
+    await db.broker_connections.update_one(
+        {"license_key": license_key},
+        {"$set": doc, "$setOnInsert": {"id": str(uuid.uuid4())}},
+        upsert=True,
+    )
+    return {
+        "ok": True,
+        "platform": doc["platform"],
+        "server": doc["server"],
+        "account": doc["account"],
+        "connected_at": doc["connected_at"],
+        "status": "configured",
+        "notice": "Credentials saved securely. Automatic trade execution via the ea-central bridge is coming soon.",
+    }
+
+
+@api_router.post("/mobile/disconnect-broker")
+@limiter.limit("30/minute")
+async def mobile_disconnect_broker(request: Request, payload: MobileActivateIn):
+    license_key = payload.license_key.strip().upper()
+    await db.broker_connections.delete_one({"license_key": license_key, "email": payload.email.lower()})
+    return {"ok": True}
 
 
 # ---------- Admin: licence release (unbind from email) ----------

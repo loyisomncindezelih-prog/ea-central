@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 5 — verified payment-gate on /api/auth/login (402 -> payment_required), /api/verify-account/click flow, admin approve happy path, the new /api/mobile/connect-broker and /api/mobile/disconnect-broker endpoints (MT4 + MT5, validation 422, 404, 403, encrypted password_enc in MongoDB), broker summary included in /api/mobile/activate-license response, slowapi 30/min rate-limit on /api/mobile/check-email returning 429. Backend: 13/13 pytest cases pass. Frontend Playwright: signup → /verify-account?email=&new=1 redirect, R439.00 price plate + email prefill, login 402 → /verify-account bounce, /pending Pay R439.00 CTA visible, /app broker drawer MT4/MT5 selector toggling, broker save closes drawer + status badge shows 'MT5 · ICMarketsSC · #123', reload persists summary via server, Unlink resets badge to 'Not configured — tap to link MT4 / MT5'. All 18 review-request scenarios PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/mobile/check-email", "issue": "Rate limit (30/min) is keyed by X-Forwarded-For first IP — in the preview environment the ingress overwrites this, so all browser traffic shares one bucket. UI users that hammer the email step (e.g. backspace + retry) can hit 429 immediately after the backend test suite. Consider raising to 60/min or keying by IP+email hash."},
+      {"endpoint": "/api/mobile/disconnect-broker", "issue": "Returns {ok: true} even when no doc was deleted (idempotent, but no signal to UI whether it actually existed). Acceptable; just noting."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/app loading", "issues": ["On hard reload, 2 transient axios 401s from /api/auth/me still emitted (unchanged from iteration_4). Non-blocking."]},
+      {"screen": "/app broker drawer", "issues": ["'Coming Soon' notice copy is good but the 'METATRADER 5/4' button order (MT5 on left, MT4 on right) is unusual — users typically expect MT4 first. Cosmetic."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5.py",
+    "/app/test_reports/pytest/iteration5_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Broker password encryption uses Fernet keyed by SHA-256(JWT_SECRET). Solid, but reuses the JWT secret for two purposes — rotate one and you break both. Use a dedicated BROKER_ENC_KEY env var to decouple lifecycle.",
+    "/api/mobile/connect-broker does NOT verify the email belongs to a registered user (only checks the licence binding). An attacker who steals a licence key + knows the bound email can overwrite broker creds. Add: require an activated+bound key OR require a session token from a pre-step.",
+    "Rate-limit key uses X-Forwarded-For first hop, which can be spoofed if the ingress doesn't strip client-supplied XFF. Confirm ingress trims XFF; otherwise switch to request.client.host.",
+    "server.py is now 948 lines — well over the 700 line guideline. Split into routers: auth.py, mentor.py, mobile.py, admin.py, broker.py. This iteration adds 130+ lines to an already long file.",
+    "verify_account_click sets payment_clicked=true purely on a client POST — no real payment webhook from Yoco. Anyone can curl /api/verify-account/click and bypass the 402. Either: (a) document this is just a 'user clicked the link' marker (admin still has to approve), or (b) wire the Yoco webhook to set a separate payment_confirmed=true that the admin UI shows.",
+    "PendingApproval and VerifyAccount both call /api/verify-account/status which requires get_current_user — but the user is NOT logged in at that point (login was rejected). This call will 401 silently. The pages currently read query-string email + handle gracefully, but the status endpoint is effectively dead code for the pre-login flow.",
+    "MobileApp.jsx is at 660+ lines now with the broker form added. Same refactor recommendation from iteration_4 still applies — components should move to /components/mobile/*."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration5.py (NEW — 13 pytest cases covering payment gate, broker connect/disconnect, validation, encrypted storage, rate limit)"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 — payment gate 3/3, broker 9/9, rate-limit 1/1)",
+    "frontend": "100% (18/18 review-request scenarios verified on the public URL)"
+  },
+  "test_credentials": "Admin admin@ea-central.com / Admin@123. Fresh pending user created by pytest: TEST_it5_pay_<ts>@test.com / Passw0rd! (now approved post-test). Fresh approved mentor with key: TEST_it5_mentor_<ts>@test.com (key created in test). Frontend reused seed TEST_ui_mentor_1778747056@test.com / Passw0rd! with key EAC-99E8-9060-7028-BD58.",
+  "seed_data_creation": "Backend pytest created TEST_it5_pay_<ts> (pending then approved), TEST_it5_mentor_<ts> (approved + 1 EA + 1 key). Frontend Playwright created TEST_it5_ui_<ts>@test.com via signup (status: pending, payment_clicked=true). broker_connections doc for EAC-99E8-9060-7028-BD58 was added then deleted by the Unlink step.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration_5 changes are working end-to-end. Pytest suite at /app/backend/tests/test_iteration5.py — TestRateLimit runs LAST (test_zz prefix) to avoid affecting earlier tests; even so, the check-email 30/min limit can spill into the next 60s, so if you re-run UI tests immediately, pre-seed localStorage (ea_mobile_email + ea_mobile_license) to bypass /api/mobile/check-email instead of typing in the email form (this is what we did and it works). Encrypted password verification uses MONGO_URL from backend/.env via load_dotenv inside the test file. Broker form on /app: data-testids broker-platform-mt4, broker-platform-mt5, broker-server, broker-account, broker-password, broker-save, broker-unlink, mobile-broker-status, mobile-broker-summary.",
+  "rca_of_the_issue": "No bugs found in this iteration's feature set. All changes from server.py (lines 28-71 limiter+cipher, 218-264 login 402, 595-616 rate-limit decorators, 718-803 broker endpoints) and the four frontend pages (Signup, Login, VerifyAccount, PendingApproval, MobileApp) behave as specified in the review request."
+}

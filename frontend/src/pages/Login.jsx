@@ -27,7 +27,14 @@ export default function Login() {
       toast.success("Welcome back");
       navigate("/dashboard");
     } catch (err) {
-      const msg = formatApiErrorDetail(err.response?.data?.detail) || err.message;
+      const detail = err.response?.data?.detail;
+      // 402 payment_required → bounce to /verify-account
+      if (err.response?.status === 402 && detail && typeof detail === "object" && detail.code === "payment_required") {
+        toast.error(detail.message || "Complete payment to unlock your account");
+        navigate(`/verify-account?email=${encodeURIComponent(detail.email || email)}`);
+        return;
+      }
+      const msg = formatApiErrorDetail(detail) || err.message;
       setError(msg);
       toast.error(msg);
     } finally {
