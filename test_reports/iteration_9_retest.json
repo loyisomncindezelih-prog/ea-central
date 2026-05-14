@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 9 retest — all three frontend fixes from iteration_9 action items verified WORKING via Playwright on the live /app URL. (1) MobileApp.jsx connect-broker onSubmit now correctly sets broker.status from data.status (line 635). After the form submits the broker-status-badge immediately reads 'LINKING…' (yellow) without a page reload, AND a toast.info 'MT4 broker linking to server… awaiting admin verification' fires (line 636). (2) The 4s polling useEffect now kicks in in the same session — when admin approves via POST /api/admin/broker-connections/{LK}/approve, the badge updates to 'APPROVED' within ~3s and a success toast 'Broker successfully linked' is shown. When admin declines, the badge updates to 'DECLINED' within ~3s in red (rgb(255,59,59)) and an error toast with the decline reason ('Account credentials could not be verified') is shown. (3) StartPopup now uses absolute left-0 right-0 bottom-0 z-30 + pointer-events-none on the outer container and pointer-events-auto on the card. The popup no longer covers the START/STOP action row above it (popup top y=707.9 vs button bottom y=620.1 — no overlap), and document.elementFromPoint at the STOP-button center correctly returns the STOP button itself (not the popup). Clicking STOP while the popup is open succeeds without force=True: popup closes, /api/mobile/ea/stop is called, button label flips back to START, and the 'AlphaWave Pro stopped' toast appears. Backend behaviour from iteration_9 confirmed unchanged (approve requires body, decline auto-stops running EA, polling endpoint /mobile/activate-license returns fresh broker.status each tick).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9.py (existing, no regression run this iteration as request was frontend-only)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now ~1551 lines — still recommend splitting into mobile/admin/bridge routers when convenient.",
+    "MobileApp.jsx is ~1220 lines and growing — connect/pairs/start drawers could each be extracted into their own files for maintainability, but no functional issue."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only retest)", "frontend": "100% (4/4 retest scenarios pass)"},
+  "test_credentials": "admin@ea-central.com / Admin@123 ; TEST_it6_ui_1778753851@test.com / Passw0rd! ; licence EAC-2F9D-E69F-6F75-CEB3",
+  "seed_data_creation": "Repeatedly linked broker (ICMarketsSC-Demo01 / 5550101) and approved/declined; EURUSD pair_config already existed from iteration 9. Final cleanup: EA stopped, broker remains approved (last state) — no destructive cleanup required.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 9 frontend fixes are all green. If extending: (a) admin approve endpoint requires a JSON body {reason:''} (will 422 if body omitted) — already correctly used by /admin/brokers Approve button; my first test attempt missed this and got 422, second attempt with body succeeded. (b) The StartPopup is anchored to the bottom of the phone frame and only spans ~83px tall; the action row sits above it. pointer-events-none on the wrapper is what allows clicks to reach the STOP button — do not revert that. (c) Polling cadence is 4s; live transitions observed at ~3s consistently (one poll cycle).",
+  "rca of the issue": "All three iteration_9 bugs were addressed by E1 with minimal diffs: (a) `status: data.status || 'pending_approval'` instead of hard-coded 'configured' at MobileApp.jsx line 635 — this restarts the polling useEffect which gates on broker.status ∈ {pending_approval,declined}; (b) added toast.info call at line 636 for the linking message; (c) StartPopup container changed from `absolute inset-0 z-40` to `absolute left-0 right-0 bottom-0 z-30 pointer-events-none` with `pointer-events-auto` on the inner card — this removes the full-viewport overlay while keeping the card interactive. Verified end-to-end via Playwright on https://copy-trading-hub-2.preview.emergentagent.com/app."
+}

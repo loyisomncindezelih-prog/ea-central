@@ -632,7 +632,7 @@ export default function MobileApp() {
                   localStorage.setItem(LS_BROKER, JSON.stringify({
                     platform: data.platform, server: data.server, account: data.account, password: "",
                   }));
-                  setEaData((d) => ({ ...(d || {}), broker: { platform: data.platform, server: data.server, account: data.account, connected_at: data.connected_at, status: "configured" } }));
+                  setEaData((d) => ({ ...(d || {}), broker: { platform: data.platform, server: data.server, account: data.account, connected_at: data.connected_at, status: data.status || "pending_approval" } }));
                   toast.info(`${data.platform.toUpperCase()} broker linking to server… awaiting admin verification`);
                   setConnectOpen(false);
                 } catch (err) {
@@ -1159,16 +1159,12 @@ const PairConfigForm = ({ symbol, email, license, accent, theme, onCancel, onSav
 // ============ Start popup ============
 const StartPopup = ({ eaName, broker, pairs, accent, theme, onClose }) => {
   const [expanded, setExpanded] = useState(false);
-  // Pulsing dot animation
   return (
-    <div className="absolute inset-0 z-40 flex items-end justify-center" data-testid="mobile-start-popup">
+    // Positioned only at the bottom — leave action row above tappable.
+    <div className="absolute left-0 right-0 bottom-0 z-30 flex items-end justify-center pointer-events-none" data-testid="mobile-start-popup">
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-        onClick={onClose}
-      />
-      <div
-        className="relative w-[calc(100%-1.5rem)] rounded-t-2xl p-4 mb-3 cursor-pointer"
-        style={{ border: `2px solid ${accent}`, backgroundColor: "rgba(0,17,34,0.95)", boxShadow: `0 -8px 40px ${theme.glow}` }}
+        className="relative w-[calc(100%-1.5rem)] rounded-t-2xl p-4 mb-3 cursor-pointer pointer-events-auto"
+        style={{ border: `2px solid ${accent}`, backgroundColor: "rgba(0,17,34,0.97)", boxShadow: `0 -8px 40px ${theme.glow}` }}
         onClick={() => setExpanded((v) => !v)}
         data-testid="mobile-start-popup-card"
       >
