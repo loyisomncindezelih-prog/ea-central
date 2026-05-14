@@ -649,7 +649,7 @@ class MobileActivateIn(BaseModel):
 
 
 @api_router.post("/mobile/check-email")
-@limiter.limit("30/minute")
+@limiter.limit("60/minute")
 async def mobile_check_email(request: Request, payload: MobileEmailIn):
     email = payload.email.lower()
     user = await db.users.find_one({"email": email}, {"_id": 0})
@@ -661,7 +661,7 @@ async def mobile_check_email(request: Request, payload: MobileEmailIn):
 
 
 @api_router.post("/mobile/activate-license")
-@limiter.limit("30/minute")
+@limiter.limit("60/minute")
 async def mobile_activate_license(request: Request, payload: MobileActivateIn):
     email = payload.email.lower()
     license_key = payload.license_key.strip().upper()

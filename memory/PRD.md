@@ -35,11 +35,29 @@
 - **Client Mobile App at `/app`** — full phone-style portal (`/app/frontend/src/pages/MobileApp.jsx`):
   - Stage 1: email check (calls `/api/mobile/check-email`, blocks unknown / pending-approval emails).
   - Stage 2: license activation (`/api/mobile/activate-license`) — auto-activates on first use, single-use bound to one email, returns 410 on expiry.
-  - Stage 3: phone-style EA dashboard showing mentor's EA name (replaces all "EA-CENTRAL" branding), expiry date, Start/Stop, Pairs, Info, Robot List, theme switcher (blue/red/green), menu drawer, settings drawer.
+  - Stage 3: phone-style EA dashboard showing mentor's EA name (replaces all "EA-CENTRAL" branding), expiry date, Start/Stop, Pairs, Info, Robot List, theme switcher (blue/red/green), menu drawer, settings drawer, **MT4/MT5 broker connect drawer**, broker status badge.
   - Session persistence via localStorage (`ea_mobile_email`, `ea_mobile_license`, `ea_mobile_theme`, `ea_mobile_broker`) — reload auto-resumes to app stage.
   - PWA meta tags for iOS "Add to Home Screen" full-screen mode.
-  - Broker drawer (local-only credential vault for future MT4/MT5 bridge).
-- **Bug fixed**: `MobileApp.jsx` was missing `useState` declarations for `connectOpen` and `broker`, causing the Connect drawer to crash. Now declared (lines 51, 60-67). Verified by testing agent (iteration_4) — 14/14 frontend + 8/8 backend tests passed.
+- **Bug fixed**: `MobileApp.jsx` was missing `useState` declarations for `connectOpen` and `broker`. Now declared.
+
+## What's been implemented (2026-05-14 — Iteration 5)
+- **Paid signup gate (R439.00 via Yoco)**:
+  - `POST /api/auth/login` returns HTTP **402** with `{code:"payment_required", email, message}` when user is pending+unpaid → frontend bounces to `/verify-account?email=<email>`.
+  - After `/api/verify-account/click`, login returns 403 with "Payment received — admin is verifying."
+  - `/signup` now redirects to `/verify-account?email=&new=1` (not `/pending`).
+  - `/verify-account` rebuilt with a big R439.00 price plate and Yoco branding.
+  - `/pending` shows a "Pay R439.00 now" CTA card for unpaid users.
+  - Admin still verifies payment on Yoco dashboard then approves (no Yoco webhook yet — manual flow).
+- **MT4/MT5 broker credentials capture** (real automatic trade execution is a future phase):
+  - `POST /api/mobile/connect-broker` saves platform/server/account/encrypted-password tied to a licence key.
+  - `POST /api/mobile/disconnect-broker` clears it.
+  - `/api/mobile/activate-license` response now includes `broker` summary (null if not configured).
+  - Connect drawer on `/app` has MT4/MT5 selector, server/account/password fields, "Coming soon" notice.
+  - Broker status badge on the app screen shows `MT4 · <server> · #<account>` when configured.
+  - Credentials encrypted at rest using Fernet (key = SHA-256(JWT_SECRET)).
+- **Rate-limiting** (`slowapi`):
+  - `/api/mobile/check-email`, `/api/mobile/activate-license`, `/api/mobile/connect-broker`, `/api/mobile/disconnect-broker` all capped at **60/min** per X-Forwarded-For IP. 429 returned with friendly message.
+- **Tested**: iteration_5.json — 13/13 backend pytest + 18/18 frontend Playwright scenarios PASS.
 
 ## Mocked / Placeholder
 - `GET /api/dashboard/summary` returns static demo data (bot status, connected clients, trades). **MOCKED** — no real PC-bot bridge yet.
@@ -49,16 +67,17 @@
 **P0** — none blocking.
 
 **P1**
-- **MetaTrader broker bridge** (user-requested 2026-05-14): build a small "ea-central bridge" desktop helper (Python or Node service) that runs on the mentor's PC/VPS alongside MT4/MT5. The mobile `/app` Connect drawer already collects server/account/password/host into localStorage — these need to be POSTed to a new `/api/bridge/...` endpoint that pairs the device with the bridge over WebSocket so trades execute via the MetaTrader Python package (e.g. `MetaTrader5` for MT5, ZeroMQ/MT4 EA for MT4). Out of scope for the iframe preview — needs design + research.
-- Real PC-bot bridge protocol (WebSocket from desktop client → backend → mobile EA).
+- **MetaTrader bridge (Phase 2 — automatic trade execution)**: build the desktop helper that reads the encrypted broker credentials from `broker_connections` and connects to MT4 (custom EA + ZeroMQ) / MT5 (`MetaTrader5` Python package, Windows). Ship as a small installer for the mentor's PC/VPS. Pair to a licence via the existing `/api/mobile/connect-broker` data.
+- **Real Yoco payment webhook**: today `/api/verify-account/click` is a self-reported flag; admin manually confirms on Yoco's dashboard before approving. A Yoco webhook would set a `payment_confirmed=true` field automatically.
 - Client (subscriber) account type + subscribe-to-mentor flow + per-client risk rules.
-- Payments (Stripe) — mentor sets price, subscribers pay monthly.
 - Live trade stream on dashboard + mobile preview (replace mock).
 
 **P2**
-- Rate-limit `/api/mobile/check-email` and `/api/mobile/activate-license` (currently unauth + no throttle — license enumeration risk).
+- Use a dedicated `BROKER_ENC_KEY` env var instead of reusing `JWT_SECRET` for Fernet.
+- `/api/mobile/connect-broker` should require the licence to already be activated+bound (or carry a short-lived session token from `/mobile/activate-license`).
 - Encrypt broker credentials at rest in localStorage with a passphrase-derived key.
-- Refactor `MobileApp.jsx` (630 lines) — extract `PhoneFrame`, `AuthScreen`, `ActionBtn`, `NavBtn`, `DrawerInfo`, `BrokerField` to `/components/mobile/*`.
+- Refactor `MobileApp.jsx` (660+ lines) — extract `PhoneFrame`, `AuthScreen`, `ActionBtn`, `NavBtn`, `DrawerInfo`, `BrokerField` to `/components/mobile/*`.
+- Refactor `server.py` (~950 lines) into routers: `auth.py`, `mentor.py`, `mobile.py`, `admin.py`, `broker.py`.
 - Loading skeleton on Generate-Key Success page.
 - `/api/auth/refresh` endpoint (refresh cookie is set today but unused).
 - Migrate FastAPI startup/shutdown to lifespan handlers.
@@ -68,6 +87,6 @@
 - Email verification on signup.
 
 ## Next Action Items
-- **MetaTrader broker bridge architecture** — user wants real broker connectivity via VPS/RDP/PC. Needs design discussion: pick MT5 (Python `MetaTrader5` package, Windows-only) vs MT4 (custom EA + ZeroMQ). Then build bridge installer + `/api/bridge/pair` + WebSocket relay.
-- Confirm whether `/app` email field should be the **client's** own email (free-form binding) or the **mentor's** email (current behavior). Spec is ambiguous.
+- **MetaTrader bridge — Phase 2 (automatic execution)**: build the desktop helper (Python `MetaTrader5` for MT5, ZeroMQ EA for MT4) that polls `/api/bridge/jobs/{license_key}` for trade signals and uses the stored broker creds to execute. Requires a Windows installer.
+- Wire a Yoco webhook to set `payment_confirmed=true` automatically (today the admin still verifies manually on the Yoco dashboard).
 - Rotate JWT_SECRET before production deployment.

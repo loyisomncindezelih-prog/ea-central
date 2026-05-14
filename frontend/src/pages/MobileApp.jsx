@@ -34,8 +34,8 @@ const LS_THEME = "ea_mobile_theme";
 const LS_BROKER = "ea_mobile_broker";
 
 const PLATFORMS = [
-  { key: "mt5", label: "MetaTrader 5" },
   { key: "mt4", label: "MetaTrader 4" },
+  { key: "mt5", label: "MetaTrader 5" },
 ];
 
 const THEMES = {
@@ -66,9 +66,9 @@ export default function MobileApp() {
     try {
       const raw = localStorage.getItem(LS_BROKER);
       const parsed = raw ? JSON.parse(raw) : null;
-      return parsed || { platform: "mt5", server: "", account: "", password: "" };
+      return parsed || { platform: "mt4", server: "", account: "", password: "" };
     } catch {
-      return { platform: "mt5", server: "", account: "", password: "" };
+      return { platform: "mt4", server: "", account: "", password: "" };
     }
   });
   const [brokerBusy, setBrokerBusy] = useState(false);
@@ -609,7 +609,7 @@ export default function MobileApp() {
                     try {
                       await api.post("/mobile/disconnect-broker", { email, license_key: license });
                     } catch { /* ignore */ }
-                    setBroker({ platform: "mt5", server: "", account: "", password: "" });
+                    setBroker({ platform: "mt4", server: "", account: "", password: "" });
                     localStorage.removeItem(LS_BROKER);
                     setEaData((d) => ({ ...(d || {}), broker: null }));
                     toast.success("Broker unlinked");
