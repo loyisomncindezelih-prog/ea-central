@@ -985,16 +985,27 @@ async def bridge_mentor_push(request: Request, payload: MentorPushIn):
     ).to_list(2000)
 
     pushed = 0
+    eligible_pair_configs = await db.pair_configs.find(
+        {"license_key": {"$in": [k["key"] for k in keys]}, "symbol": sym},
+        {"_id": 0},
+    ).to_list(2000)
+    cfg_by_key = {c["license_key"]: c for c in eligible_pair_configs}
+
+    jobs_to_insert = []
     for k in keys:
         if key_status(k) == "expired":
             continue
-        cfg = await db.pair_configs.find_one({"license_key": k["key"], "symbol": sym}, {"_id": 0})
+        cfg = cfg_by_key.get(k["key"])
         if not cfg:
             continue
+        # Direction filter:
+        # - BUY / SELL: only fan out to clients whose pair_config.direction is BOTH or matching
+        # - CLOSE: ALWAYS fans out regardless of direction (closing is a safety action that should
+        #   reach every active client of this symbol; intentional).
         if payload.action in ("BUY", "SELL") and cfg["direction"] not in ("BOTH", payload.action):
             continue
 
-        job = {
+        jobs_to_insert.append({
             "id": str(uuid.uuid4()),
             "license_key": k["key"],
             "ea_id": payload.ea_id,
@@ -1011,9 +1022,10 @@ async def bridge_mentor_push(request: Request, payload: MentorPushIn):
             "delivered_at": None,
             "ack_at": None,
             "result": None,
-        }
-        await db.trade_signals.insert_one(job)
-        pushed += 1
+        })
+    if jobs_to_insert:
+        await db.trade_signals.insert_many(jobs_to_insert)
+        pushed = len(jobs_to_insert)
     return {"ok": True, "fanned_out": pushed, "eligible_clients": len(keys)}
 
 
@@ -1080,15 +1092,26 @@ async def bridge_get_jobs(request: Request):
         {"license_key": bridge["license_key"]},
         {"$set": {"last_seen_at": now_iso()}},
     )
+
+    # At-least-once delivery: only re-deliver pending jobs whose delivered_at is null
+    # OR is older than REDELIVERY_AFTER_SECONDS. The job stays in 'pending' state until
+    # the bridge acks (executed/failed/skipped). This protects against helper crashes
+    # between delivery and execution.
+    REDELIVERY_AFTER_SECONDS = 30
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=REDELIVERY_AFTER_SECONDS)).isoformat()
     jobs = await db.trade_signals.find(
-        {"license_key": bridge["license_key"], "status": "pending"},
+        {
+            "license_key": bridge["license_key"],
+            "status": "pending",
+            "$or": [{"delivered_at": None}, {"delivered_at": {"$lt": cutoff}}],
+        },
         {"_id": 0},
     ).sort("created_at", 1).to_list(50)
 
     if jobs:
         await db.trade_signals.update_many(
             {"id": {"$in": [j["id"] for j in jobs]}},
-            {"$set": {"status": "delivered", "delivered_at": now_iso()}},
+            {"$set": {"delivered_at": now_iso()}},
         )
 
     broker = await db.broker_connections.find_one({"license_key": bridge["license_key"]}, {"_id": 0})
@@ -1126,6 +1149,11 @@ async def bridge_ack_job(request: Request, job_id: str, payload: BridgeAckIn):
     job = await db.trade_signals.find_one({"id": job_id, "license_key": bridge["license_key"]}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    # Idempotency: once a job has reached a terminal state, return the existing record
+    # instead of overwriting it. This protects against the helper retrying an ack after
+    # a partial network failure.
+    if job.get("status") in ("executed", "failed", "skipped"):
+        return {"ok": True, "already_acked": True, "status": job["status"]}
     await db.trade_signals.update_one(
         {"id": job_id},
         {"$set": {
@@ -1138,7 +1166,7 @@ async def bridge_ack_job(request: Request, job_id: str, payload: BridgeAckIn):
             },
         }},
     )
-    return {"ok": True}
+    return {"ok": True, "already_acked": False, "status": payload.status}
 
 
 @api_router.get("/mentor/bridge/activity")

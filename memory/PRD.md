@@ -47,21 +47,25 @@
 - Tested: 13/13 backend + 18/18 frontend.
 
 ## What's been implemented (2026-05-14 — Iteration 6)
-- **`/verify-account` is smart**:
-  - approved → auto-redirect to `/login`
-  - pending + paid → "Awaiting admin approval" (no re-open Yoco)
-  - pending + unpaid → opens Yoco link
-  - unknown email / rejected → friendly error
-- **Animated candlestick chart** on `/app` — 30 candles ticking every 1.6s (0.9s when EA running). Up/down candles re-tint with the active theme accent (blue / red / green). Cosmetic only — no real market data.
-- **Pairs drawer** on `/app` — PAIRS button opens a panel with:
-  - **"Allowed pairs · mentor EA"** — pulls `EA.symbols` from mentor's `/dashboard/manage-eas/:id` page
-  - **"Selected pairs to trade"** — shows configured pairs as cards with chips
-  - Tap an allowed pair → form opens with: Direction (BUY / SELL / BOTH), Platform (MT4 / MT5), Lot size (text input), # Trades (text input)
-  - Saves to backend via `POST /api/mobile/pair-config` (mongo `pair_configs` collection, upsert on `license_key + symbol`)
-  - Selected card has remove button → `POST /api/mobile/pair-config/delete`
-- `/api/mobile/activate-license` response now includes `allowed_symbols` + `pair_configs` so the `/app` page hydrates the Pairs drawer on load.
-- MongoDB indexes added: `pair_configs (license_key, symbol)` unique, `broker_connections (license_key)` unique.
-- Tested: 14/14 backend + 5/5 frontend (chart, theme tint, drawer open, save, remove + VerifyAccount 3-branch).
+- `/verify-account` smart branching (approved → login, pending+paid → await, pending+unpaid → Yoco).
+- Animated candlestick chart on `/app` (theme-tinted, faster ticks while running).
+- Pairs drawer with Allowed/Selected sections + per-pair config form (direction/platform/lot/trades) → `POST /api/mobile/pair-config`.
+- MongoDB indexes for `pair_configs` and `broker_connections`.
+- Tested: 14/14 backend + 5/5 frontend.
+
+## What's been implemented (2026-05-14 — Iteration 7)
+- **MetaTrader bridge — Phase 2 (signal fan-out + desktop helper)**:
+  - **Mentor API key** — `POST /api/mentor/api-key/rotate` and `GET /api/mentor/api-key`. Used as `Bearer` auth by mentor's PC bot.
+  - **Mentor push** — `POST /api/bridge/mentor-push` with `{ea_id, symbol, action: BUY|SELL|CLOSE, lot?, stop_loss?, take_profit?, comment?}`. Fans out one `trade_signals` doc per eligible client (activated key + non-expired + pair_config exists for symbol + direction matches; CLOSE bypasses direction filter intentionally). Uses `insert_many` for O(1) round-trip on large client lists.
+  - **Bridge pairing** — `POST /api/bridge/pair` with `{email, license_key, platform, machine_name}` returns a 365-day `bridge_token`. Upsert: re-pair rotates the token.
+  - **Job polling** — `GET /api/bridge/jobs` (Bearer bridge_token) returns pending jobs + decrypted broker credentials + bridge_platform/machine_name. Jobs stay in `pending` state until acked; `delivered_at` is the watermark and jobs re-deliver after 30s if not yet acked (at-least-once delivery against helper crashes).
+  - **Ack** — `POST /api/bridge/jobs/{id}/ack` with `{status: executed|failed|skipped, mt_order_id?, error?, raw?}`. Idempotent: a second ack on a terminal job returns `{already_acked: true}` instead of overwriting.
+  - **Mentor activity feed** — `GET /api/mentor/bridge/activity` returns paired bridges (with live/idle status) + last 100 signals.
+  - **Desktop helper** — `GET /api/bridge/download` serves `ea_central_bridge.py` (Windows, `MetaTrader5` + `requests`). Real MT5 trade execution included; MT4 is Phase 3 placeholder.
+  - **MongoDB indexes added**: `bridges.bridge_token` unique, `bridges.license_key` unique, `bridges.mentor_id`, `trade_signals (license_key, status, created_at)`, `users.mentor_api_key` sparse unique.
+- **Cascade delete**: removing a symbol from a mentor's EA now also deletes all `pair_configs` tied to that EA's licence keys for that symbol.
+- **Frontend `/dashboard/bridge` page**: API key card, copyable curl sample, downloadable bridge script, live "Paired bridges" + "Recent signals" feeds (auto-refresh every 8s).
+- Tested: 19/19 backend pytest + frontend Playwright all PASS.
 
 ## Mocked / Placeholder
 - `GET /api/dashboard/summary` returns static demo data (bot status, connected clients, trades). **MOCKED** — no real PC-bot bridge yet.
