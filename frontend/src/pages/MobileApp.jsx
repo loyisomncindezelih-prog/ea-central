@@ -28,6 +28,10 @@ import {
 const ROBOT_IMG =
   "https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/ukmwnbqz_ChatGPT%20Image%20May%2013%2C%202026%2C%2009_34_45%20PM.png";
 
+// Home-screen / PWA icon (separate from the robot image used inside the app)
+const APP_ICON =
+  "https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/wyquoaye_ChatGPT%20Image%20May%2012%2C%202026%2C%2009_13_48%20PM.png";
+
 const LS_EMAIL = "ea_mobile_email";
 const LS_LICENSE = "ea_mobile_license";
 const LS_THEME = "ea_mobile_theme";
@@ -81,8 +85,16 @@ export default function MobileApp() {
       ["meta", { name: "mobile-web-app-capable", content: "yes" }],
       ["meta", { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" }],
       ["meta", { name: "apple-mobile-web-app-title", content: "ea-central" }],
+      ["meta", { name: "application-name", content: "ea-central" }],
       ["meta", { name: "theme-color", content: "#000000" }],
-      ["link", { rel: "apple-touch-icon", href: ROBOT_IMG }],
+      ["link", { rel: "apple-touch-icon", href: APP_ICON }],
+      ["link", { rel: "apple-touch-icon", sizes: "180x180", href: APP_ICON }],
+      ["link", { rel: "apple-touch-icon", sizes: "152x152", href: APP_ICON }],
+      ["link", { rel: "apple-touch-icon", sizes: "120x120", href: APP_ICON }],
+      ["link", { rel: "icon", type: "image/png", sizes: "512x512", href: APP_ICON }],
+      ["link", { rel: "icon", type: "image/png", sizes: "192x192", href: APP_ICON }],
+      ["link", { rel: "shortcut icon", href: APP_ICON }],
+      ["link", { rel: "manifest", href: "/manifest.webmanifest", crossOrigin: "use-credentials" }],
     ];
     const created = tags.map(([t, attrs]) => {
       const el = document.createElement(t);
