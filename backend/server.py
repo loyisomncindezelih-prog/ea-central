@@ -135,6 +135,7 @@ def public_user(doc: dict) -> dict:
         "email": doc["email"],
         "country_code": doc.get("country_code", ""),
         "contact_number": doc.get("contact_number", ""),
+        "profile_image": doc.get("profile_image"),
         "role": doc.get("role", "mentor"),
         "status": doc.get("status", "approved"),
         "created_at": doc["created_at"],
@@ -381,6 +382,47 @@ async def verify_account_status(email: EmailStr, user: dict = Depends(get_curren
 @api_router.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return user
+
+
+class ProfileUpdateIn(BaseModel):
+    username: Optional[str] = Field(default=None, min_length=2, max_length=40)
+    country_code: Optional[str] = Field(default=None, min_length=2, max_length=6)
+    contact_number: Optional[str] = Field(default=None, min_length=4, max_length=20)
+    profile_image: Optional[str] = Field(default=None, max_length=900_000)  # base64 data url
+
+    @classmethod
+    def _validate_image(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return v
+        if not v.startswith("data:image/"):
+            raise ValueError("profile_image must be a data:image/* URL")
+        return v
+
+
+@api_router.patch("/auth/profile")
+async def update_profile(payload: ProfileUpdateIn, user: dict = Depends(get_current_user)):
+    update: dict = {}
+    if payload.username is not None:
+        update["username"] = payload.username.strip()
+    if payload.country_code is not None:
+        update["country_code"] = payload.country_code.strip()
+    if payload.contact_number is not None:
+        update["contact_number"] = payload.contact_number.strip()
+    if payload.profile_image is not None:
+        # Empty string → clear / revert to default
+        if payload.profile_image == "":
+            update["profile_image"] = None
+        else:
+            if not payload.profile_image.startswith("data:image/"):
+                raise HTTPException(status_code=400, detail="profile_image must be a data:image/* URL")
+            update["profile_image"] = payload.profile_image
+
+    if not update:
+        return public_user(user)
+
+    await db.users.update_one({"id": user["id"]}, {"$set": update})
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+    return public_user(fresh)
 
 
 # ----------------------- Dashboard / preview placeholder -----------------------
@@ -790,6 +832,7 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
         "expires_at": key_doc.get("expires_at"),
         "holder_username": key_doc["holder_username"],
         "mentor_username": user["username"],
+        "mentor_profile_image": user.get("profile_image"),
         "broker": broker_summary,
         "ea_session": ea_session_summary,
         "allowed_symbols": allowed_symbols,

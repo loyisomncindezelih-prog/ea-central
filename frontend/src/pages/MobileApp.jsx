@@ -385,7 +385,11 @@ export default function MobileApp() {
               border: `2px solid ${accent}`,
               boxShadow: `0 0 45px ${theme.glow}, inset 0 0 30px ${theme.soft}`,
             }}>
-            <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 28%", transform: "scale(2.1)" }} />
+            {eaData?.mentor_profile_image ? (
+              <img src={eaData.mentor_profile_image} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 50%" }} data-testid="mobile-ea-avatar" />
+            ) : (
+              <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 32%", transform: "scale(1.6)", transformOrigin: "50% 32%" }} data-testid="mobile-ea-avatar-default" />
+            )}
           </div>
         </div>
 
@@ -449,7 +453,11 @@ export default function MobileApp() {
             style={{ border: `2px solid ${theme.border}`, backgroundColor: "rgba(0,17,34,0.4)" }}
             data-testid="mobile-robot-card">
             <div className="w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ border: `1px solid ${accent}` }}>
-              <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 28%", transform: "scale(2.4)" }} />
+              {eaData?.mentor_profile_image ? (
+                <img src={eaData.mentor_profile_image} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 32%", transform: "scale(1.7)", transformOrigin: "50% 32%" }} />
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-white text-sm truncate" data-testid="mobile-robot-name">{eaName}</div>

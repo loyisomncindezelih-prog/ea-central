@@ -10,6 +10,7 @@ import {
   TrendingUp,
   LogOut,
   Cable,
+  User,
 } from "lucide-react";
 
 const NAV = [
@@ -18,6 +19,7 @@ const NAV = [
   { to: "/dashboard/manage-eas",     end: false, icon: Cpu,             label: "Manage EAs" },
   { to: "/dashboard/key-stats",      end: true,  icon: TrendingUp,      label: "Key Stats" },
   { to: "/dashboard/bridge",         end: true,  icon: Cable,           label: "Bridge" },
+  { to: "/dashboard/profile",        end: true,  icon: User,            label: "Profile" },
 ];
 
 export default function MentorLayout({ children }) {

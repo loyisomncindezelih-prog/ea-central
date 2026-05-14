@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 10 (mentor profile management) tested end-to-end. 16/16 backend pytest cases pass and all frontend flows on /dashboard/profile and /app work as specified. PATCH /api/auth/profile correctly handles partial updates, image validation, empty-string clearing, email immutability, and Pydantic min_length for username/contact. /api/mobile/activate-license returns the new mentor_profile_image field (null when unset, data-URL when set). The Profile page UI loads, email is true read-only with lock icon, upload→preview live updates, Save persists, Remove+Save clears back to default ROBOT_IMG. On /app, the 230px EA avatar correctly switches between mobile-ea-avatar (when mentor has image) and mobile-ea-avatar-default (with scale 1.6 and objectPosition 50% 32% confirmed). No regressions on iteration 9 endpoints (activate-license, dashboard summary, admin stats).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration10.py",
+    "/app/test_reports/pytest/iter10_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py ProfileUpdateIn._validate_image is defined but never wired as a Pydantic @field_validator — it is currently dead code. The actual validation lives in update_profile() so behaviour is correct, but the unused classmethod is misleading. Either decorate it as @field_validator('profile_image') and remove the duplicate check in the route, or delete it.",
+    "Pydantic v2 BaseModel defaults to extra='ignore', which is why test_patch_email_field_ignored passes. If a future migration switches to extra='forbid' globally, this would start returning 422. Consider an explicit ConfigDict(extra='ignore') on ProfileUpdateIn to lock the contract.",
+    "Profile.jsx fileToCompressedDataUrl draws a black background fill before drawImage to handle transparent PNGs — fine for JPEG output, but worth noting the resulting EA avatar may have a black halo for circular logos with transparency. Cosmetic only.",
+    "server.py is now 1594 lines — still over the 700-line guideline. Splitting into routers/services would help maintainability."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration10.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16)",
+    "frontend": "100% (profile CRUD + upload + remove + /app avatar swap + default scale/position all verified)"
+  },
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123. Mentor: TEST_it6_ui_1778753851@test.com / Passw0rd! (approved, EA 'AlphaWave Pro', licence EAC-2F9D-E69F-6F75-CEB3). Mentor's username was changed to 'alpha_mentor' during testing; profile_image cleared in tearDown.",
+  "seed_data_creation": "No new seed data created. Mentor's profile_image was set then cleared back to null at end of tests. Username left as 'alpha_mentor' (matches iter9 retest state).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend pytest suite test_iteration10.py covers all PATCH /auth/profile branches plus /mobile/activate-license mentor_profile_image plumbing. Use it as a regression baseline. The /app flow requires sending email → licence-key, fields use generic placeholders so prefer page.locator('input').first per step. After PATCH from a logged-in dashboard session via fetch(credentials:'include'), /app must be reloaded (not just re-navigated) to pick up the new mentor_profile_image because activate-license is a one-shot POST.",
+  "rca of the issue": "No bugs found. Implementation matches spec. Note one piece of dead code: ProfileUpdateIn._validate_image is an unwired classmethod (not a Pydantic v2 @field_validator), so it doesn't run — the equivalent check exists inline in update_profile() which is why behaviour is still correct."
+}
