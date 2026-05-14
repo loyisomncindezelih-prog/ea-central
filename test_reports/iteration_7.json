@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 7 — Verified the new MetaTrader bridge (Phase 2) endpoints end-to-end: mentor api-key get+rotate (with replacement invalidating the old key), POST /api/bridge/mentor-push auth + EA/symbol validation + happy-path fan-out + direction filter (BUY skipped on SELL-only pair_config; SELL fans out) + per-client lot_size honoured when payload.lot=null; POST /api/bridge/pair returns 365-day token / poll_interval_seconds=3 / ea_id+ea_name and the upsert rotation kills the old token; GET /api/bridge/jobs auth + delivery-flip atomicity + 'broker' field presence; POST /api/bridge/jobs/{id}/ack happy path + cross-bridge isolation returning 404; GET /api/mentor/bridge/activity returns mentor-scoped bridges and signals only; GET /api/bridge/download serves the ea_central_bridge.py python script with correct content-disposition; and the DELETE /api/mentor/eas/{ea_id}/symbols/{SYMBOL} cascade removes matching pair_configs. Frontend /dashboard/bridge verified: sidebar nav-bridge link, bridge-page render, placeholder '— not generated yet —' then mk_-prefixed key after rotate, copy buttons, curl sample interpolation, download anchor → /api/bridge/download, and activity section zero-state.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7.py",
+    "/app/test_reports/pytest/iteration7_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 1340 lines — the bridge block (~250 lines) compounds the iteration_5/6 concern. Strong recommendation to extract /app/backend/routers/bridge.py (mentor api-key + mentor-push + pair + jobs + ack + activity + download). Until then onboarding any new developer to this file is painful.",
+    "_mentor_from_api_key does a plain string compare against users.mentor_api_key. The token IS high-entropy (secrets.token_urlsafe(28) = 224 bits) so practical brute-force is infeasible, but storing the raw mentor key in the DB means a DB dump leaks every mentor's signal-push credential. Consider hashing (bcrypt or HMAC with a server-side pepper) and storing only the hash; return the plaintext exactly once on rotate.",
+    "bridge_get_jobs flips status to 'delivered' the instant the bridge poll completes, BEFORE the desktop helper has executed the order. If the helper crashes or the network drops between delivery and ack, the trade is silently lost — there is no retry/timeout window and no operator alert. Recommend either (a) keep status='pending' and rely on a 'delivered_at' watermark with a re-delivery TTL, or (b) add a periodic job that re-queues 'delivered but not acked within N seconds' signals.",
+    "POST /api/bridge/jobs/{id}/ack has no idempotency — a helper that retries an ack after a partial network failure will overwrite the previous result. Add an early return if status is already terminal (executed/failed/skipped) OR allow ack only when current status='delivered'.",
+    "MentorPushIn.action allows 'CLOSE' via the regex pattern but the fan-out branch `if payload.action in (\"BUY\", \"SELL\")` skips direction filtering for CLOSE — that means a CLOSE always fans out regardless of the client's pair_config.direction. That MAY be desired (close the open trade no matter what) but it is not documented anywhere; spell it out in a comment / API doc.",
+    "mentor-push iterates `keys` (up to 2000) then issues N sequential `find_one` + `insert_one` round-trips. For a mentor with hundreds of clients this is O(N) latency. Two improvements: (a) batch-fetch pair_configs via `{license_key:{$in:[…]}, symbol:sym}` then build the jobs list in memory, (b) use insert_many for the trade_signals.",
+    "bridge tokens (br_…) and mentor API keys (mk_…) are not indexed in MongoDB. /bridge/jobs is called every 3s by every paired client — at scale the collection scan will dominate. Add: db.bridges.create_index('bridge_token', unique=True, sparse=True) and db.users.create_index('mentor_api_key', unique=True, sparse=True) on_startup (the second one was already promised in iteration_6 review for users; the first is new).",
+    "trade_signals has no TTL and no admin clean-up route. Over time this will grow without bound. Add a TTL index on created_at (e.g. 90 days) or a periodic GC.",
+    "FileResponse on /api/bridge/download has no cache headers; every mentor's preview-env hit re-reads the file. Cosmetic, but ETag would help.",
+    "activate-license requires `email's user.id == license.owner_id`, which means in the current model only the mentor themselves can activate any licence they own. There is no flow whereby a SEPARATE end-client account can claim a key handed to them by the mentor (cf. holder_username appears stored but unused for binding). This blocked clean multi-client testing in iteration_7 — confirm the intended design.",
+    "BridgePage useEffect polls /mentor/bridge/activity every 8s but does not pause when the tab is hidden / user navigates away. Minor, but adds backend load. Consider visibilitychange gating.",
+    "Mentor api-key rotation does NOT invalidate any in-flight push that was already authenticated and is currently executing (e.g. if a request is mid-flight when rotation lands). FastAPI deps are evaluated at request entry so the practical impact is microseconds-level and acceptable, just noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration7.py (NEW — 19 pytest cases across 8 classes covering api-key get/rotate, mentor-push auth+validation+fanout, pair upsert, jobs delivery+broker, ack happy+cross-bridge, activity scope, download, cascade-delete)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 pytest)",
+    "frontend": "100% (login → nav-bridge → bridge-page render → rotate generates mk_-key → curl sample interpolates key → copy/download/activity testids all present)"
+  },
+  "test_credentials": "Admin admin@ea-central.com / Admin@123. Iteration-7 seeded mentor TEST_it7_m_<ts>@test.com / Passw0rd! with EA 'TEST_it7 EA' (EURUSD/XAUUSD/GBPJPY initially; EURUSD removed at the end via cascade test), one 30d licence bound to that email + pair_config EURUSD, mentor_api_key rotated. Frontend test used the iteration_6 seeded mentor TEST_it6_ui_1778753851@test.com / Passw0rd! (now has a freshly rotated mentor_api_key on file).",
+  "seed_data_creation": "Pytest fixture created a fresh approved mentor (TEST_it7_m_<ts>) with EA + licence + pair_config + mentor_api_key + bridge_token + trade_signals + acked job, plus a second isolation-test mentor (TEST_it7_other_<ts>). The frontend test populated mentor_api_key on the iteration_6 seeded mentor account. trade_signals collection now has TEST documents — recommend a cleanup job by TEST_ prefix on license_key/email between iterations.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bridge endpoints + cascade-delete all pass. Two carry-overs: (1) activate-license still locks an EA's licences to the mentor's own email (owner_id == user.id) — no separate end-client flow exists. (2) mentor-push silently fans CLOSE to all clients regardless of pair_config.direction (only BUY/SELL are filtered) — intended? Bridge token rotation correctly invalidates the old br_ token. The iteration_6 seeded mentor now has a mentor_api_key on file (mk_…) generated by the frontend test — don't rely on that mentor for testing 'first rotate returns null' again.",
+  "rca_of_the_issue": "No bugs in the bridge Phase 2 feature set. Initial pytest run with a multi-client seed scheme failed because activate-license requires email's user.id == license.owner_id (existing system constraint, see context note). Refactored the seed to use the mentor's own email as the single 'client' and tested direction filtering by reconfiguring the pair_config between pushes — all 19 cases then pass on first run."
+}

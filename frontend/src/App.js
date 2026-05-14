@@ -17,6 +17,7 @@ import EADetail from "@/pages/EADetail";
 import KeyStats from "@/pages/KeyStats";
 import MobilePreview from "@/pages/MobilePreview";
 import MobileApp from "@/pages/MobileApp";
+import BridgePage from "@/pages/BridgePage";
 import VerifyAccount from "@/pages/VerifyAccount";
 import PendingApproval from "@/pages/PendingApproval";
 import AdminLogin from "@/pages/AdminLogin";
@@ -45,6 +46,7 @@ function App() {
             <Route path="/dashboard/manage-eas" element={<Protected><ManageEAs /></Protected>} />
             <Route path="/dashboard/manage-eas/:id" element={<Protected><EADetail /></Protected>} />
             <Route path="/dashboard/key-stats" element={<Protected><KeyStats /></Protected>} />
+            <Route path="/dashboard/bridge" element={<Protected><BridgePage /></Protected>} />
 
             <Route path="/admin" element={<AdminLogin />} />
             <Route

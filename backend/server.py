@@ -24,6 +24,7 @@ from starlette.responses import JSONResponse
 from cryptography.fernet import Fernet
 import base64
 import hashlib
+from fastapi.responses import FileResponse
 
 
 # ----------------------- DB -----------------------
@@ -581,6 +582,15 @@ async def remove_symbol(ea_id: str, symbol: str, user: dict = Depends(get_curren
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="EA not found")
+    # Cascade: remove any client pair_configs tied to (this EA's licence keys, this symbol)
+    keys = await db.license_keys.find(
+        {"owner_id": user["id"], "ea_id": ea_id}, {"_id": 0, "key": 1}
+    ).to_list(2000)
+    if keys:
+        await db.pair_configs.delete_many({
+            "license_key": {"$in": [k["key"] for k in keys]},
+            "symbol": sym,
+        })
     updated = await db.eas.find_one({"id": ea_id, "owner_id": user["id"]}, {"_id": 0})
     return public_ea(updated)
 
@@ -908,6 +918,265 @@ async def mobile_delete_pair_config(request: Request, payload: PairDeleteIn):
     return {"ok": True}
 
 
+# ============================ ea-central bridge (Phase 2) ============================
+# - Mentor's PC bot pushes trade signals via POST /api/bridge/mentor-push (auth: mentor API key)
+# - Backend fans out one trade_signal per activated licence of that EA
+# - Each client desktop bridge pairs once via POST /api/bridge/pair (auth: email + license_key + PIN)
+#   and gets back a long-lived bridge_token.
+# - The bridge polls GET /api/bridge/jobs (auth: bridge_token) every few seconds and POSTs
+#   ack on /api/bridge/jobs/{id}/ack to mark executed/failed.
+
+BRIDGE_TOKEN_TTL_DAYS = 365
+
+
+def _new_token(prefix: str = "tok") -> str:
+    return f"{prefix}_{secrets.token_urlsafe(28)}"
+
+
+# ---------- Mentor API key (used by their PC bot to push trade signals) ----------
+@api_router.post("/mentor/api-key/rotate")
+async def rotate_mentor_api_key(user: dict = Depends(get_current_user)):
+    new_key = _new_token("mk")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"mentor_api_key": new_key}})
+    return {"api_key": new_key}
+
+
+@api_router.get("/mentor/api-key")
+async def get_mentor_api_key(user: dict = Depends(get_current_user)):
+    doc = await db.users.find_one({"id": user["id"]}, {"_id": 0, "mentor_api_key": 1})
+    return {"api_key": (doc or {}).get("mentor_api_key")}
+
+
+async def _mentor_from_api_key(request: Request) -> dict:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Mentor API key required")
+    key = auth[7:].strip()
+    user = await db.users.find_one({"mentor_api_key": key, "role": "mentor", "status": "approved"}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid mentor API key")
+    return user
+
+
+# ---------- Mentor push: a trade signal from their PC bot ----------
+class MentorPushIn(BaseModel):
+    ea_id: str
+    symbol: str = Field(min_length=1, max_length=24)
+    action: str = Field(pattern="^(BUY|SELL|CLOSE)$")
+    lot: Optional[float] = Field(default=None, gt=0, le=100)
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    comment: str = Field(default="", max_length=200)
+
+
+@api_router.post("/bridge/mentor-push")
+@limiter.limit("120/minute")
+async def bridge_mentor_push(request: Request, payload: MentorPushIn):
+    mentor = await _mentor_from_api_key(request)
+    ea = await db.eas.find_one({"id": payload.ea_id, "owner_id": mentor["id"]}, {"_id": 0})
+    if not ea:
+        raise HTTPException(status_code=404, detail="EA not found for this mentor")
+    sym = payload.symbol.strip().upper()
+    if sym not in [s.upper() for s in ea.get("symbols", [])]:
+        raise HTTPException(status_code=400, detail=f"{sym} is not in EA's symbols list")
+
+    keys = await db.license_keys.find(
+        {"owner_id": mentor["id"], "ea_id": payload.ea_id, "activated": True}, {"_id": 0}
+    ).to_list(2000)
+
+    pushed = 0
+    for k in keys:
+        if key_status(k) == "expired":
+            continue
+        cfg = await db.pair_configs.find_one({"license_key": k["key"], "symbol": sym}, {"_id": 0})
+        if not cfg:
+            continue
+        if payload.action in ("BUY", "SELL") and cfg["direction"] not in ("BOTH", payload.action):
+            continue
+
+        job = {
+            "id": str(uuid.uuid4()),
+            "license_key": k["key"],
+            "ea_id": payload.ea_id,
+            "symbol": sym,
+            "action": payload.action,
+            "lot": float(payload.lot if payload.lot is not None else cfg.get("lot_size", 0.01)),
+            "max_trades": int(cfg.get("max_trades", 1)),
+            "platform": cfg.get("platform", "mt4"),
+            "stop_loss": payload.stop_loss,
+            "take_profit": payload.take_profit,
+            "comment": payload.comment,
+            "status": "pending",
+            "created_at": now_iso(),
+            "delivered_at": None,
+            "ack_at": None,
+            "result": None,
+        }
+        await db.trade_signals.insert_one(job)
+        pushed += 1
+    return {"ok": True, "fanned_out": pushed, "eligible_clients": len(keys)}
+
+
+# ---------- Bridge pairing (one-time, returns long-lived token) ----------
+class BridgePairIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+    platform: str = Field(pattern="^(mt4|mt5)$")
+    machine_name: str = Field(default="", max_length=80)
+
+
+@api_router.post("/bridge/pair")
+@limiter.limit("30/minute")
+async def bridge_pair(request: Request, payload: BridgePairIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    key_doc = await _verify_license_owner(email, license_key)
+
+    token = _new_token("br")
+    expires = (datetime.now(timezone.utc) + timedelta(days=BRIDGE_TOKEN_TTL_DAYS)).isoformat()
+    await db.bridges.update_one(
+        {"license_key": license_key},
+        {"$set": {
+            "license_key": license_key,
+            "email": email,
+            "mentor_id": key_doc["owner_id"],
+            "ea_id": key_doc["ea_id"],
+            "platform": payload.platform,
+            "machine_name": payload.machine_name.strip(),
+            "bridge_token": token,
+            "token_expires_at": expires,
+            "last_seen_at": None,
+            "paired_at": now_iso(),
+        }, "$setOnInsert": {"id": str(uuid.uuid4())}},
+        upsert=True,
+    )
+    return {
+        "bridge_token": token,
+        "expires_at": expires,
+        "ea_id": key_doc["ea_id"],
+        "ea_name": key_doc["ea_name"],
+        "poll_interval_seconds": 3,
+    }
+
+
+async def _bridge_from_token(request: Request) -> dict:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bridge token required")
+    token = auth[7:].strip()
+    bridge = await db.bridges.find_one({"bridge_token": token}, {"_id": 0})
+    if not bridge:
+        raise HTTPException(status_code=401, detail="Invalid bridge token")
+    if bridge.get("token_expires_at") and datetime.fromisoformat(bridge["token_expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Bridge token expired — re-pair the helper")
+    return bridge
+
+
+@api_router.get("/bridge/jobs")
+@limiter.limit("600/minute")
+async def bridge_get_jobs(request: Request):
+    bridge = await _bridge_from_token(request)
+    await db.bridges.update_one(
+        {"license_key": bridge["license_key"]},
+        {"$set": {"last_seen_at": now_iso()}},
+    )
+    jobs = await db.trade_signals.find(
+        {"license_key": bridge["license_key"], "status": "pending"},
+        {"_id": 0},
+    ).sort("created_at", 1).to_list(50)
+
+    if jobs:
+        await db.trade_signals.update_many(
+            {"id": {"$in": [j["id"] for j in jobs]}},
+            {"$set": {"status": "delivered", "delivered_at": now_iso()}},
+        )
+
+    broker = await db.broker_connections.find_one({"license_key": bridge["license_key"]}, {"_id": 0})
+    broker_creds = None
+    if broker:
+        try:
+            broker_creds = {
+                "platform": broker["platform"],
+                "server": broker["server"],
+                "account": broker["account"],
+                "password": decrypt_secret(broker["password_enc"]),
+            }
+        except Exception:
+            broker_creds = None
+
+    return {
+        "jobs": jobs,
+        "broker": broker_creds,
+        "bridge_platform": bridge.get("platform"),
+        "machine_name": bridge.get("machine_name"),
+    }
+
+
+class BridgeAckIn(BaseModel):
+    status: str = Field(pattern="^(executed|failed|skipped)$")
+    mt_order_id: Optional[str] = None
+    error: Optional[str] = None
+    raw: Optional[dict] = None
+
+
+@api_router.post("/bridge/jobs/{job_id}/ack")
+@limiter.limit("600/minute")
+async def bridge_ack_job(request: Request, job_id: str, payload: BridgeAckIn):
+    bridge = await _bridge_from_token(request)
+    job = await db.trade_signals.find_one({"id": job_id, "license_key": bridge["license_key"]}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    await db.trade_signals.update_one(
+        {"id": job_id},
+        {"$set": {
+            "status": payload.status,
+            "ack_at": now_iso(),
+            "result": {
+                "mt_order_id": payload.mt_order_id,
+                "error": payload.error,
+                "raw": payload.raw,
+            },
+        }},
+    )
+    return {"ok": True}
+
+
+@api_router.get("/mentor/bridge/activity")
+async def mentor_bridge_activity(user: dict = Depends(get_current_user)):
+    bridges = await db.bridges.find({"mentor_id": user["id"]}, {"_id": 0}).to_list(500)
+    my_keys = await db.license_keys.find({"owner_id": user["id"]}, {"_id": 0, "key": 1}).to_list(2000)
+    my_key_set = {k["key"] for k in my_keys}
+    recent_signals = await db.trade_signals.find(
+        {"license_key": {"$in": list(my_key_set)}}, {"_id": 0},
+    ).sort("created_at", -1).to_list(100)
+    return {
+        "bridges": [{
+            "license_key": b["license_key"],
+            "email": b["email"],
+            "platform": b.get("platform"),
+            "machine_name": b.get("machine_name"),
+            "paired_at": b.get("paired_at"),
+            "last_seen_at": b.get("last_seen_at"),
+        } for b in bridges],
+        "recent_signals": recent_signals,
+    }
+
+
+@api_router.get("/bridge/download")
+async def download_bridge_script():
+    """Public download of the desktop bridge helper script."""
+    path = ROOT_DIR / "bridge_helper" / "ea_central_bridge.py"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Bridge helper not found")
+    return FileResponse(
+        path=str(path),
+        media_type="text/x-python",
+        filename="ea_central_bridge.py",
+    )
+
+
+
+
 # ---------- Admin: licence release (unbind from email) ----------
 @api_router.get("/admin/licenses")
 async def admin_list_licenses(_: dict = Depends(get_admin_user)):
@@ -1021,6 +1290,11 @@ async def on_startup():
     await db.license_keys.create_index([("owner_id", 1), ("ea_id", 1)])
     await db.pair_configs.create_index([("license_key", 1), ("symbol", 1)], unique=True)
     await db.broker_connections.create_index("license_key", unique=True)
+    await db.bridges.create_index("bridge_token", unique=True)
+    await db.bridges.create_index("license_key", unique=True)
+    await db.bridges.create_index("mentor_id")
+    await db.trade_signals.create_index([("license_key", 1), ("status", 1), ("created_at", 1)])
+    await db.users.create_index("mentor_api_key", sparse=True, unique=True)
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@ea-central.com").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
