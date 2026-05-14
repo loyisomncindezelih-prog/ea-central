@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { api, formatApiErrorDetail } from "@/lib/api";
@@ -7,17 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ShieldCheck, CreditCard, ArrowRight, CheckCircle2, Lock } from "lucide-react";
+import { ShieldCheck, CreditCard, ArrowRight, CheckCircle2, Lock, Clock } from "lucide-react";
 
 const PRICE_LABEL = "R439.00";
 const PRICE_SUBLABEL = "ZAR · one-time verification";
 
 export default function VerifyAccount() {
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const isNew = params.get("new") === "1";
   const [email, setEmail] = useState(params.get("email") || "");
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
+  const [state, setState] = useState("form"); // form | paid | already-approved
 
   useEffect(() => {
     if (isNew && email) toast.info(`Almost there, ${email} — pay ${PRICE_LABEL} to unlock your mentor dashboard.`);
@@ -29,8 +30,23 @@ export default function VerifyAccount() {
     setLoading(true);
     try {
       const { data } = await api.post("/verify-account/click", { email });
-      setDone(true);
+
+      if (data.already_approved) {
+        toast.success("Your account is already approved — please log in.");
+        setState("already-approved");
+        setTimeout(() => navigate(`/login?email=${encodeURIComponent(email)}`), 1200);
+        return;
+      }
+
+      if (data.already_paid) {
+        toast.info(data.message || "Payment already received — admin is verifying.");
+        setState("paid");
+        return;
+      }
+
+      // Pending + not yet paid → open Yoco
       toast.success("Redirecting to payment…");
+      setState("paid");
       setTimeout(() => window.open(data.payment_link, "_blank"), 800);
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
@@ -76,15 +92,27 @@ export default function VerifyAccount() {
               </div>
             </div>
 
-            {done ? (
-              <div className="mt-10 text-center" data-testid="verify-done">
+            {state === "already-approved" && (
+              <div className="mt-10 text-center" data-testid="verify-already-approved">
                 <div className="inline-flex items-center gap-2 px-4 py-2 border border-[#1E90FF]/50 bg-[#1E90FF]/10 text-[#1E90FF]">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span className="text-xs tracking-[0.22em] uppercase">payment link opened</span>
+                  <span className="text-xs tracking-[0.22em] uppercase">already approved</span>
                 </div>
                 <p className="text-white/65 text-sm mt-5 max-w-md mx-auto">
-                  If the payment page didn't open, click the button below. Our admin team has been
-                  notified to verify your {PRICE_LABEL} payment shortly.
+                  Your account is already active. Sending you to login…
+                </p>
+              </div>
+            )}
+
+            {state === "paid" && (
+              <div className="mt-10 text-center" data-testid="verify-done">
+                <div className="inline-flex items-center gap-2 px-4 py-2 border border-[#1E90FF]/50 bg-[#1E90FF]/10 text-[#1E90FF]">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-xs tracking-[0.22em] uppercase">awaiting admin approval</span>
+                </div>
+                <p className="text-white/65 text-sm mt-5 max-w-md mx-auto">
+                  If the payment page didn't open, click below. Once we confirm your {PRICE_LABEL} payment on Yoco,
+                  an admin will approve your account and you can log in.
                 </p>
                 <Button
                   onClick={() => api.get("/verify-account/config").then(r => window.open(r.data.payment_link, "_blank"))}
@@ -93,13 +121,15 @@ export default function VerifyAccount() {
                 >
                   Open payment page again
                 </Button>
-                <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-                  <Link to="/pending" className="text-xs tracking-[0.22em] uppercase text-white/55 hover:text-[#1E90FF]" data-testid="verify-to-pending">
-                    Check approval status →
+                <div className="mt-8">
+                  <Link to="/login" className="text-xs tracking-[0.22em] uppercase text-white/55 hover:text-[#1E90FF]" data-testid="verify-to-login">
+                    Already approved? Login →
                   </Link>
                 </div>
               </div>
-            ) : (
+            )}
+
+            {state === "form" && (
               <form onSubmit={submit} className="mt-8 max-w-md mx-auto space-y-5" data-testid="verify-form">
                 <div>
                   <Label className="text-[11px] tracking-[0.25em] uppercase text-white/55 mb-2 block">Email tied to your account</Label>
@@ -120,11 +150,11 @@ export default function VerifyAccount() {
                   data-testid="verify-pay-btn"
                 >
                   <CreditCard className="w-4 h-4 mr-2" />
-                  {loading ? "Opening…" : `Pay ${PRICE_LABEL} to verify`}
+                  {loading ? "Checking…" : `Pay ${PRICE_LABEL} to verify`}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
                 <p className="text-[10px] tracking-[0.22em] uppercase text-white/35 text-center pt-2">
-                  After payment, an admin will verify it on the Yoco dashboard, then approve your account.
+                  We check your account status before opening the payment page.
                 </p>
               </form>
             )}

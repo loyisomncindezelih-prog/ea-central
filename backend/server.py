@@ -328,15 +328,40 @@ async def verify_account_click(payload: VerifyClickIn):
     email = payload.email.lower()
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email")
-    await db.users.update_one(
-        {"email": email},
-        {"$set": {
-            "payment_clicked": True,
-            "payment_clicked_at": now_iso(),
-        }},
-    )
-    return {"ok": True, "payment_link": PAYMENT_LINK}
+        raise HTTPException(status_code=404, detail="No account found with this email. Please sign up first.")
+
+    status = user.get("status", "pending")
+    if status == "rejected":
+        raise HTTPException(status_code=403, detail="Your account has been rejected. Please contact support.")
+    if status == "approved":
+        # Already approved — no payment needed. Send them to login.
+        return {
+            "ok": True,
+            "already_approved": True,
+            "message": "Your account is already approved. Please log in.",
+        }
+
+    already_paid = bool(user.get("payment_clicked"))
+    if not already_paid:
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {
+                "payment_clicked": True,
+                "payment_clicked_at": now_iso(),
+            }},
+        )
+
+    return {
+        "ok": True,
+        "already_approved": False,
+        "already_paid": already_paid,
+        "payment_link": PAYMENT_LINK,
+        "message": (
+            "Payment already received — admin is verifying your account."
+            if already_paid else
+            "Opening secure Yoco checkout. Complete the R439.00 payment to unlock your account."
+        ),
+    }
 
 
 @api_router.get("/verify-account/status")
