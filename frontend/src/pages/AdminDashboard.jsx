@@ -86,6 +86,14 @@ export default function AdminDashboard() {
           </div>
           <div className="flex gap-3">
             <Button
+              onClick={() => navigate("/admin/licenses")}
+              variant="ghost"
+              className="border border-[#1E90FF]/40 text-[#1E90FF] hover:bg-[#1E90FF]/10 rounded-none h-11"
+              data-testid="admin-licenses-btn"
+            >
+              Licences
+            </Button>
+            <Button
               onClick={load}
               variant="ghost"
               className="border border-white/20 hover:border-[#1E90FF] hover:text-[#1E90FF] text-white rounded-none h-11"

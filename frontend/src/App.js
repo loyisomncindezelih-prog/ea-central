@@ -21,6 +21,7 @@ import VerifyAccount from "@/pages/VerifyAccount";
 import PendingApproval from "@/pages/PendingApproval";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminLicenses from "@/pages/AdminLicenses";
 
 const Protected = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
@@ -49,6 +50,10 @@ function App() {
             <Route
               path="/admin/dashboard"
               element={<AdminRoute><AdminDashboard /></AdminRoute>}
+            />
+            <Route
+              path="/admin/licenses"
+              element={<AdminRoute><AdminLicenses /></AdminRoute>}
             />
           </Routes>
           <Toaster

@@ -56,15 +56,15 @@ export default function Landing() {
             </div>
 
             <h1 className="font-display mt-6 text-[2.4rem] sm:text-5xl lg:text-7xl font-bold tracking-tight leading-[0.95]">
-              Host your <span className="text-[#1E90FF] ea-glow">PC bot</span>.
+              Distribute your <span className="text-[#1E90FF] ea-glow">EA signals</span>
               <br />
-              Clients <span className="underline decoration-[#1E90FF] underline-offset-[8px] sm:underline-offset-[10px]">download</span> the EA.
+              to <span className="underline decoration-[#1E90FF] underline-offset-[8px] sm:underline-offset-[10px]">every client's phone</span>.
             </h1>
 
             <p className="mt-6 sm:mt-7 text-sm sm:text-base md:text-lg text-white/70 max-w-xl leading-relaxed">
-              Your bot trades on your PC. Your clients install the ea-central Mobile EA
-              on their phone and copy every trade. No VPS for clients, no terminal install,
-              no friction.
+              ea-central is the platform that helps mentors distribute their EA signals to clients
+              on mobile. Your EA runs on your PC or VPS — every trade is synced to all your
+              clients' mobile apps in real time.
             </p>
 
             <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
@@ -77,16 +77,15 @@ export default function Landing() {
                   <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </Link>
-              <a href="#download" className="w-full sm:w-auto">
+              <Link to="/verify-account" className="w-full sm:w-auto">
                 <Button
                   variant="ghost"
-                  className="w-full sm:w-auto border border-white/20 text-white hover:bg-white/5 hover:border-[#1E90FF] rounded-none px-6 py-5 sm:py-6 text-xs sm:text-sm tracking-wider"
-                  data-testid="hero-download-btn"
+                  className="w-full sm:w-auto border border-[#1E90FF]/60 text-[#1E90FF] hover:bg-[#1E90FF]/10 hover:border-[#1E90FF] rounded-none px-6 py-5 sm:py-6 text-xs sm:text-sm tracking-wider"
+                  data-testid="hero-verify-btn"
                 >
-                  <Download className="mr-2 w-4 h-4" />
-                  Download Mobile EA
+                  Pay to activate account
                 </Button>
-              </a>
+              </Link>
             </div>
 
             <div className="mt-10 sm:mt-12 grid grid-cols-3 max-w-md gap-4 sm:gap-6 text-[10px] sm:text-xs text-white/60 uppercase tracking-[0.18em] sm:tracking-[0.2em]">

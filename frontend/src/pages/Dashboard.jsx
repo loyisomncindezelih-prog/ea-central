@@ -71,35 +71,18 @@ export default function Dashboard() {
           </span>
         </div>
 
-        {/* Verify your account */}
-        <div className="mt-4 ea-glass px-4 py-4 sm:px-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 border-l-4 border-[#1E90FF]" data-testid="verify-account-card">
-          {user?.payment_clicked ? (
-            <>
-              <Clock className="w-5 h-5 text-[#1E90FF] shrink-0" />
-              <div className="flex-1 text-sm">
-                <div className="text-white font-semibold">Payment link clicked — check your payment</div>
-                <div className="text-white/55 text-xs mt-0.5">
-                  Our admin team will mark your account fully verified after payment confirms.
-                </div>
+        {/* Verify status (only when payment already clicked) */}
+        {user?.payment_clicked && (
+          <div className="mt-4 ea-glass px-4 py-4 sm:px-6 flex items-center gap-3 border-l-4 border-[#1E90FF]" data-testid="verify-status-card">
+            <Clock className="w-5 h-5 text-[#1E90FF] shrink-0" />
+            <div className="flex-1 text-sm">
+              <div className="text-white font-semibold">Payment link clicked — admin is verifying</div>
+              <div className="text-white/55 text-xs mt-0.5">
+                Your account will be fully verified once payment confirms.
               </div>
-            </>
-          ) : (
-            <>
-              <ShieldCheck className="w-5 h-5 text-[#1E90FF] shrink-0" />
-              <div className="flex-1 text-sm">
-                <div className="text-white font-semibold">Verify your account</div>
-                <div className="text-white/55 text-xs mt-0.5">
-                  Unlock the full mentor experience by completing one-time verification.
-                </div>
-              </div>
-              <Link to="/verify-account">
-                <Button className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-10 px-5" data-testid="verify-account-btn">
-                  Verify your account <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">

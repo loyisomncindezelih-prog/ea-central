@@ -31,6 +31,7 @@ const ROBOT_IMG =
 const LS_EMAIL = "ea_mobile_email";
 const LS_LICENSE = "ea_mobile_license";
 const LS_THEME = "ea_mobile_theme";
+const LS_BROKER = "ea_mobile_broker";
 
 const THEMES = {
   blue:  { name: "Blue",  hex: "#1E90FF", soft: "rgba(30,144,255,0.10)", glow: "rgba(30,144,255,0.55)", border: "rgba(30,144,255,0.70)" },
@@ -388,7 +389,7 @@ export default function MobileApp() {
           style={{ border: `2px solid ${theme.border}`, backgroundColor: "rgba(0,17,34,0.4)" }}>
           <NavBtn icon={Home} label="Home" active accent={accent} themeSoft={theme.soft} testid="mobile-nav-home" />
           <NavBtn icon={Server} label="Connect" accent={accent} testid="mobile-nav-connect"
-            onClick={() => toast.success(running ? "Bridge connected" : "Start the EA first")} />
+            onClick={() => setConnectOpen(true)} />
           <NavBtn icon={SettingsIcon} label="Settings" accent={accent} testid="mobile-nav-settings"
             onClick={() => setSettingsOpen(true)} />
         </div>
@@ -475,12 +476,76 @@ export default function MobileApp() {
             </div>
           </div>
         )}
+
+        {/* Connect (broker) drawer */}
+        {connectOpen && (
+          <div className="absolute inset-0 z-30 bg-black/90 backdrop-blur-sm flex flex-col overflow-y-auto" data-testid="mobile-connect-drawer">
+            <div className="flex items-center justify-between px-4 pt-3 pb-2">
+              <h2 className="font-display tracking-[0.22em] uppercase text-sm flex items-center gap-2" style={{ color: accent }}>
+                <Server className="w-4 h-4" /> Broker connection
+              </h2>
+              <button onClick={() => setConnectOpen(false)} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-connect-close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                localStorage.setItem(LS_BROKER, JSON.stringify(broker));
+                toast.success("Broker linked");
+                setConnectOpen(false);
+              }}
+              className="px-5 py-4 flex flex-col gap-3"
+              data-testid="mobile-broker-form"
+            >
+              <BrokerField label="Broker server" value={broker.server} onChange={(v) => setBroker({ ...broker, server: v })} placeholder="e.g. ICMarketsSC-Demo02" accent={accent} testid="broker-server" />
+              <BrokerField label="Account / Username" value={broker.account} onChange={(v) => setBroker({ ...broker, account: v })} placeholder="123456789" accent={accent} testid="broker-account" />
+              <BrokerField label="Password (investor / main)" type="password" value={broker.password} onChange={(v) => setBroker({ ...broker, password: v })} placeholder="••••••••" accent={accent} testid="broker-password" />
+              <BrokerField label="PC / VPS host or IP" value={broker.host} onChange={(v) => setBroker({ ...broker, host: v })} placeholder="e.g. 185.123.45.67 or my-vps.host" accent={accent} testid="broker-host" />
+
+              <div className="border border-white/10 p-3 text-[11px] text-white/55 leading-relaxed">
+                Your credentials are saved locally on this device and sent only to the ea-central bridge
+                running on your PC / VPS for trade execution. Never shared with other clients.
+              </div>
+
+              <Button type="submit" className="w-full text-black font-bold rounded-none h-12 tracking-wide" style={{ backgroundColor: accent }} data-testid="broker-save">
+                Link broker
+              </Button>
+              {(broker.server || broker.account) && (
+                <button
+                  type="button"
+                  onClick={() => { setBroker({ server: "", account: "", password: "", host: "" }); localStorage.removeItem(LS_BROKER); toast.success("Broker unlinked"); }}
+                  className="text-xs tracking-[0.22em] uppercase text-white/45 hover:text-white py-2"
+                  data-testid="broker-unlink"
+                >
+                  Unlink broker
+                </button>
+              )}
+            </form>
+          </div>
+        )}
       </div>
     </PhoneFrame>
   );
 }
 
 // ============ small components ============
+
+const BrokerField = ({ label, value, onChange, placeholder, type = "text", accent, testid }) => (
+  <div>
+    <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block">{label}</label>
+    <Input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-11"
+      style={{ borderColor: `${accent}55` }}
+      data-testid={testid}
+    />
+  </div>
+);
 
 const PhoneFrame = ({ children, standalone = false, accent = "#1E90FF" }) => {
   if (standalone) {
@@ -540,6 +605,16 @@ const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "
   <button onClick={onClick} className="py-3 flex flex-col items-center gap-1 border-r last:border-r-0" style={{ borderColor: `${accent}33`, backgroundColor: active ? (themeSoft || `${accent}1A`) : undefined }} data-testid={testid}>
     <Icon className="w-5 h-5" style={{ color: active ? accent : "rgba(255,255,255,0.7)" }} strokeWidth={1.6} />
     <span className="text-[11px] tracking-wider" style={{ color: active ? accent : "rgba(255,255,255,0.7)" }}>{label}</span>
+  </button>
+);
+
+const DrawerInfo = ({ label, value, mono = false }) => (
+  <div className="border border-white/10 px-3 py-2.5">
+    <div className="text-[9px] tracking-[0.25em] uppercase text-white/40">{label}</div>
+    <div className={`text-sm text-white truncate ${mono ? "font-mono" : ""}`}>{value || "—"}</div>
+  </div>
+);
+5,255,0.7)" }}>{label}</span>
   </button>
 );
 

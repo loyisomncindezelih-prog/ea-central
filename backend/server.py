@@ -251,7 +251,7 @@ async def logout(response: Response, _: dict = Depends(get_current_user)):
 
 
 # ----------------------- Verify account (payment flow tracking) -----------------------
-PAYMENT_LINK = os.environ.get("PAYMENT_LINK", "https://paypal.me/yourhandle")
+PAYMENT_LINK = os.environ.get("PAYMENT_LINK", "https://pay.yoco.com/r/7XlvGG")
 
 
 class VerifyClickIn(BaseModel):
@@ -614,13 +614,30 @@ async def mobile_activate_license(payload: MobileActivateIn):
     if not key_doc:
         raise HTTPException(status_code=404, detail="Invalid licence key for this account")
 
-    # Auto-activate on first use
-    if not key_doc.get("activated"):
+    # Single-use binding: once a licence is used by an email, only that email can re-open it
+    bound = key_doc.get("bound_to_email")
+    if bound and bound != email:
+        raise HTTPException(status_code=409, detail="This licence is already in use by another email. Contact admin to release it.")
+
+    # Each email can only be bound to ONE licence at a time
+    other = await db.license_keys.find_one(
+        {"bound_to_email": email, "key": {"$ne": license_key}}, {"_id": 0}
+    )
+    if other:
+        raise HTTPException(status_code=409, detail=f"This email is already linked to licence {other['key']}. Contact admin to release it before binding a new one.")
+
+    # Auto-activate + bind on first use
+    if not key_doc.get("activated") or not bound:
         days = PLAN_DAYS.get(key_doc["plan"])
         expires = None if days is None else (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
         await db.license_keys.update_one(
             {"id": key_doc["id"]},
-            {"$set": {"activated": True, "activated_at": now_iso(), "expires_at": expires}},
+            {"$set": {
+                "activated": True,
+                "activated_at": now_iso(),
+                "expires_at": expires,
+                "bound_to_email": email,
+            }},
         )
         key_doc = await db.license_keys.find_one({"id": key_doc["id"]}, {"_id": 0})
 
@@ -637,6 +654,33 @@ async def mobile_activate_license(payload: MobileActivateIn):
         "holder_username": key_doc["holder_username"],
         "mentor_username": user["username"],
     }
+
+
+# ---------- Admin: licence release (unbind from email) ----------
+@api_router.get("/admin/licenses")
+async def admin_list_licenses(_: dict = Depends(get_admin_user)):
+    docs = await db.license_keys.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    out = []
+    for d in docs:
+        owner = await db.users.find_one({"id": d["owner_id"]}, {"_id": 0})
+        out.append({
+            **public_key(d),
+            "bound_to_email": d.get("bound_to_email"),
+            "mentor_email": owner["email"] if owner else "—",
+            "mentor_username": owner["username"] if owner else "—",
+        })
+    return out
+
+
+@api_router.post("/admin/licenses/{key_id}/release")
+async def admin_release_license(key_id: str, _: dict = Depends(get_admin_user)):
+    result = await db.license_keys.update_one(
+        {"id": key_id},
+        {"$set": {"bound_to_email": None, "activated": False, "activated_at": None, "expires_at": None}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Licence not found")
+    return {"ok": True}
 
 
 # ----------------------- Admin endpoints -----------------------
