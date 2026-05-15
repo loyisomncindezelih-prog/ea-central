@@ -48,35 +48,37 @@ export default function VerifyAccount() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Prefer the live Yoco checkout. Fall back to the legacy hosted link
-      // if Yoco isn't configured on the server yet.
+      // ALWAYS prefer the live Yoco dynamic checkout. The legacy hosted link
+      // is only a tiny fallback when YOCO_SECRET_KEY isn't configured on the
+      // server, and we treat it the same way (same-tab redirect, no fake
+      // "paid" state) so the user actually sees the Yoco card-entry page.
       const cfg = await api.get("/verify-account/config").then(r => r.data).catch(() => ({}));
       if (cfg?.yoco_configured) {
-        try {
-          const { data } = await api.post("/verify-account/checkout", { email });
-          if (data.already_approved) {
-            toast.success("Your account is already approved — please log in.");
-            setState("already-approved");
-            setTimeout(() => navigate(`/login?email=${encodeURIComponent(email)}`), 1200);
-            return;
-          }
-          if (data.already_paid) {
-            toast.info(data.message || "Payment already received — admin is verifying.");
-            setState("paid");
-            return;
-          }
-          if (data.redirect_url) {
-            toast.success("Opening secure Yoco checkout…");
-            // Full-page redirect so Yoco's success/cancel URLs land back on /verify-account
-            window.location.href = data.redirect_url;
-            return;
-          }
-        } catch (err) {
-          // fall through to legacy link
+        const { data } = await api.post("/verify-account/checkout", { email });
+        if (data.already_approved) {
+          toast.success("Your account is already approved — please log in.");
+          setState("already-approved");
+          setTimeout(() => navigate(`/login?email=${encodeURIComponent(email)}`), 1200);
+          return;
         }
+        if (data.already_paid) {
+          toast.info(data.message || "Payment already received — admin is verifying.");
+          setState("paid");
+          return;
+        }
+        if (data.redirect_url) {
+          toast.success("Opening secure Yoco checkout…");
+          window.location.href = data.redirect_url; // full-page same-tab redirect
+          return;
+        }
+        // Defensive: server told us yoco_configured but returned no usable payload
+        toast.error("Couldn't reach Yoco checkout. Please try again in a moment.");
+        return;
       }
 
-      // Legacy fallback: hosted Yoco link + payment_clicked tracking
+      // Legacy fallback: only when Yoco isn't configured server-side.
+      // Same-tab redirect to the hosted payment link, and we do NOT mark the
+      // UI as "paid" — the webhook + admin still need to confirm.
       const { data } = await api.post("/verify-account/click", { email });
       if (data.already_approved) {
         toast.success("Your account is already approved — please log in.");
@@ -89,9 +91,12 @@ export default function VerifyAccount() {
         setState("paid");
         return;
       }
-      toast.success("Redirecting to payment…");
-      setState("paid");
-      setTimeout(() => window.open(data.payment_link, "_blank"), 800);
+      if (!data.payment_link) {
+        toast.error("Payment isn't configured on this server yet. Please contact support.");
+        return;
+      }
+      toast.success("Redirecting to Yoco…");
+      window.location.href = data.payment_link; // same tab — no popup-blocker, no fake "paid"
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
     } finally {
@@ -159,7 +164,23 @@ export default function VerifyAccount() {
                   an admin will approve your account and you can log in.
                 </p>
                 <Button
-                  onClick={() => api.get("/verify-account/config").then(r => window.open(r.data.payment_link, "_blank"))}
+                  onClick={async () => {
+                    try {
+                      const cfg = await api.get("/verify-account/config").then(r => r.data);
+                      if (cfg?.yoco_configured) {
+                        const { data } = await api.post("/verify-account/checkout", { email });
+                        if (data.redirect_url) {
+                          window.location.href = data.redirect_url;
+                          return;
+                        }
+                      }
+                      if (cfg?.payment_link) {
+                        window.location.href = cfg.payment_link;
+                      }
+                    } catch (err) {
+                      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+                    }
+                  }}
                   className="mt-5 bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-11 px-6"
                   data-testid="verify-reopen"
                 >
