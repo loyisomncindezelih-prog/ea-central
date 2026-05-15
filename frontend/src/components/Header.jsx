@@ -11,6 +11,9 @@ export const Header = () => {
   const [open, setOpen] = useState(false);
 
   const close = () => setOpen(false);
+  const isAdmin = user && user !== false && user.role === "admin";
+  const dashHref = isAdmin ? "/admin/dashboard" : "/dashboard";
+  const dashLabel = isAdmin ? "Admin" : "Dashboard";
 
   return (
     <header
@@ -40,13 +43,13 @@ export const Header = () => {
         <div className="hidden md:flex items-center gap-3">
           {user && user !== false ? (
             <>
-              <Link to="/dashboard">
+              <Link to={dashHref}>
                 <Button
                   variant="ghost"
                   className="text-white hover:text-[#1E90FF] hover:bg-white/5"
                   data-testid="header-dashboard-btn"
                 >
-                  Dashboard
+                  {dashLabel}
                 </Button>
               </Link>
               <Button
@@ -105,9 +108,9 @@ export const Header = () => {
             <div className="flex gap-3 pt-4">
               {user && user !== false ? (
                 <>
-                  <Link to="/dashboard" onClick={close} className="flex-1">
+                  <Link to={dashHref} onClick={close} className="flex-1">
                     <Button className="w-full bg-transparent border border-white/20 hover:border-[#1E90FF] text-white rounded-none">
-                      Dashboard
+                      {dashLabel}
                     </Button>
                   </Link>
                   <Button

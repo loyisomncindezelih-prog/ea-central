@@ -456,6 +456,39 @@ export default function MobileApp() {
   }
 
   // ============ MAIN APP ============
+  // Defense-in-depth: only render the app shell when the backend has returned a
+  // valid session payload. Even if `stage` is forced to "app" via DevTools, this
+  // guard sends the user back to the email screen because `eaData` lives on the
+  // server response and cannot be faked client-side.
+  if (!eaData || !eaData.ea_name || !eaData.key) {
+    return (
+      <PhoneFrame standalone={isStandalone} accent={accent}>
+        <AuthScreen
+          icon={Mail}
+          title="Session required"
+          subtitle="For your security, please sign in with your email and licence key."
+          testid="mobile-session-required"
+          accent={accent}
+        >
+          <Button
+            onClick={() => {
+              localStorage.removeItem(LS_EMAIL);
+              localStorage.removeItem(LS_LICENSE);
+              setEmail("");
+              setLicense("");
+              setStage("email");
+            }}
+            className="w-full text-black font-bold rounded-none h-12 tracking-wide"
+            style={{ backgroundColor: accent }}
+            data-testid="mobile-session-required-btn"
+          >
+            Sign in <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </AuthScreen>
+      </PhoneFrame>
+    );
+  }
+
   const eaName = eaData?.ea_name || "EA";
   const expiry = eaData?.expires_at ? new Date(eaData.expires_at) : null;
   const expiryLabel = expiry
