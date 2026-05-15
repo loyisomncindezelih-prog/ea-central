@@ -926,7 +926,7 @@ const InstallPrompt = ({ ios, canNativePrompt, onInstall, onDismiss, accent, the
           </div>
           <div className="text-sm text-white leading-snug">
             {ios && !canNativePrompt ? (
-              <>Add to Home Screen for full-screen app: tap <Share className="inline w-3.5 h-3.5 align-text-bottom mx-0.5" style={{ color: accent }} /> then <span className="font-semibold">Add to Home Screen</span>.</>
+              <>Add to Home Screen for full-screen app: tap <span className="sr-only">Share</span><Share aria-hidden="true" className="inline w-3.5 h-3.5 align-text-bottom mx-0.5" style={{ color: accent }} /> then <span className="font-semibold">Add to Home Screen</span>.</>
             ) : (
               <>Install ea-central as an app on your phone — faster launch, no browser bars.</>
             )}

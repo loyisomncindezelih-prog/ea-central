@@ -119,6 +119,12 @@
   - **Root cause**: The 4s polling loop fires `/mobile/activate-license` requests concurrently. When admin approves a broker, a slower in-flight request (still carrying `pending_approval`) could arrive AFTER the request that already saw `approved`, calling `setEaData(data)` with stale data and downgrading the UI back to "linking…".
   - **Fix**: Switched to functional `setEaData((prev) => ...)` that refuses to downgrade `approved → pending_approval`. Added a `cancelled` flag so late responses arriving after the effect has been torn down are discarded.
   - **Net effect**: Once a broker is approved by admin, the /app UI permanently shows "approved" for that session. Only an explicit `declined` from admin or a user-initiated unlink/re-link will change it.
+- **Add-to-Home-Screen tooltip** (`MobileApp.jsx` new `InstallPrompt` component):
+  - **Android / Chromium**: captures the native `beforeinstallprompt` event and shows an "Install app" CTA that fires `event.prompt()`.
+  - **iOS Safari**: deferred 6s timer shows instructional copy "tap Share → Add to Home Screen" (no native prompt exists on iOS).
+  - **Smart hide**: skipped entirely when already installed (`display-mode: standalone`) or previously dismissed (persisted via `ea_mobile_install_dismissed` localStorage flag).
+  - **Accessibility**: Share icon has `aria-hidden` + `sr-only "Share"` text for VoiceOver users.
+  - **Tested (iter14)**: 4/4 frontend scenarios — Android native prompt, persistent dismissal across reloads, iOS UA path with deferred timer, and regression that prompt never renders outside the app stage.
 
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
