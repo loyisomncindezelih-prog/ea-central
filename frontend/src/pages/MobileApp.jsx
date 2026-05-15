@@ -197,21 +197,32 @@ export default function MobileApp() {
       ? false
       : ["pending_approval", "declined"].includes(brokerStatus);
     if (!needsPolling) return;
+    let cancelled = false;
     const iv = setInterval(async () => {
       try {
         const { data } = await api.post("/mobile/activate-license", { email, license_key: license, device_id: getDeviceId() });
-        const oldStatus = eaData?.broker?.status;
-        const newStatus = data?.broker?.status;
-        if (oldStatus === "pending_approval" && newStatus === "approved") {
-          toast.success("Broker successfully linked");
-        }
-        if (oldStatus === "pending_approval" && newStatus === "declined") {
-          toast.error(data?.broker?.decision_reason || "Invalid credentials or server");
-        }
-        setEaData(data);
+        if (cancelled) return; // discard late responses after the effect has been torn down
+        setEaData((prev) => {
+          const prevStatus = prev?.broker?.status;
+          const newStatus = data?.broker?.status;
+          // Guard against out-of-order responses: once admin has approved, do NOT let a
+          // slower in-flight request (still carrying "pending_approval") downgrade the UI
+          // back to "linking". Only an explicit decline or user-initiated unlink may
+          // move us off "approved".
+          if (prevStatus === "approved" && newStatus === "pending_approval") {
+            return prev;
+          }
+          if (prevStatus === "pending_approval" && newStatus === "approved") {
+            toast.success("Broker successfully linked");
+          }
+          if (prevStatus === "pending_approval" && newStatus === "declined") {
+            toast.error(data?.broker?.decision_reason || "Invalid credentials or server");
+          }
+          return data;
+        });
       } catch { /* swallow polling errors */ }
     }, 4000);
-    return () => clearInterval(iv);
+    return () => { cancelled = true; clearInterval(iv); };
   }, [stage, email, license, eaData?.broker?.status]);
 
   // Auto-kick to license stage if expiry passes while in app

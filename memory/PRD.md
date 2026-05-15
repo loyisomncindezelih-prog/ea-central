@@ -114,6 +114,12 @@
 - **Broker no-relink loop fixed**: `MobileApp.jsx` Connect drawer now renders an "Approved · Unlink broker" card when `broker.status === 'approved'` and hides the link form entirely.
 - **Tested (iteration 13)**: 16/16 backend pytest (9 baseline + 7 supplemental in `test_iteration13.py`) + 3/3 frontend Playwright (PaymentSuccess approved, PaymentCancelled cancelled+failed, MobileApp broker no-relink).
 
+## What's been implemented (2026-02 — Iteration 14)
+- **Broker "linking" flicker bug — root-cause fixed** (`MobileApp.jsx` polling effect, lines 200-225):
+  - **Root cause**: The 4s polling loop fires `/mobile/activate-license` requests concurrently. When admin approves a broker, a slower in-flight request (still carrying `pending_approval`) could arrive AFTER the request that already saw `approved`, calling `setEaData(data)` with stale data and downgrading the UI back to "linking…".
+  - **Fix**: Switched to functional `setEaData((prev) => ...)` that refuses to downgrade `approved → pending_approval`. Added a `cancelled` flag so late responses arriving after the effect has been torn down are discarded.
+  - **Net effect**: Once a broker is approved by admin, the /app UI permanently shows "approved" for that session. Only an explicit `declined` from admin or a user-initiated unlink/re-link will change it.
+
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
 - **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)
