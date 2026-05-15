@@ -105,7 +105,23 @@
 - Terms & Conditions page (currently link only).
 - Email verification on signup.
 
+## What's been implemented (2026-02 — Iteration 13)
+- **Device binding**: `/api/mobile/activate-license` accepts `device_id`, binds the licence to the first device on activation, rejects subsequent devices with HTTP 409. Frontend `/app` writes a stable per-device UUID to `localStorage.ea_mobile_device_id` and sends it on every activation/auth call.
+- **Auto-redirect after Yoco payment**:
+  - `/api/verify-account/checkout` now sets Yoco `successUrl=/payment-success?email=...`, `cancelUrl=/payment-cancelled?email=...&status=cancelled`, `failureUrl=/payment-cancelled?email=...&status=failed`.
+  - New `PaymentSuccess` page polls `/api/verify-account/status` every 1.5s up to 20× and surfaces three states ("Almost there…" → "Payment received" → "You're in").
+  - New `PaymentCancelled` page handles both `cancelled` (amber) and `failed` (red) reasons with a "Retry payment" button that re-creates the Yoco checkout.
+- **Broker no-relink loop fixed**: `MobileApp.jsx` Connect drawer now renders an "Approved · Unlink broker" card when `broker.status === 'approved'` and hides the link form entirely.
+- **Tested (iteration 13)**: 16/16 backend pytest (9 baseline + 7 supplemental in `test_iteration13.py`) + 3/3 frontend Playwright (PaymentSuccess approved, PaymentCancelled cancelled+failed, MobileApp broker no-relink).
+
 ## Next Action Items
-- **MetaTrader bridge — Phase 2 (automatic execution)**: build the desktop helper (Python `MetaTrader5` for MT5, ZeroMQ EA for MT4) that polls `/api/bridge/jobs/{license_key}` for trade signals and uses the stored broker creds to execute. Requires a Windows installer.
-- Wire a Yoco webhook to set `payment_confirmed=true` automatically (today the admin still verifies manually on the Yoco dashboard).
-- Rotate JWT_SECRET before production deployment.
+- **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
+- **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)
+- **Mentor profile image on Landing testimonials + License receipt** pages. (P2)
+- **"Add to Home Screen" tooltip** on `/app` for iOS/Android first-time visitors. (P2)
+- **MetaTrader bridge Phase 3** — real automated trade execution against live MT4/MT5. (P1)
+- **Security hardening** (carried over from iter13 code review):
+  - `device_id` should be regex-validated to UUID format (currently any 64-char string is accepted).
+  - `/verify-account/checkout` should send a Yoco idempotency key to avoid duplicate checkouts.
+  - Split `server.py` (>1870 lines) into routers `auth.py`, `mentor.py`, `mobile.py`, `admin.py`, `yoco.py`, `bridge.py`.
+  - Rotate `JWT_SECRET` before production deployment.
