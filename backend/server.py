@@ -8,6 +8,7 @@ import os
 import uuid
 import secrets
 import logging
+import json
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
@@ -25,6 +26,7 @@ from cryptography.fernet import Fernet
 import base64
 import hashlib
 from fastapi.responses import FileResponse
+import httpx
 
 
 # ----------------------- DB -----------------------
@@ -314,6 +316,57 @@ async def logout(response: Response, _: dict = Depends(get_current_user)):
 
 # ----------------------- Verify account (payment flow tracking) -----------------------
 PAYMENT_LINK = os.environ.get("PAYMENT_LINK", "https://pay.yoco.com/r/7XlvGG")
+YOCO_SECRET_KEY = os.environ.get("YOCO_SECRET_KEY", "")
+YOCO_PUBLIC_KEY = os.environ.get("YOCO_PUBLIC_KEY", "")
+YOCO_API_BASE = os.environ.get("YOCO_API_BASE", "https://payments.yoco.com/api").rstrip("/")
+YOCO_AMOUNT_CENTS = int(os.environ.get("YOCO_AMOUNT_CENTS", "43900"))
+YOCO_CURRENCY = os.environ.get("YOCO_CURRENCY", "ZAR")
+
+
+def _public_origin(request: Request) -> str:
+    """Best-effort public origin for redirect URLs (uses Origin or Referer header)."""
+    origin = request.headers.get("origin") or request.headers.get("referer") or ""
+    if origin:
+        try:
+            from urllib.parse import urlparse
+            p = urlparse(origin)
+            if p.scheme and p.netloc:
+                return f"{p.scheme}://{p.netloc}"
+        except Exception:
+            pass
+    return "https://ea-central.co"
+
+
+async def _yoco_post(path: str, json_body: dict) -> dict:
+    if not YOCO_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Yoco is not configured on the server.")
+    headers = {
+        "Authorization": f"Bearer {YOCO_SECRET_KEY}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.post(f"{YOCO_API_BASE}{path}", headers=headers, json=json_body)
+    if r.status_code >= 400:
+        try:
+            err = r.json()
+        except Exception:
+            err = {"message": r.text[:500]}
+        raise HTTPException(status_code=502, detail=f"Yoco error: {err}")
+    return r.json()
+
+
+async def _yoco_get(path: str) -> dict:
+    headers = {"Authorization": f"Bearer {YOCO_SECRET_KEY}"}
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.get(f"{YOCO_API_BASE}{path}", headers=headers)
+    if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"Yoco error: {r.text[:300]}")
+    return r.json()
+
+
+async def _get_yoco_webhook_secret() -> Optional[str]:
+    doc = await db.app_config.find_one({"key": "yoco_webhook_secret"}, {"_id": 0})
+    return (doc or {}).get("value")
 
 
 class VerifyClickIn(BaseModel):
@@ -322,21 +375,74 @@ class VerifyClickIn(BaseModel):
 
 @api_router.get("/verify-account/config")
 async def verify_account_config():
-    return {"payment_link": PAYMENT_LINK}
+    return {
+        "payment_link": PAYMENT_LINK,
+        "yoco_configured": bool(YOCO_SECRET_KEY),
+        "amount_cents": YOCO_AMOUNT_CENTS,
+        "currency": YOCO_CURRENCY,
+    }
+
+
+@api_router.post("/verify-account/checkout")
+@limiter.limit("20/minute")
+async def verify_account_checkout(request: Request, payload: VerifyClickIn):
+    """Create a real Yoco checkout for the verification fee and return redirectUrl."""
+    email = payload.email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email. Please sign up first.")
+    status_val = user.get("status", "pending")
+    if status_val == "rejected":
+        raise HTTPException(status_code=403, detail="Your account has been rejected. Please contact support.")
+    if status_val == "approved":
+        return {"already_approved": True, "message": "Your account is already approved. Please log in."}
+    if user.get("payment_confirmed"):
+        return {"already_paid": True, "message": "Payment already confirmed — admin is verifying your account."}
+
+    origin = _public_origin(request)
+    body = {
+        "amount": YOCO_AMOUNT_CENTS,
+        "currency": YOCO_CURRENCY,
+        "successUrl": f"{origin}/verify-account?yoco=success",
+        "cancelUrl": f"{origin}/verify-account?yoco=cancelled",
+        "failureUrl": f"{origin}/verify-account?yoco=failed",
+        "metadata": {
+            "user_id": user["id"],
+            "user_email": email,
+            "purpose": "mentor_verification",
+        },
+    }
+    data = await _yoco_post("/checkouts", body)
+    checkout_id = data.get("id") or data.get("checkoutId")
+    redirect_url = data.get("redirectUrl") or data.get("redirect_url")
+    if not redirect_url or not checkout_id:
+        raise HTTPException(status_code=502, detail=f"Yoco response missing redirectUrl/id: {data}")
+
+    await db.users.update_one(
+        {"email": email},
+        {"$set": {
+            "payment_clicked": True,
+            "payment_clicked_at": now_iso(),
+            "yoco_checkout_id": checkout_id,
+        }},
+    )
+    return {"checkout_id": checkout_id, "redirect_url": redirect_url, "amount_cents": YOCO_AMOUNT_CENTS, "currency": YOCO_CURRENCY}
 
 
 @api_router.post("/verify-account/click")
 async def verify_account_click(payload: VerifyClickIn):
+    """LEGACY — kept so old clients still get a working payment link.
+    New clients use POST /verify-account/checkout for the real Yoco flow.
+    """
     email = payload.email.lower()
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email. Please sign up first.")
 
-    status = user.get("status", "pending")
-    if status == "rejected":
+    status_val = user.get("status", "pending")
+    if status_val == "rejected":
         raise HTTPException(status_code=403, detail="Your account has been rejected. Please contact support.")
-    if status == "approved":
-        # Already approved — no payment needed. Send them to login.
+    if status_val == "approved":
         return {
             "ok": True,
             "already_approved": True,
@@ -363,6 +469,141 @@ async def verify_account_click(payload: VerifyClickIn):
             if already_paid else
             "Opening secure Yoco checkout. Complete the R439.00 payment to unlock your account."
         ),
+    }
+
+
+# ---------- Yoco webhook receiver (signature verified per Standard Webhooks) ----------
+@api_router.post("/webhooks/yoco")
+async def yoco_webhook(request: Request):
+    raw_body = await request.body()
+    secret_b64 = await _get_yoco_webhook_secret()
+    if not secret_b64:
+        # No registered webhook yet — accept but mark for admin
+        await db.yoco_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "received_at": now_iso(),
+            "verified": False,
+            "reason": "no_secret_registered",
+            "raw": raw_body.decode("utf-8", errors="replace")[:8000],
+        })
+        return {"ok": True, "warning": "no webhook secret registered yet"}
+
+    webhook_id = request.headers.get("webhook-id", "")
+    webhook_timestamp = request.headers.get("webhook-timestamp", "")
+    webhook_signature = request.headers.get("webhook-signature", "")
+    if not (webhook_id and webhook_timestamp and webhook_signature):
+        raise HTTPException(status_code=400, detail="Missing Standard Webhooks headers")
+
+    # Yoco follows Standard Webhooks: secret is base64-encoded; sig is "v1,<base64>"
+    signed_payload = f"{webhook_id}.{webhook_timestamp}.{raw_body.decode('utf-8')}".encode("utf-8")
+    try:
+        key_bytes = base64.b64decode(secret_b64.removeprefix("whsec_"))
+    except Exception:
+        key_bytes = secret_b64.encode("utf-8")
+    import hmac as _hmac
+    expected = base64.b64encode(_hmac.new(key_bytes, signed_payload, hashlib.sha256).digest()).decode()
+    sigs = [s.split(",", 1)[1] if "," in s else s for s in webhook_signature.split(" ")]
+    if not any(_hmac.compare_digest(expected, s) for s in sigs):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    try:
+        evt = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    evt_id = evt.get("id") or webhook_id
+    evt_type = evt.get("type") or "unknown"
+    payload_body = evt.get("payload") or evt.get("data") or {}
+    checkout_id = payload_body.get("metadata", {}).get("checkoutId") or payload_body.get("checkoutId") or payload_body.get("id")
+    user_id = payload_body.get("metadata", {}).get("user_id")
+    user_email = payload_body.get("metadata", {}).get("user_email")
+
+    # Idempotency
+    existing = await db.yoco_events.find_one({"id": evt_id}, {"_id": 0})
+    if existing and existing.get("processed"):
+        return {"ok": True, "already_processed": True}
+
+    await db.yoco_events.update_one(
+        {"id": evt_id},
+        {"$set": {
+            "id": evt_id,
+            "type": evt_type,
+            "checkout_id": checkout_id,
+            "user_id": user_id,
+            "user_email": user_email,
+            "verified": True,
+            "received_at": now_iso(),
+            "raw": evt,
+        }},
+        upsert=True,
+    )
+
+    if evt_type in ("payment.succeeded", "checkout.payment.succeeded", "payment.captured"):
+        amount = (payload_body.get("amount") or {})
+        amount_cents = amount.get("value") if isinstance(amount, dict) else amount
+        query = {}
+        if user_id:
+            query["id"] = user_id
+        elif user_email:
+            query["email"] = user_email.lower()
+        elif checkout_id:
+            query["yoco_checkout_id"] = checkout_id
+        if query:
+            await db.users.update_one(
+                query,
+                {"$set": {
+                    "payment_confirmed": True,
+                    "payment_amount_cents": amount_cents,
+                    "payment_currency": YOCO_CURRENCY,
+                    "payment_paid_at": now_iso(),
+                    "payment_method": "yoco",
+                }},
+            )
+        await db.yoco_events.update_one({"id": evt_id}, {"$set": {"processed": True}})
+    elif evt_type in ("payment.failed", "checkout.payment.failed"):
+        await db.yoco_events.update_one({"id": evt_id}, {"$set": {"processed": True}})
+
+    return {"ok": True}
+
+
+# ---------- Admin endpoint: register the Yoco webhook (one-time setup) ----------
+@api_router.post("/admin/yoco/register-webhook")
+async def admin_register_yoco_webhook(request: Request, _: dict = Depends(get_admin_user)):
+    if not YOCO_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="YOCO_SECRET_KEY is not configured")
+
+    origin = _public_origin(request)
+    # Prefer api.ea-central.co if request came through the main site
+    if "ea-central.co" in origin and not origin.startswith("https://api."):
+        origin = "https://api.ea-central.co"
+    webhook_url = f"{origin}/api/webhooks/yoco"
+
+    body = {"name": "ea-central-webhook", "url": webhook_url}
+    data = await _yoco_post("/webhooks", body)
+    secret = data.get("secret") or data.get("signingSecret")
+    if not secret:
+        raise HTTPException(status_code=502, detail=f"Yoco didn't return a secret: {data}")
+
+    await db.app_config.update_one(
+        {"key": "yoco_webhook_secret"},
+        {"$set": {"key": "yoco_webhook_secret", "value": secret, "updated_at": now_iso(), "webhook_url": webhook_url, "webhook_id": data.get("id")}},
+        upsert=True,
+    )
+    return {"ok": True, "webhook_url": webhook_url, "secret_saved": True, "yoco_webhook_id": data.get("id")}
+
+
+@api_router.get("/admin/yoco/status")
+async def admin_yoco_status(_: dict = Depends(get_admin_user)):
+    cfg = await db.app_config.find_one({"key": "yoco_webhook_secret"}, {"_id": 0})
+    return {
+        "secret_configured": bool(YOCO_SECRET_KEY),
+        "public_key_configured": bool(YOCO_PUBLIC_KEY),
+        "amount_cents": YOCO_AMOUNT_CENTS,
+        "currency": YOCO_CURRENCY,
+        "webhook_registered": bool(cfg),
+        "webhook_url": (cfg or {}).get("webhook_url"),
+        "webhook_id": (cfg or {}).get("webhook_id"),
+        "webhook_updated_at": (cfg or {}).get("updated_at"),
     }
 
 

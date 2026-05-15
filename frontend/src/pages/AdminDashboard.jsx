@@ -15,6 +15,8 @@ import {
   ShieldCheck,
   Mail,
   Phone,
+  CreditCard,
+  Webhook,
 } from "lucide-react";
 
 const TABS = [
@@ -32,6 +34,27 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [actingId, setActingId] = useState(null);
+  const [yoco, setYoco] = useState(null);
+  const [yocoBusy, setYocoBusy] = useState(false);
+
+  const loadYoco = useCallback(async () => {
+    try {
+      const { data } = await api.get("/admin/yoco/status");
+      setYoco(data);
+    } catch { /* ignore */ }
+  }, []);
+
+  const registerYocoWebhook = async () => {
+    if (!window.confirm("Register the Yoco webhook now? This connects ea-central to Yoco's payment.succeeded events.")) return;
+    setYocoBusy(true);
+    try {
+      const { data } = await api.post("/admin/yoco/register-webhook");
+      toast.success(`Webhook registered → ${data.webhook_url}`);
+      await loadYoco();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally { setYocoBusy(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,7 +75,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadYoco();
+  }, [load, loadYoco]);
 
   const act = async (id, action) => {
     setActingId(id);
@@ -130,6 +154,40 @@ export default function AdminDashboard() {
           <StatCard icon={XCircle}      label="Rejected" value={stats?.rejected ?? "—"} testId="stat-rejected" />
           <StatCard icon={Users}        label="Total"    value={stats?.total    ?? "—"} testId="stat-total" />
         </div>
+
+        {/* Yoco config */}
+        <section className="ea-glass mt-6 p-5 sm:p-6" data-testid="admin-yoco-card">
+          <div className="flex items-start justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex items-center justify-center border border-[#1E90FF]/55 bg-[#1E90FF]/5 text-[#1E90FF]">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Yoco payment gateway</div>
+                <div className="text-white text-sm">
+                  {yoco?.secret_configured ? "Secret key ✓" : "No secret key"} ·{" "}
+                  {yoco?.public_key_configured ? "public key ✓" : "no public key"} ·{" "}
+                  R{((yoco?.amount_cents || 43900) / 100).toFixed(2)} {yoco?.currency || "ZAR"} ·{" "}
+                  <span className={yoco?.webhook_registered ? "text-[#1E90FF]" : "text-[#FFC850]"} data-testid="yoco-webhook-status">
+                    {yoco?.webhook_registered ? "webhook registered" : "webhook NOT registered"}
+                  </span>
+                </div>
+                {yoco?.webhook_url && (
+                  <code className="text-[10px] text-white/45 font-mono break-all">{yoco.webhook_url}</code>
+                )}
+              </div>
+            </div>
+            <Button
+              onClick={registerYocoWebhook}
+              disabled={yocoBusy || !yoco?.secret_configured}
+              className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-11 px-5 tracking-wide"
+              data-testid="yoco-register-webhook-btn"
+            >
+              <Webhook className="w-4 h-4 mr-2" />
+              {yocoBusy ? "Registering…" : (yoco?.webhook_registered ? "Re-register webhook" : "Register webhook with Yoco")}
+            </Button>
+          </div>
+        </section>
 
         {/* Tabs */}
         <div className="mt-10 flex flex-wrap gap-2 border-b border-white/10 pb-0" data-testid="admin-tabs">

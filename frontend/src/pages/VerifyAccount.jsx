@@ -25,26 +25,66 @@ export default function VerifyAccount() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Yoco return handler — if the user came back from Yoco, surface a status message
+  useEffect(() => {
+    const yoco = params.get("yoco");
+    if (!yoco) return;
+    if (yoco === "success") {
+      toast.success("Payment received — confirming with admin…");
+      setState("paid");
+    } else if (yoco === "cancelled") {
+      toast.info("Payment cancelled — you can try again any time.");
+    } else if (yoco === "failed") {
+      toast.error("Payment failed. Please try again or use a different card.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const submit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await api.post("/verify-account/click", { email });
+      // Prefer the live Yoco checkout. Fall back to the legacy hosted link
+      // if Yoco isn't configured on the server yet.
+      const cfg = await api.get("/verify-account/config").then(r => r.data).catch(() => ({}));
+      if (cfg?.yoco_configured) {
+        try {
+          const { data } = await api.post("/verify-account/checkout", { email });
+          if (data.already_approved) {
+            toast.success("Your account is already approved — please log in.");
+            setState("already-approved");
+            setTimeout(() => navigate(`/login?email=${encodeURIComponent(email)}`), 1200);
+            return;
+          }
+          if (data.already_paid) {
+            toast.info(data.message || "Payment already received — admin is verifying.");
+            setState("paid");
+            return;
+          }
+          if (data.redirect_url) {
+            toast.success("Opening secure Yoco checkout…");
+            // Full-page redirect so Yoco's success/cancel URLs land back on /verify-account
+            window.location.href = data.redirect_url;
+            return;
+          }
+        } catch (err) {
+          // fall through to legacy link
+        }
+      }
 
+      // Legacy fallback: hosted Yoco link + payment_clicked tracking
+      const { data } = await api.post("/verify-account/click", { email });
       if (data.already_approved) {
         toast.success("Your account is already approved — please log in.");
         setState("already-approved");
         setTimeout(() => navigate(`/login?email=${encodeURIComponent(email)}`), 1200);
         return;
       }
-
       if (data.already_paid) {
         toast.info(data.message || "Payment already received — admin is verifying.");
         setState("paid");
         return;
       }
-
-      // Pending + not yet paid → open Yoco
       toast.success("Redirecting to payment…");
       setState("paid");
       setTimeout(() => window.open(data.payment_link, "_blank"), 800);

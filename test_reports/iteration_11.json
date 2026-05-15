@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 11 Yoco LIVE payment-gateway integration tested end-to-end. 13/14 backend pytest cases pass (1 skipped intentionally — register-webhook already done in prior run, re-registering would create a duplicate Yoco subscription). Full happy path verified against LIVE https://payments.yoco.com/api: POST /verify-account/checkout returns a real ch_... id + redirect_url, persists yoco_checkout_id, and the frontend correctly does window.location.href to c.yoco.com/checkout/ch_xxx. Signed webhook delivery with the secret from db.app_config flips user.payment_confirmed=true and is idempotent on retry (second delivery returns already_processed:true; subsequent /checkout for the same email returns already_paid:true). Admin dashboard /admin/dashboard correctly shows admin-yoco-card with R439.00 ZAR + 'webhook registered' badge + webhook URL https://api.ea-central.co/api/webhooks/yoco, and the 'Re-register webhook' button correctly opens a native window.confirm with the expected copy. One frontend bug found: toast.success/info/error calls in the ?yoco=success|cancelled|failed return-handler useEffect do not produce visible toasts (Sonner portal [data-sonner-toaster] never mounts on the /verify-account route, although the same Toaster works on /admin/dashboard — 'Admin signed in' toast renders fine). The setState('paid') path on yoco=success still works so success users see an AWAITING ADMIN APPROVAL pill, but cancelled/failed users get zero feedback.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "VerifyAccount.jsx (Yoco-return useEffect lines 29-41)",
+        "issue": "toast.success('Payment received — confirming with admin…'), toast.info('Payment cancelled…') and toast.error('Payment failed…') do NOT appear on /verify-account?yoco=success|cancelled|failed. Polled the DOM for 5s after navigation — no [data-sonner-toaster] portal mounts and no li[data-sonner-toast] elements appear. The same <Toaster> works correctly on /admin/dashboard (Admin signed in toast renders). setState('paid') in the same useEffect DOES run on yoco=success (AWAITING ADMIN APPROVAL pill renders), so the useEffect itself is firing — only the toast calls are silent. Net effect: cancelled/failed Yoco returns give the user zero visual feedback.",
+        "selector": "data-testid=verify-account-page",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11.py",
+    "/app/test_reports/pytest/iter11_results.xml"
+  ],
+  "action_items": [
+    "Investigate why toast.{success,info,error} calls inside VerifyAccount.jsx's ?yoco= useEffect don't render. The Toaster works on other routes, so it's likely a timing/strict-mode issue specific to the initial render of this route. Possible repro: when /verify-account loads with a ?yoco= query, the toast call inside the empty-deps useEffect fires but Sonner's internal queue never flushes to DOM. Try moving the toast call into a setTimeout(()=>toast.success(...),0) or attaching it to a state-change effect, or verify React 18 strict-mode double-invoke isn't dismissing the toast on the second run.",
+    "(Optional, cosmetic) AdminDashboard.jsx briefly shows 'No secret key · no public key' on first paint before loadYoco() resolves — pre-populate yoco state from a known-config default or show a skeleton to avoid the flash."
+  ],
+  "critical_code_review_comments": [
+    "server.py _yoco_post hardcodes 'https://ea-central.co' as the fallback origin (line 337). For the verification-fee successUrl/cancelUrl/failureUrl this is fine in production, but in this preview environment the user gets redirected back to https://ea-central.co/verify-account?yoco=... instead of the preview URL. Since _public_origin already prefers Origin/Referer headers and the frontend send those, the LIVE test redirect_url correctly returns to the preview URL in practice — but the fallback string should probably come from an env var.",
+    "server.py admin_register_yoco_webhook rewrites the origin to 'https://api.ea-central.co' whenever origin contains 'ea-central.co' (line 577-578). Reasonable for production, but it means register-webhook called from the preview admin UI will register a webhook URL pointing at the preview ingress (whatever Origin sends), which is what we observed: 'https://api.ea-central.co/api/webhooks/yoco' is now registered with Yoco — that's the PRODUCTION URL, fired from the PREVIEW admin. Confirm this is intentional; if so, the preview admin button is effectively a prod-config tool.",
+    "server.py is now 1827 lines — still well past the 700-line guideline. The Yoco section (~200 lines) and existing auth/EA/licence sections should be split into routers/services.",
+    "server.py /verify-account/checkout doesn't pass an idempotency key to Yoco, so repeated submissions from the same pending user create multiple Yoco checkout objects (only the latest one is stored on the user). Not a correctness bug — Yoco checkouts are cheap and unused ones expire — but worth knowing for cost/audit reasons.",
+    "Frontend AuthContext.refresh() fires /api/auth/me on every public page load (visible as repeated 401s on /verify-account in the console). Consider skipping the refresh on routes that the unauthenticated visitor is expected to use, to avoid the 401 noise."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration11.py"
+  ],
+  "success_rate": {
+    "backend": "100% of executed tests (13/13 passed; 1 skipped on purpose to avoid duplicate Yoco webhook subscription)",
+    "frontend": "80% — form load, full /checkout → c.yoco.com redirect, admin yoco card amount/currency/status, register-webhook confirm dialog all pass. Only the ?yoco=cancelled/success/failed toasts fail to render."
+  },
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123. Approved mentor used for already_approved check: TEST_it6_ui_1778753851@test.com. Fresh pending users created by tests: TEST_iter11_pending_<ts>@test.com (used for happy-path checkout + webhook payment_confirmed flow), TEST_iter11_legacy_<ts>@test.com (legacy click), TEST_iter11_ui_<ts>@test.com (UI redirect test).",
+  "seed_data_creation": "Created ~3 fresh pending mentor users with TEST_iter11_*@test.com emails. One of them (the pending-fixture user) is now flagged payment_clicked=true AND payment_confirmed=true after the signed-webhook test, with a real Yoco checkout_id stored. db.yoco_events now has 1 verified+processed event entry from the signed-webhook test. db.app_config.yoco_webhook_secret was NOT recreated by this run — it was already present from iteration_11 dev (verified via /admin/yoco/status webhook_registered:true).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use /app/backend/tests/test_iteration11.py as the regression baseline for all Yoco endpoints. The test suite is idempotent against the Yoco subscription (TestAdminWebhookRegister::test_register_webhook_live skips if webhook is already registered). For frontend toast retest, the failing flow is /verify-account?yoco=cancelled — poll for [data-sonner-toaster] in DOM for at least 3s; if it never appears, the bug is reproduced. Note: clicking the actual 'Register webhook' button in admin will create a new Yoco webhook subscription each time — duplicate subscriptions are silently accepted by Yoco but pollute their dashboard, so prefer dismissing the confirm dialog in automated tests (the test_iteration11 suite's E2E flow does this).",
+  "rca of the issue": "Toast bug RCA (preliminary): The toast.success() / toast.info() / toast.error() inside VerifyAccount.jsx's [] dependency useEffect (lines 32-39) executes — confirmed because setState('paid') in the same effect runs (AWAITING ADMIN APPROVAL pill renders). However, Sonner's portal element [data-sonner-toaster] never appears in document.body during a 5-second poll window after navigation, and no <li data-sonner-toast> children are inserted. The same global <Toaster> in App.js does work on /admin/dashboard ('Admin signed in' toast renders correctly after admin login). The most likely root cause is that the toast call is being made BEFORE the Toaster's mount/portal handshake completes on initial route render — Sonner uses a singleton ToastState that the <Toaster> subscribes to in its own useEffect. When VerifyAccount's useEffect with [] deps fires on first paint, the Toaster may not yet have subscribed, and Sonner drops the queued toast (or buffers it and the buffered toast is lost when React 18 strict mode runs the effect again with cleanup). Repro path: hard-load /verify-account?yoco=success. Suggested mitigation: wrap the toast call in setTimeout(()=>toast.success(...), 0) or move it into a useEffect that depends on a mounted ref, OR call it after a microtask in a useLayoutEffect. Quick verification fix the main agent can try: change useEffect(()=>{ if(yoco==='success') toast.success(...) },[]) to useEffect(()=>{ const t=setTimeout(()=>{ if(yoco==='success') toast.success(...) },50); return ()=>clearTimeout(t); },[])."
+}
