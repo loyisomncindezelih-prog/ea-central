@@ -1,0 +1,23 @@
+{
+  "summary": "Verified P2 'Add to Home Screen' tooltip in /app (MobileApp.jsx). All 4 frontend scenarios passed: (1) synthetic beforeinstallprompt on desktop chromium shows mobile-install-prompt with 'Install ea-central' copy + Install CTA + Later button; (2) X-dismiss hides the prompt and persists ea_mobile_install_dismissed='1' to localStorage and prompt does NOT reappear after reload+re-dispatch; (3) iOS Safari UA path shows the prompt after the 6s deferred timer (waited 7.5s) with 'Add to Home Screen' instructional copy + inline Share icon (lucide-share svg) and Install CTA correctly absent (canNativePrompt=false) while dismiss X remains; (4) regression — on email stage with no creds (whether dismissed flag is set or not) the prompt never renders because InstallPrompt is only mounted inside the 'app' stage return.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MobileApp.jsx is now ~1400 lines — recommend extracting InstallPrompt, PairsDrawer, PairConfigForm, StartPopup, CandleChart into separate files (>700 line threshold). Not blocking this P2.",
+    "InstallPrompt iOS copy says 'tap [Share icon] then Add to Home Screen' — copy is screen-reader-hostile because the Share icon has no aria-label. Consider adding sr-only 'Share' text alongside the icon for VoiceOver users on iOS."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped per request)", "frontend": "100% (4/4 scenarios)" },
+  "test_credentials": "TEST_it6_ui_1778753851@test.com / EAC-2F9D-E69F-6F75-CEB3 (unbound after run)",
+  "seed_data_creation": "None — re-used iter6 seeded mentor. Unbound bound_device_id on EAC-2F9D-E69F-6F75-CEB3 both before and after the run so the next agent can re-activate cleanly.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "License EAC-2F9D-E69F-6F75-CEB3 left with bound_device_id=null. The Playwright Page.screenshot raised 'options.quality is unsupported for the png screenshots' — that's a tooling limitation only; use jpeg path='*.jpg' or omit quality for PNG. Console shows recurring 401s for /manifest.webmanifest (crossOrigin=use-credentials hits an auth-gated CDN); harmless for app functionality but main agent may want to drop crossOrigin attr or host manifest publicly.",
+  "rca of the issue": "No bug — feature works as designed. Note: the iOS test must use a separate browser context with user_agent override (browser.new_context(user_agent=...)) because page-level setExtraHTTPHeaders / JS Object.defineProperty(navigator,'userAgent') cannot satisfy isIosSafari() which reads window.navigator.userAgent. The deferred 6s iOS timer is intentional UX."
+}

@@ -23,6 +23,9 @@ import {
   BatteryFull,
   Settings as SettingsIcon,
   Palette,
+  Share,
+  Plus,
+  Download,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -37,6 +40,16 @@ const LS_LICENSE = "ea_mobile_license";
 const LS_THEME = "ea_mobile_theme";
 const LS_BROKER = "ea_mobile_broker";
 const LS_DEVICE = "ea_mobile_device_id";
+const LS_INSTALL_DISMISSED = "ea_mobile_install_dismissed";
+
+// Detect iOS Safari (no `beforeinstallprompt` support — must show manual instructions).
+function isIosSafari() {
+  if (typeof window === "undefined") return false;
+  const ua = window.navigator.userAgent || "";
+  const iOS = /iPhone|iPad|iPod/.test(ua);
+  const webkit = /WebKit/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  return iOS && webkit;
+}
 
 // Stable per-device id so each licence/email is locked to one device.
 function getDeviceId() {
@@ -130,6 +143,61 @@ export default function MobileApp() {
     if (typeof window === "undefined") return false;
     return window.matchMedia?.("(display-mode: standalone)").matches ||
            window.navigator.standalone === true;
+  }, []);
+
+  // ---- Add to Home Screen prompt (Android = native, iOS = manual instructions) ----
+  const [installEvent, setInstallEvent] = useState(null);   // Android: BeforeInstallPromptEvent
+  const [showInstallTip, setShowInstallTip] = useState(false);
+  const iosSafari = useMemo(() => isIosSafari(), []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isStandalone) return; // already installed — never prompt
+    if (localStorage.getItem(LS_INSTALL_DISMISSED) === "1") return; // user said no
+
+    const onBefore = (e) => {
+      e.preventDefault(); // we'll fire it ourselves
+      setInstallEvent(e);
+      setShowInstallTip(true);
+    };
+    window.addEventListener("beforeinstallprompt", onBefore);
+
+    // iOS Safari never fires beforeinstallprompt — surface manual instructions
+    // after a short delay so it doesn't interrupt the first interaction.
+    let iosTimer = null;
+    if (iosSafari) {
+      iosTimer = setTimeout(() => setShowInstallTip(true), 6000);
+    }
+
+    const onInstalled = () => {
+      setShowInstallTip(false);
+      setInstallEvent(null);
+    };
+    window.addEventListener("appinstalled", onInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBefore);
+      window.removeEventListener("appinstalled", onInstalled);
+      if (iosTimer) clearTimeout(iosTimer);
+    };
+  }, [isStandalone, iosSafari]);
+
+  const triggerNativeInstall = useCallback(async () => {
+    if (!installEvent) return;
+    try {
+      installEvent.prompt();
+      const choice = await installEvent.userChoice;
+      if (choice?.outcome === "accepted") {
+        toast.success("Installing ea-central…");
+      }
+    } catch { /* ignore */ }
+    setInstallEvent(null);
+    setShowInstallTip(false);
+  }, [installEvent]);
+
+  const dismissInstallTip = useCallback(() => {
+    localStorage.setItem(LS_INSTALL_DISMISSED, "1");
+    setShowInstallTip(false);
   }, []);
 
   // Register service worker for PWA / APK packaging support.
@@ -813,12 +881,91 @@ export default function MobileApp() {
             onClose={() => setStartOpen(false)}
           />
         )}
+
+        {/* Add-to-Home-Screen tooltip (iOS Safari = manual instructions, Android = native prompt) */}
+        {!isStandalone && showInstallTip && (installEvent || iosSafari) && (
+          <InstallPrompt
+            ios={iosSafari}
+            canNativePrompt={!!installEvent}
+            onInstall={triggerNativeInstall}
+            onDismiss={dismissInstallTip}
+            accent={accent}
+            theme={theme}
+          />
+        )}
       </div>
     </PhoneFrame>
   );
 }
 
 // ============ small components ============
+
+const InstallPrompt = ({ ios, canNativePrompt, onInstall, onDismiss, accent, theme }) => (
+  <div
+    className="absolute left-3 right-3 bottom-3 z-40 animate-in fade-in slide-in-from-bottom-4 duration-300"
+    data-testid="mobile-install-prompt"
+  >
+    <div
+      className="border backdrop-blur-md p-3.5 shadow-2xl"
+      style={{
+        borderColor: `${accent}55`,
+        backgroundColor: "rgba(0,17,34,0.92)",
+        boxShadow: `0 8px 40px ${accent}33`,
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="w-10 h-10 shrink-0 flex items-center justify-center"
+          style={{ border: `1px solid ${accent}`, color: accent, backgroundColor: theme.soft }}
+        >
+          <Download className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] tracking-[0.25em] uppercase mb-0.5" style={{ color: accent }}>
+            / install ea-central
+          </div>
+          <div className="text-sm text-white leading-snug">
+            {ios && !canNativePrompt ? (
+              <>Add to Home Screen for full-screen app: tap <Share className="inline w-3.5 h-3.5 align-text-bottom mx-0.5" style={{ color: accent }} /> then <span className="font-semibold">Add to Home Screen</span>.</>
+            ) : (
+              <>Install ea-central as an app on your phone — faster launch, no browser bars.</>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="shrink-0 w-7 h-7 -mt-1 -mr-1 flex items-center justify-center text-white/45 hover:text-white"
+          aria-label="Dismiss install prompt"
+          data-testid="mobile-install-dismiss"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      {canNativePrompt && (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={onInstall}
+            className="flex-1 h-10 text-black text-xs font-bold tracking-[0.2em] uppercase flex items-center justify-center gap-2"
+            style={{ backgroundColor: accent }}
+            data-testid="mobile-install-cta"
+          >
+            <Plus className="w-3.5 h-3.5" /> Install app
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="px-4 h-10 text-[11px] tracking-[0.2em] uppercase text-white/55 hover:text-white border border-white/15"
+            data-testid="mobile-install-later"
+          >
+            Later
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+);
 
 const BrokerField = ({ label, value, onChange, placeholder, type = "text", accent, testid }) => (
   <div>
