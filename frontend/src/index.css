@@ -150,6 +150,55 @@ h6,
     animation: ea-fade-up 0.7s ease-out both;
 }
 
+/* Cyberpunk-trader: animated scanline drifting down the chart bg */
+@keyframes ea-scan {
+    0% {
+        transform: translateY(-100%);
+    }
+    100% {
+        transform: translateY(120%);
+    }
+}
+.ea-scan {
+    animation: ea-scan 7s linear infinite;
+}
+
+/* Cyberpunk-trader: subtle vertical grid drift (parallax background) */
+@keyframes ea-grid-drift {
+    0% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 0 48px;
+    }
+}
+.ea-grid-anim {
+    background-image:
+        linear-gradient(rgba(30, 144, 255, 0.07) 1px, transparent 1px),
+        linear-gradient(
+            90deg,
+            rgba(30, 144, 255, 0.07) 1px,
+            transparent 1px
+        );
+    background-size: 48px 48px;
+    animation: ea-grid-drift 14s linear infinite;
+}
+
+/* Neon edge — sharp electric-blue outline for chips */
+.ea-neon-edge {
+    box-shadow:
+        0 0 0 1px rgba(30, 144, 255, 0.55),
+        0 0 18px rgba(30, 144, 255, 0.35),
+        inset 0 0 12px rgba(30, 144, 255, 0.08);
+}
+
+/* Glass card optimised for stacking ON TOP of the chart background */
+.ea-glass-chart {
+    background: rgba(0, 8, 18, 0.55);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
 /* Tailwind layer overrides for shadcn variables (dark fintech) */
 @layer base {
     :root {

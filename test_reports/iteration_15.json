@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend redesign verification of /app MobileApp.jsx complete. All redesign requirements PASSED: full-bleed candlestick chart background sits behind content (z-index correct), small square avatar chip replaces old 230px round robot, live-price chip responsive (hidden < sm, visible >= 640px), 'powered by LOYISO' / Robot List / Broker Bridge cards present and interactive. Pairs drawer opens/closes via mobile-action-pairs, broker tap renders broker-approved-card (no mobile-broker-form regression), install prompt fires on synthetic beforeinstallprompt. Responsive: phone frame centered on tablet (768) and desktop (1920, x=760 w=400), vertical-rl side tickers visible only on lg+ (writing-mode vertical-rl width=15px on 1920; offsetParent=false on 768 — correct).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "MobileApp main (mobile 390)", "issues": ["Install prompt card overlaps the bottom of the Broker bridge / Robot list cards in the visible viewport — content sits behind the prompt. Consider adding bottom padding when mobile-install-prompt is visible so cards don't scroll under it."]},
+      {"screen": "MobileApp main", "issues": ["Background chart candles are also visible bleeding through the Robot List / Broker glass cards (the cards have low fill opacity). Looks intentional for cyberpunk vibe but may impact readability on small screens — consider raising ea-glass-chart background alpha slightly."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: increase ea-glass-chart background opacity slightly so chart candles don't bleed through Robot List / Broker cards on small screens.",
+    "Optional: add bottom safe-area padding to mobile-app-screen content when mobile-install-prompt is visible so the bottom card isn't covered."
+  ],
+  "critical_code_review_comments": [
+    "MobileApp.jsx is 1514 lines — exceeds the 700-line guideline. Recommend splitting drawers (PairsDrawer, ConnectDrawer, MenuDrawer), PhoneFrame, ChartBackground, LivePriceChip into separate modules.",
+    "LivePriceChip uses setInterval polling a ref every 500ms — works but a useSyncExternalStore or callback-based subscription from ChartBackground would be cleaner and avoid wasted renders when price hasn't changed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "TEST_it6_ui_1778753851@test.com / licence EAC-2F9D-E69F-6F75-CEB3 (re-unbound to bound_device_id=null in mongo after test).",
+  "seed_data_creation": "None — used existing TEST_it6_ui mentor + EAC-2F9D-E69F-6F75-CEB3 licence already seeded. License binding was set by activate-license during test and has been re-unbound to None as instructed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Redesigned mobile shell: data-testid='mobile-chart-bg' is the full-bleed SVG inside an absolute inset-0 wrapper (parent z=auto, content layers use relative z-10). data-testid='mobile-ea-avatar-chip' replaces old 230px round robot. data-testid='mobile-live-price-chip' is gated by Tailwind 'hidden sm:flex' (>= 640px). PhoneFrame side tickers gated by 'hidden lg:flex' (>= 1024px). All previous testids preserved. Screenshots: /tmp/redesign_mobile_390.png, /tmp/redesign_tablet_768.png, /tmp/redesign_desktop_1920.png.",
+  "screenshots": ["/tmp/redesign_mobile_390.png", "/tmp/redesign_tablet_768.png", "/tmp/redesign_desktop_1920.png"],
+  "verified_checks": {
+    "a_chart_bg_behind_content": "PASS — parent absolute inset-0 overflow:hidden, nameplate z=10",
+    "b_avatar_chip_present_no_230px": "PASS — chip present, old .w-[230px].h-[230px] absent",
+    "c_live_price_chip_responsive": "PASS — hidden on 390, visible on 768 and 1920",
+    "d_powered_by_loyiso_robot_broker_present": "PASS",
+    "regression_testids": "PASS — menu/bell/pairs/start/info/robot-card/broker-status/badge all present",
+    "pairs_drawer_open_close": "PASS",
+    "broker_approved_no_relink": "PASS — broker-approved-card rendered, mobile-broker-form absent",
+    "install_prompt_synthetic": "PASS",
+    "responsive_375_768_1920": "PASS — phone centered (1920: x=760 w=400)",
+    "vertical_rl_side_tickers_lg_only": "PASS — visible on 1920, offsetParent=false on 768"
+  }
+}
