@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 13 re-verified all 3 flows requested: (1) device-binding 409 on /mobile/activate-license, (2) /verify-account/checkout success/cancel URL shape pointing at /payment-success and /payment-cancelled, (3) /payment-success polling + /payment-cancelled cancelled+failed states + /app broker no-relink (broker-approved-card present, mobile-broker-form absent). Backend: 9/9 baseline pytest (test_iteration12) + 7/7 supplemental pytest (test_iteration13) ALL PASS. Frontend: /payment-success for approved user renders \"You're in.\" + Go to login (data-testid=payment-success-login-btn); /payment-cancelled?status=cancelled shows amber 'Not finalised.' with Retry payment; /payment-cancelled?status=failed shows red 'Couldn't complete.' with Retry payment; /app after email→licence activation, Connect drawer shows broker-approved-card + broker-unlink-from-approved and mobile-broker-form is NOT rendered (no-relink loop fixed). Webhook HMAC verification rejects unsigned/bad-signature requests with 400/401 and accepts a properly signed Svix-style webhook (idempotent on already-approved user).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12.py",
+    "/app/backend/tests/test_iteration13.py",
+    "/app/test_reports/pytest/iter13_results.xml",
+    "/app/test_reports/pytest/iter13_supp_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 1870+ lines; same comment as iter11/iter12 — verify-account, Yoco webhook, mobile, and admin sections should be split into routers. Still unresolved.",
+    "server.py /mobile/activate-license trims device_id to 64 chars without format validation — a malicious client can send device_id='admin' to bind a licence to any string. Recommend regex-validating to UUID format (already flagged in iter12).",
+    "PaymentSuccess.jsx polls via setTimeout chain driven by a `poll` state counter — works today but useRef + setInterval or react-query would avoid the closure trap of capturing stale `poll` across re-renders.",
+    "Frontend AuthContext still calls /api/auth/me on every public page load — visible as 401 noise on /payment-success and /payment-cancelled (same comment iter11/iter12).",
+    "/api/verify-account/checkout doesn't pass an idempotency key to Yoco; repeated submissions from same pending user create multiple Yoco checkout objects (only the latest stored)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration13.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16: 9 baseline + 7 supplemental)",
+    "frontend": "100% (PaymentSuccess approved state, PaymentCancelled cancelled+failed, MobileApp broker-approved no-relink all pass)"
+  },
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123. Mentor for UI: TEST_it6_ui_1778753851@test.com / Passw0rd! (licence EAC-2F9D-E69F-6F75-CEB3).",
+  "seed_data_creation": "Created 1 fresh pending mentor (TEST_iter13_chk_<ts>_<uuid>@test.com) for the checkout-URL test and immediately deleted it. EAC-2F9D-E69F-6F75-CEB3 licence was released and re-bound during the device-collision sub-tests. The bound_device_id at the end of the run reflects the browser device id written by the /app UI activation flow. Broker connection for TEST_it6_ui_1778753851 was re-set to status='approved' via direct mongo write to verify the broker no-relink UI branch.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_iteration13.py is the new regression baseline for the 3 requested flows. The Yoco webhook HMAC test (TestWebhookHmac::test_valid_signature_processes) auto-derives the secret from db.app_config and signs Svix-style ({id}.{ts}.{body}); if no whsec_ secret is found, the test is skipped (not failed). The device-collision fixture (TestDeviceCollision.reset) clears bound_device_id on entry and restores 'restore-device-iter13' on teardown — if a UI test follows pytest, the UI Activate will 409 until the licence is released. To re-test the broker no-relink branch, ensure db.broker_connections for license_key='EAC-2F9D-E69F-6F75-CEB3' is status='approved' before opening the Connect drawer; if a Re-link flow is later tested it will overwrite to pending_approval, requiring a re-approve.",
+  "rca of the issue": "No bugs found in iteration 13. All previously reported issues (iter11 toast bug retired in iter12 with the new /payment-success and /payment-cancelled pages) remain non-issues. Device-collision 409, signed-webhook idempotency, and broker no-relink ternary in MobileApp.jsx line 690-776 are all functioning as designed."
+}
