@@ -106,7 +106,7 @@ export default function AdminBrokers() {
             const statusLabel =
               status === "approved" ? "approved" :
               status === "declined" ? "declined" :
-              status === "pending_approval" ? "pending approval" :
+              status === "pending_approval" ? "pending server-side approval" :
               status;
             const session = r.ea_session;
             const ses = session?.status;
@@ -139,7 +139,7 @@ export default function AdminBrokers() {
                 {status === "pending_approval" && (
                   <div className="mt-4 flex gap-2 flex-wrap" data-testid={`broker-row-actions-${i}`}>
                     <Button onClick={() => decide(r.license_key, "approve")} className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-10 px-4 tracking-wide" data-testid={`broker-approve-${i}`}>
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Approve linking
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Approve linking (server-side)
                     </Button>
                     <Button onClick={() => decide(r.license_key, "decline")} className="bg-transparent border border-[#FF3B3B]/70 text-[#FF3B3B] hover:bg-[#FF3B3B]/10 rounded-none h-10 px-4 tracking-wide" data-testid={`broker-decline-${i}`}>
                       <XCircle className="w-4 h-4 mr-2" /> Decline

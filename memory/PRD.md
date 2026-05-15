@@ -155,6 +155,23 @@
 - **Same-email registration uniqueness** (already in place — verified): `/api/auth/register` returns HTTP 409 on duplicate emails AND there is a MongoDB unique index on `users.email`. Confirmed live on preview backend.
 - **/app glow polish** (carry-over from previous message): `ActionBtn` and `NavBtn` now have double-layer drop-shadow icon glow, text-shadow accent labels, inset+outer box-shadow on active/highlight states, and hover icon scale-up.
 
+## What's been implemented (2026-02 — Iteration 18)
+- **Trading Style picker on /app** (`MobileApp.jsx`):
+  - 5 options: Aggressive Scalping (HIGH RISK, red, "lose money immediately" warning), Martingale (HIGH RISK, red, "wipe your account" warning), Scalping (normal), Swing Trading (normal), Day Trading (BEST, green badge).
+  - New card between "Powered by LOYISO" pill and "Robot List" — shows current style, badge color (red/green/blue) matches risk level, "Tap to choose" placeholder when empty.
+  - New full-screen drawer `TradingStyleDrawer` with all 5 options + risk badges + inline red warning banners for high-risk picks. Currently selected shows "ACTIVE" chip.
+  - Selecting a high-risk style fires a `toast.warning`; "Day Trading" fires `toast.success` ("solid choice"); others normal `toast.success`.
+- **Backend** (`server.py`):
+  - New `POST /api/mobile/trading-style` endpoint (rate-limit 30/min) — validates style ∈ TRADING_STYLES, verifies licence ownership, persists `license_keys.trading_style` + `trading_style_at` ISO timestamp.
+  - `/api/mobile/activate-license` response now includes `trading_style` + `trading_style_label`.
+  - `/api/admin/broker-connections` response now includes `trading_style`, `trading_style_label`, `trading_style_risk` per row.
+- **Admin /admin/brokers** (`AdminBrokers.jsx`): new "Trading style" row on each broker card showing label + colored HIGH RISK / BEST badge.
+- **"admin approval" → "server-side approval" rename** (everywhere):
+  - Backend: `/mobile/connect-broker` notice ("Broker linking to server… server-side verification in progress."); `/mobile/start` blocker text ("Broker is still pending server-side approval."); decline message no longer says "by admin".
+  - Frontend `/app`: broker connect toast ("awaiting server-side verification"); unlink confirm ("server-side approval again"); approved-card subtitle ("verified server-side").
+  - Frontend `/admin/brokers`: status badge label is now "pending server-side approval"; primary CTA reads "Approve linking (server-side)".
+- **Tested (iter18)**: 12/12 backend pytest pass (POST trading-style, invalid, ownership, activate-license payload, admin response shape, broker notice copy); 100% frontend (style card + drawer + persistence + admin display + every copy rename verified).
+
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
 - **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)
