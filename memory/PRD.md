@@ -149,6 +149,12 @@
   - Default robot image cropped tighter (`objectPosition: 50% 20%`, `scale(2.0)`) so the baked-in "EA-CENTRAL" text in the asset is hidden — the real nameplate is the only one visible.
 - **Tested (iter16)**: 100% frontend layout match — all critical testids present, none of the removed ones (mobile-nav-settings, mobile-robot-expiry, mobile-ea-avatar-chip) leaking back in, chart-bg behind z-10 foreground, responsive across 375/768/1920, vertical side tickers visible on lg+.
 
+## What's been implemented (2026-02 — Iteration 17)
+- **Admin header routing bug fix** (`Header.jsx`): the "Dashboard" button now detects `user.role === "admin"` and routes to `/admin/dashboard` (label changes to "Admin") instead of always sending admins to the mentor license-generation page at `/dashboard`. Mobile drawer version updated too.
+- **/app skip-prevention** (`MobileApp.jsx`): defense-in-depth guard added — the main app screen will not render unless `eaData` is a valid server response containing `ea_name` and `key`. Even if `stage` is forced to "app" via React DevTools / a manual `setStage` call, the user is shown a "Session required → Sign in" screen and pushed back to the email stage. The actual security guarantee remains server-side (every stage transition calls `/mobile/check-email` or `/mobile/activate-license` which validate against the DB).
+- **Same-email registration uniqueness** (already in place — verified): `/api/auth/register` returns HTTP 409 on duplicate emails AND there is a MongoDB unique index on `users.email`. Confirmed live on preview backend.
+- **/app glow polish** (carry-over from previous message): `ActionBtn` and `NavBtn` now have double-layer drop-shadow icon glow, text-shadow accent labels, inset+outer box-shadow on active/highlight states, and hover icon scale-up.
+
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
 - **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)
