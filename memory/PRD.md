@@ -126,6 +126,17 @@
   - **Accessibility**: Share icon has `aria-hidden` + `sr-only "Share"` text for VoiceOver users.
   - **Tested (iter14)**: 4/4 frontend scenarios — Android native prompt, persistent dismissal across reloads, iOS UA path with deferred timer, and regression that prompt never renders outside the app stage.
 
+## What's been implemented (2026-02 — Iteration 15)
+- **/app full visual redesign — cyberpunk-trader**:
+  - Background candlestick chart (new `ChartBackground` component, `BG_CANDLE_COUNT=56`) now lives full-bleed behind all content via absolute layering; animated cyber-grid drift (`ea-grid-anim`), drifting scanline (`ea-scan`), dual neon corner halos, top/bottom vignettes.
+  - Big round 230px robot avatar REMOVED → replaced with a sleek `mobile-ea-avatar-chip` (12×12 square) inside a neon-edge glass card with EA name, status row, plan, and a live-price chip.
+  - All cards refitted with `ea-glass-chart` (backdrop-blur 16px, saturate 140%, 72% black background) so they stay readable over the live chart.
+  - LIVE/READY pill in header replaces the old centered title — pulses green when running.
+  - `LivePriceChip` self-refreshes from a shared `livePriceRef` every 500ms (hidden on phones <640px so the header stays compact).
+- **Responsive PhoneFrame**: max-w 400px phone centered on all viewports. Desktop (lg+) gains dual halo glow + animated grid backdrop + vertical-rl side tickers ("EA-CENTRAL · MOBILE EA" / "LIVE · TRADING · BRIDGE"). Height switched from fixed aspect to `min(92vh, 820px)` so it fits short laptops.
+- **Bottom-padding adapt**: broker card auto-pads when install prompt is visible so it isn't covered.
+- **Tested (iter15)**: 10/10 frontend checks pass — chart bg behind content, avatar chip swap, responsive across 375/768/1920, vertical side tickers gated to lg+, pairs/broker drawers regression, install prompt regression.
+
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
 - **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)

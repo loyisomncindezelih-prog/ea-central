@@ -592,7 +592,7 @@ export default function MobileApp() {
         </div>
 
         {/* Broker status */}
-        <div className="relative z-10 mx-4 mt-3 mb-4">
+        <div className={`relative z-10 mx-4 mt-3 ${!isStandalone && showInstallTip && (installEvent || iosSafari) ? "mb-32" : "mb-4"}`}>
           <button
             type="button"
             onClick={() => setConnectOpen(true)}

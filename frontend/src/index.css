@@ -194,9 +194,9 @@ h6,
 
 /* Glass card optimised for stacking ON TOP of the chart background */
 .ea-glass-chart {
-    background: rgba(0, 8, 18, 0.55);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    background: rgba(0, 8, 18, 0.72);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
 /* Tailwind layer overrides for shadcn variables (dark fintech) */
