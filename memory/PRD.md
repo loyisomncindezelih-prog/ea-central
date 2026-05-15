@@ -53,7 +53,18 @@
 - MongoDB indexes for `pair_configs` and `broker_connections`.
 - Tested: 14/14 backend + 5/5 frontend.
 
-## What's been implemented (2026-05-14 — Iteration 7)
+## What's been implemented (2026-05-14 — Iteration 11)
+- **Real Yoco payment gateway** (replaces the manual hosted-link flow):
+  - Env: `YOCO_SECRET_KEY`, `YOCO_PUBLIC_KEY`, `YOCO_API_BASE`, `YOCO_AMOUNT_CENTS=43900`, `YOCO_CURRENCY=ZAR`.
+  - `POST /api/verify-account/checkout` → creates real Yoco checkout via `POST https://payments.yoco.com/api/checkouts`, returns `redirect_url` (`https://c.yoco.com/checkout/ch_...`).
+  - `POST /api/webhooks/yoco` → Standard Webhooks (`webhook-id` / `webhook-timestamp` / `webhook-signature`) HMAC-SHA256 verification using stored signing secret; `payment.succeeded` flips `user.payment_confirmed=true`. Idempotent (replays return `{already_processed:true}`).
+  - `POST /api/admin/yoco/register-webhook` (admin) → registers the webhook with Yoco programmatically and saves the returned secret in `db.app_config`.
+  - `GET /api/admin/yoco/status` (admin) → reports config + webhook status.
+  - Legacy `POST /api/verify-account/click` retained for backwards compatibility.
+  - Frontend `/verify-account` does `window.location.href = redirect_url` (full redirect to Yoco), handles `?yoco=success|cancelled|failed` return params with toasts.
+  - Admin dashboard shows a Yoco config card with one-click "Register webhook with Yoco" button.
+- **Tested**: 13/13 backend pytest against the LIVE Yoco API + signed-webhook payment confirmation works end-to-end + frontend redirect verified.
+- **Toast bug fixed** post-test: wrapped Yoco-return toasts in `setTimeout(0)` so Sonner's portal has mounted before they fire.
 - **MetaTrader bridge — Phase 2 (signal fan-out + desktop helper)**:
   - **Mentor API key** — `POST /api/mentor/api-key/rotate` and `GET /api/mentor/api-key`. Used as `Bearer` auth by mentor's PC bot.
   - **Mentor push** — `POST /api/bridge/mentor-push` with `{ea_id, symbol, action: BUY|SELL|CLOSE, lot?, stop_loss?, take_profit?, comment?}`. Fans out one `trade_signals` doc per eligible client (activated key + non-expired + pair_config exists for symbol + direction matches; CLOSE bypasses direction filter intentionally). Uses `insert_many` for O(1) round-trip on large client lists.

@@ -25,18 +25,22 @@ export default function VerifyAccount() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Yoco return handler — if the user came back from Yoco, surface a status message
+  // Yoco return handler — if the user came back from Yoco, surface a status message.
+  // Wrapped in setTimeout(0) so Sonner's portal has mounted before we call toast().
   useEffect(() => {
     const yoco = params.get("yoco");
     if (!yoco) return;
-    if (yoco === "success") {
-      toast.success("Payment received — confirming with admin…");
-      setState("paid");
-    } else if (yoco === "cancelled") {
-      toast.info("Payment cancelled — you can try again any time.");
-    } else if (yoco === "failed") {
-      toast.error("Payment failed. Please try again or use a different card.");
-    }
+    const t = setTimeout(() => {
+      if (yoco === "success") {
+        toast.success("Payment received — confirming with admin…");
+        setState("paid");
+      } else if (yoco === "cancelled") {
+        toast.info("Payment cancelled — you can try again any time.");
+      } else if (yoco === "failed") {
+        toast.error("Payment failed. Please try again or use a different card.");
+      }
+    }, 80);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
