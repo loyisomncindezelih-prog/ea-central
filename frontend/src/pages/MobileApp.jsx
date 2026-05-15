@@ -1071,16 +1071,63 @@ const AuthScreen = ({ icon: Icon, title, subtitle, children, testid, accent = "#
 );
 
 const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false, accent = "#1E90FF", themeSoft }) => (
-  <button onClick={onClick} className="py-5 sm:py-6 flex flex-col items-center gap-2 transition border-r last:border-r-0 active:scale-95" style={{ borderColor: `${accent}33`, backgroundColor: highlight ? (themeSoft || `${accent}26`) : undefined }} data-testid={testid}>
-    <Icon className="w-7 h-7 sm:w-8 sm:h-8" style={{ color: accent, filter: `drop-shadow(0 0 6px ${accent})` }} strokeWidth={1.8} />
-    <span className="text-white text-xs sm:text-sm tracking-[0.2em] font-bold">{label}</span>
+  <button
+    onClick={onClick}
+    className="py-5 sm:py-6 flex flex-col items-center gap-2 transition-all duration-200 border-r last:border-r-0 active:scale-95 hover:bg-white/[0.04] relative group"
+    style={{
+      borderColor: `${accent}33`,
+      backgroundColor: highlight ? (themeSoft || `${accent}26`) : undefined,
+      boxShadow: highlight ? `inset 0 0 24px ${accent}55, 0 0 18px ${accent}66` : undefined,
+    }}
+    data-testid={testid}
+  >
+    <Icon
+      className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-200 group-hover:scale-110"
+      style={{
+        color: accent,
+        filter: `drop-shadow(0 0 8px ${accent}) drop-shadow(0 0 14px ${accent}99)`,
+      }}
+      strokeWidth={1.8}
+    />
+    <span
+      className="text-white text-xs sm:text-sm tracking-[0.2em] font-bold"
+      style={{ textShadow: `0 0 8px ${accent}99` }}
+    >
+      {label}
+    </span>
   </button>
 );
 
 const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "#1E90FF", themeSoft }) => (
-  <button onClick={onClick} className="py-4 sm:py-5 flex flex-col items-center gap-1.5 border-r last:border-r-0 active:scale-95" style={{ borderColor: `${accent}33`, backgroundColor: active ? (themeSoft || `${accent}1A`) : undefined }} data-testid={testid}>
-    <Icon className="w-6 h-6 sm:w-7 sm:h-7" style={{ color: active ? accent : "rgba(255,255,255,0.7)", filter: active ? `drop-shadow(0 0 6px ${accent})` : "none" }} strokeWidth={1.8} />
-    <span className="text-xs sm:text-sm tracking-wider" style={{ color: active ? accent : "rgba(255,255,255,0.7)" }}>{label}</span>
+  <button
+    onClick={onClick}
+    className="py-4 sm:py-5 flex flex-col items-center gap-1.5 border-r last:border-r-0 active:scale-95 transition-all duration-200 hover:bg-white/[0.04] relative group"
+    style={{
+      borderColor: `${accent}33`,
+      backgroundColor: active ? (themeSoft || `${accent}1A`) : undefined,
+      boxShadow: active ? `inset 0 0 20px ${accent}44, 0 0 14px ${accent}55` : undefined,
+    }}
+    data-testid={testid}
+  >
+    <Icon
+      className="w-6 h-6 sm:w-7 sm:h-7 transition-all duration-200 group-hover:scale-110"
+      style={{
+        color: active ? accent : "rgba(255,255,255,0.8)",
+        filter: active
+          ? `drop-shadow(0 0 8px ${accent}) drop-shadow(0 0 14px ${accent}99)`
+          : `drop-shadow(0 0 4px rgba(255,255,255,0.4))`,
+      }}
+      strokeWidth={1.8}
+    />
+    <span
+      className="text-xs sm:text-sm tracking-wider"
+      style={{
+        color: active ? accent : "rgba(255,255,255,0.85)",
+        textShadow: active ? `0 0 8px ${accent}99` : "none",
+      }}
+    >
+      {label}
+    </span>
   </button>
 );
 
