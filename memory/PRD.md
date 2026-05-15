@@ -137,6 +137,18 @@
 - **Bottom-padding adapt**: broker card auto-pads when install prompt is visible so it isn't covered.
 - **Tested (iter15)**: 10/10 frontend checks pass — chart bg behind content, avatar chip swap, responsive across 375/768/1920, vertical side tickers gated to lg+, pairs/broker drawers regression, install prompt regression.
 
+## What's been implemented (2026-02 — Iteration 16)
+- **/app layout restored to match user's reference design (big circular neon robot avatar variant)**:
+  - Reverted the compact cyberpunk-trader layout from iter15. Brought back the BIG circular robot avatar (~64vw, min 230px) with neon-blue ring + soft inner glow.
+  - Restored large `EA-CENTRAL` nameplate (3xl→4xl, blue glow text) with "Fully automated EA" subtitle inside a rounded-2xl glow-bordered container.
+  - Restored 3-column action row (PAIRS · START · INFO) inside a rounded-2xl container, with bigger icons (w-7 h-7 sm:w-8 h-8) and drop-shadow filter for the neon glow.
+  - Restored "Powered by LOYISO" pill (rounded-full, neon border, blue LOYISO font-display).
+  - Restored "Robot List" left-aligned text label + robot card without expiry sub-line (just EA name + "Adaptive AI Trading").
+  - Bottom nav simplified to 2 columns (Home + Connect) — Settings moved into the menu drawer only.
+  - **Background**: kept the new `ChartBackground` candlestick chart from iter15 as a faint full-bleed background (with top/bottom black-fade vignettes) so the new responsive desktop framing still works.
+  - Default robot image cropped tighter (`objectPosition: 50% 20%`, `scale(2.0)`) so the baked-in "EA-CENTRAL" text in the asset is hidden — the real nameplate is the only one visible.
+- **Tested (iter16)**: 100% frontend layout match — all critical testids present, none of the removed ones (mobile-nav-settings, mobile-robot-expiry, mobile-ea-avatar-chip) leaking back in, chart-bg behind z-10 foreground, responsive across 375/768/1920, vertical side tickers visible on lg+.
+
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
 - **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)

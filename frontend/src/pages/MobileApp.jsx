@@ -506,7 +506,7 @@ export default function MobileApp() {
             {eaData?.mentor_profile_image ? (
               <img src={eaData.mentor_profile_image} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 50%" }} data-testid="mobile-ea-avatar" />
             ) : (
-              <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 32%", transform: "scale(1.6)", transformOrigin: "50% 32%" }} data-testid="mobile-ea-avatar-default" />
+              <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 20%", transform: "scale(2.0)", transformOrigin: "50% 20%" }} data-testid="mobile-ea-avatar-default" />
             )}
           </div>
         </div>
