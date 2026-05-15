@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 17 — Trading style picker (5 options) + server-side broker copy rename. Backend: 12/12 pytest passed (POST /api/mobile/trading-style returns 200 with {ok,style,label,risk} for all 5 valid styles; 400 invalid; 404 unknown licence; 403 mismatched email; activate-license returns trading_style + trading_style_label; admin/broker-connections returns trading_style/_label/_risk; connect-broker notice contains 'server-side verification' and not 'admin'). Frontend /app: mobile-trading-style-card renders between LOYISO pill and Robot List with current 'Day Trading' + green BEST badge; tapping opens mobile-trading-style-drawer with 5 options; aggressive_scalping & martingale rows show HIGH RISK chip + red inline warning copy ('lose money immediately' / 'wipe your account'); day_trading row shows BEST + ACTIVE; selecting Aggressive Scalping closes drawer, card flips to RED (#FF3B3B) with HIGH RISK chip + warning toast fires; Scalping renders neutral (blue) without badges. Broker drawer save toast reads 'MT4 broker linking to server… awaiting server-side verification' — no 'admin' wording. Admin /admin/brokers shows TRADING STYLE field with data-testid=broker-trading-style-0 = 'Day TradingBEST' for the licence row.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/brokers row badge", "issues": ["Status badge still says 'PENDING APPROVAL' / 'pending approval' (AdminBrokers.jsx lines 109/139). Review request asked for 'pending server-side approval'. Backend already uses 'pending server-side approval' in /mobile/start error (server.py:1708). Frontend admin copy not aligned with the rename. Minor copy inconsistency."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration17_trading_style.py",
+    "/app/test_reports/pytest/iteration17.xml"
+  ],
+  "action_items": [
+    "(MINOR) Update /app/frontend/src/pages/AdminBrokers.jsx lines 109 & 139 to render 'pending server-side approval' instead of 'pending approval' to match the global rename. All other 'admin' → 'server-side' renames are correctly applied on /app and on backend notices."
+  ],
+  "critical_code_review_comments": [
+    "TRADING_STYLES dict duplicated client+server (frontend MobileApp.jsx and AdminBrokers.jsx both maintain the labels/risk). Acceptable for now, but consider exposing /api/mobile/trading-styles to be source-of-truth and let FE fetch once.",
+    "MobileApp.jsx is now 1786 lines — close to splitting threshold (>700). Trading-style drawer (TradingStyleDrawer ~line 1716) could move to /components for maintainability.",
+    "/mobile/trading-style endpoint rate-limited 30/min, validates email/license binding, stores trading_style + trading_style_at — looks clean. No _id leak.",
+    "/admin/broker-connections — N+1 query (per-row license + mentor + client lookup). Fine for current scale (≤2000 docs) but consider $lookup if it grows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration17_trading_style.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin admin@ea-central.com / Admin@123; Mentor TEST_it6_ui_1778753851@test.com / Passw0rd! licence EAC-2F9D-E69F-6F75-CEB3 (cleaned up: bound_device_id=null, trading_style='day_trading', broker_connections cleared)",
+  "seed_data_creation": "None — used existing iteration-6 mentor + licence",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Licence EAC-2F9D-E69F-6F75-CEB3 was re-unbound (bound_device_id=null), trading_style reset to 'day_trading', broker_connections row deleted. Each fresh playwright session creates a new device_id; if you see 409 on /mobile/activate-license, simply unbind via mongo (bound_device_id=null). Frontend testids new this iter: mobile-trading-style-card, mobile-trading-style-value, mobile-trading-style-best, mobile-trading-style-high, mobile-trading-style-drawer, mobile-trading-style-close, mobile-trading-style-option-{key}. Admin testid: broker-trading-style-{i}. Backend endpoint: POST /api/mobile/trading-style {email, license_key, style}.",
+  "rca of the issue": "N/A — feature additions verified end-to-end. Only minor cosmetic finding is AdminBrokers status badge text still reading 'pending approval' instead of 'pending server-side approval'."
+}

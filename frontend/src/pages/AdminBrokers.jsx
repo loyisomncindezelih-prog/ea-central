@@ -159,6 +159,26 @@ export default function AdminBrokers() {
                   <Field label="Connected at" value={r.connected_at ? new Date(r.connected_at).toLocaleString() : "—"} />
                   <Field label="Broker server" value={r.broker_server} mono onCopy={() => copy(r.broker_server, "Server copied")} testid={`broker-server-${i}`} />
                   <Field label="Broker account" value={r.broker_account} mono onCopy={() => copy(r.broker_account, "Account copied")} testid={`broker-account-${i}`} />
+                  <div className="md:col-span-2">
+                    <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-1">Trading style</div>
+                    <div
+                      className="flex items-center gap-2 text-sm font-bold"
+                      style={{
+                        color: r.trading_style_risk === "high" ? "#FF3B3B"
+                             : r.trading_style_risk === "best" ? "#22C55E"
+                             : r.trading_style ? "#1E90FF" : "rgba(255,255,255,0.55)",
+                      }}
+                      data-testid={`broker-trading-style-${i}`}
+                    >
+                      {r.trading_style_label || "— (not chosen)"}
+                      {r.trading_style_risk === "high" && (
+                        <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold" style={{ color: "#FF3B3B", border: "1px solid #FF3B3B", backgroundColor: "rgba(255,59,59,0.08)" }}>HIGH RISK</span>
+                      )}
+                      {r.trading_style_risk === "best" && (
+                        <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold" style={{ color: "#22C55E", border: "1px solid #22C55E", backgroundColor: "rgba(34,197,94,0.08)" }}>BEST</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* EA session detail */}

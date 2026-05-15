@@ -26,6 +26,8 @@ import {
   Share,
   Plus,
   Download,
+  Crosshair,
+  AlertTriangle,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -72,6 +74,42 @@ const THEMES = {
   green: { name: "Green", hex: "#22C55E", soft: "rgba(34,197,94,0.10)",  glow: "rgba(34,197,94,0.55)",  border: "rgba(34,197,94,0.70)" },
 };
 
+// Trading style options — risk:'high' renders red w/ warning; 'best' gets a badge.
+const TRADING_STYLES = [
+  {
+    key: "aggressive_scalping",
+    label: "Aggressive Scalping",
+    risk: "high",
+    blurb: "Multiple trades per minute on tight spreads. High-frequency, high-stress.",
+    warn: "⚠ You can lose money immediately. Only run with capital you can afford to lose.",
+  },
+  {
+    key: "martingale",
+    label: "Martingale",
+    risk: "high",
+    blurb: "Doubles position after each loss. High risk · high reward.",
+    warn: "⚠ A losing streak can wipe your account. Use strict equity stops.",
+  },
+  {
+    key: "scalping",
+    label: "Scalping",
+    risk: "normal",
+    blurb: "Short trades, small targets — steady gains on liquid pairs.",
+  },
+  {
+    key: "swing_trading",
+    label: "Swing Trading",
+    risk: "normal",
+    blurb: "Bot waits for high-probability setups. Holds for days, fewer trades.",
+  },
+  {
+    key: "day_trading",
+    label: "Day Trading",
+    risk: "best",
+    blurb: "Balanced intraday strategy — best risk-reward ratio for most clients.",
+  },
+];
+
 export default function MobileApp() {
   const navigate = useNavigate();
   const [stage, setStage] = useState("loading"); // loading | email | license | app
@@ -85,6 +123,8 @@ export default function MobileApp() {
   const [connectOpen, setConnectOpen] = useState(false);
   const [pairsOpen, setPairsOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
+  const [styleOpen, setStyleOpen] = useState(false);
+  const [styleBusy, setStyleBusy] = useState(false);
   const [themeKey, setThemeKey] = useState(localStorage.getItem(LS_THEME) || "blue");
   const theme = THEMES[themeKey] || THEMES.blue;
   const accent = theme.hex;
@@ -602,6 +642,52 @@ export default function MobileApp() {
           <span className="font-display font-black tracking-[0.18em] text-sm sm:text-base" style={{ color: accent, textShadow: `0 0 10px ${theme.glow}` }}>LOYISO</span>
         </div>
 
+        {/* Trading Style — risk profile picker */}
+        {(() => {
+          const currentStyle = TRADING_STYLES.find((s) => s.key === eaData?.trading_style);
+          const isHighRisk = currentStyle?.risk === "high";
+          const isBest = currentStyle?.risk === "best";
+          const styleColor = isHighRisk ? "#FF3B3B" : isBest ? "#22C55E" : accent;
+          const styleSoft = isHighRisk ? "rgba(255,59,59,0.10)" : isBest ? "rgba(34,197,94,0.10)" : theme.soft;
+          return (
+            <button
+              type="button"
+              onClick={() => setStyleOpen(true)}
+              className="relative z-10 w-full mx-4 mt-3 rounded-2xl p-3 flex items-center gap-3 text-left"
+              style={{
+                width: "calc(100% - 2rem)",
+                border: `2px solid ${currentStyle ? styleColor : "rgba(255,255,255,0.1)"}`,
+                backgroundColor: styleSoft,
+                boxShadow: currentStyle ? `0 0 16px ${styleColor}55` : undefined,
+              }}
+              data-testid="mobile-trading-style-card"
+            >
+              <div
+                className="w-9 h-9 flex items-center justify-center shrink-0 rounded"
+                style={{ border: `1px solid ${styleColor}`, color: styleColor, boxShadow: `0 0 10px ${styleColor}55` }}
+              >
+                {isHighRisk ? <AlertTriangle className="w-4 h-4" /> : <Crosshair className="w-4 h-4" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Trading style</div>
+                <div className="text-sm font-bold truncate" style={{ color: currentStyle ? styleColor : "rgba(255,255,255,0.85)" }} data-testid="mobile-trading-style-value">
+                  {currentStyle ? currentStyle.label : "Tap to choose"}
+                </div>
+              </div>
+              {isBest && (
+                <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 font-bold" style={{ color: "#22C55E", border: `1px solid #22C55E`, backgroundColor: "rgba(34,197,94,0.08)" }} data-testid="mobile-trading-style-best">
+                  BEST
+                </div>
+              )}
+              {isHighRisk && (
+                <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 font-bold" style={{ color: "#FF3B3B", border: `1px solid #FF3B3B`, backgroundColor: "rgba(255,59,59,0.08)" }} data-testid="mobile-trading-style-high">
+                  HIGH RISK
+                </div>
+              )}
+            </button>
+          );
+        })()}
+
         {/* Robot List */}
         <div className="relative z-10 mx-4 mt-4">
           <div className="text-white text-sm font-semibold mb-2 tracking-wide">Robot List</div>
@@ -793,7 +879,7 @@ export default function MobileApp() {
                     {eaData.broker.platform?.toUpperCase()} · {eaData.broker.server} · #{eaData.broker.account}
                   </div>
                   <div className="text-[11px] text-white/55 mt-2">
-                    Your broker is linked and verified by admin. The ea-central bridge will use these credentials to execute trades.
+                    Your broker is linked and verified server-side. The ea-central bridge will use these credentials to execute trades.
                   </div>
                 </div>
                 <Button
@@ -807,7 +893,7 @@ export default function MobileApp() {
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!window.confirm("Unlink broker? You'll need admin approval again next time.")) return;
+                    if (!window.confirm("Unlink broker? You'll need server-side approval again next time.")) return;
                     try {
                       await api.post("/mobile/disconnect-broker", { email, license_key: license });
                     } catch { /* ignore */ }
@@ -841,7 +927,7 @@ export default function MobileApp() {
                     platform: data.platform, server: data.server, account: data.account, password: "",
                   }));
                   setEaData((d) => ({ ...(d || {}), broker: { platform: data.platform, server: data.server, account: data.account, connected_at: data.connected_at, status: data.status || "pending_approval" } }));
-                  toast.info(`${data.platform.toUpperCase()} broker linking to server… awaiting admin verification`);
+                  toast.info(`${data.platform.toUpperCase()} broker linking to server… awaiting server-side verification`);
                   setBrokerRelink(false);
                   setConnectOpen(false);
                 } catch (err) {
@@ -936,6 +1022,34 @@ export default function MobileApp() {
             accent={accent}
             theme={theme}
             onClose={() => setStartOpen(false)}
+          />
+        )}
+
+        {/* Trading style drawer */}
+        {styleOpen && (
+          <TradingStyleDrawer
+            current={eaData?.trading_style}
+            theme={theme}
+            accent={accent}
+            busy={styleBusy}
+            onClose={() => setStyleOpen(false)}
+            onPick={async (style) => {
+              setStyleBusy(true);
+              try {
+                const { data } = await api.post("/mobile/trading-style", {
+                  email, license_key: license, style: style.key,
+                });
+                setEaData((d) => ({ ...(d || {}), trading_style: data.style, trading_style_label: data.label }));
+                if (style.risk === "high") toast.warning(`${style.label} selected — high risk, trade carefully.`);
+                else if (style.risk === "best") toast.success(`${style.label} selected — solid choice.`);
+                else toast.success(`${style.label} selected`);
+                setStyleOpen(false);
+              } catch (err) {
+                toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+              } finally {
+                setStyleBusy(false);
+              }
+            }}
           />
         )}
 
@@ -1598,3 +1712,74 @@ const StartPopup = ({ eaName, broker, pairs, accent, theme, onClose }) => {
     </div>
   );
 };
+
+
+// ============ Trading Style Drawer ============
+const TradingStyleDrawer = ({ current, theme, accent, busy, onClose, onPick }) => (
+  <div className="absolute inset-0 z-30 bg-black/92 backdrop-blur-sm flex flex-col overflow-y-auto" data-testid="mobile-trading-style-drawer">
+    <div className="flex items-center justify-between px-4 pt-3 pb-2">
+      <h2 className="font-display tracking-[0.22em] uppercase text-sm flex items-center gap-2" style={{ color: accent }}>
+        <Crosshair className="w-4 h-4" /> Trading style
+      </h2>
+      <button onClick={onClose} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-trading-style-close">
+        <X className="w-5 h-5" />
+      </button>
+    </div>
+
+    <div className="px-4 pb-2 text-[11px] text-white/55 leading-relaxed">
+      Pick how the EA trades on your account. This choice is shared with the ea-central team server-side.
+    </div>
+
+    <div className="px-4 py-3 space-y-3">
+      {TRADING_STYLES.map((s) => {
+        const isActive = current === s.key;
+        const isHigh = s.risk === "high";
+        const isBest = s.risk === "best";
+        const accentColor = isHigh ? "#FF3B3B" : isBest ? "#22C55E" : accent;
+        return (
+          <button
+            key={s.key}
+            type="button"
+            disabled={busy}
+            onClick={() => onPick(s)}
+            className="w-full text-left rounded-2xl p-4 transition-all active:scale-[0.98] disabled:opacity-60"
+            style={{
+              border: `2px solid ${isActive ? accentColor : (isHigh ? "rgba(255,59,59,0.35)" : isBest ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.12)")}`,
+              backgroundColor: isActive ? (isHigh ? "rgba(255,59,59,0.10)" : isBest ? "rgba(34,197,94,0.10)" : theme.soft) : "rgba(0,17,34,0.55)",
+              boxShadow: isActive ? `0 0 18px ${accentColor}66` : undefined,
+            }}
+            data-testid={`mobile-trading-style-option-${s.key}`}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `1px solid ${accentColor}`, color: accentColor, boxShadow: `0 0 10px ${accentColor}55` }}>
+                {isHigh ? <AlertTriangle className="w-4 h-4" /> : isBest ? <Crosshair className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="font-bold text-base" style={{ color: accentColor, textShadow: `0 0 10px ${accentColor}55` }}>{s.label}</div>
+                  {isBest && (
+                    <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold" style={{ color: "#22C55E", border: "1px solid #22C55E", backgroundColor: "rgba(34,197,94,0.08)" }}>BEST</span>
+                  )}
+                  {isHigh && (
+                    <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold" style={{ color: "#FF3B3B", border: "1px solid #FF3B3B", backgroundColor: "rgba(255,59,59,0.08)" }}>HIGH RISK</span>
+                  )}
+                </div>
+                <div className="text-xs text-white/75 mt-1.5 leading-relaxed">{s.blurb}</div>
+                {s.warn && (
+                  <div className="mt-2 text-[11px] text-[#FF3B3B] font-semibold border-l-2 border-[#FF3B3B] pl-2 py-1 bg-[#FF3B3B]/[0.07]">
+                    {s.warn}
+                  </div>
+                )}
+              </div>
+              {isActive && (
+                <div className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold shrink-0 self-start" style={{ color: accentColor, border: `1px solid ${accentColor}`, backgroundColor: `${accentColor}10` }}>
+                  ACTIVE
+                </div>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);

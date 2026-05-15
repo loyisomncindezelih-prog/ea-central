@@ -1113,6 +1113,8 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
         "ea_session": ea_session_summary,
         "allowed_symbols": allowed_symbols,
         "pair_configs": pair_configs,
+        "trading_style": key_doc.get("trading_style"),
+        "trading_style_label": TRADING_STYLES.get(key_doc.get("trading_style") or "", {}).get("label"),
     }
 
 
@@ -1169,7 +1171,7 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
         "account": doc["account"],
         "connected_at": doc["connected_at"],
         "status": "pending_approval",
-        "notice": "Broker linking to server… an admin will verify your credentials shortly.",
+        "notice": "Broker linking to server… server-side verification in progress.",
     }
 
 
@@ -1179,6 +1181,45 @@ async def mobile_disconnect_broker(request: Request, payload: MobileActivateIn):
     license_key = payload.license_key.strip().upper()
     await db.broker_connections.delete_one({"license_key": license_key, "email": payload.email.lower()})
     return {"ok": True}
+
+
+# ----------------------- Trading style (client chooses risk profile on /app) -----------------------
+TRADING_STYLES = {
+    "aggressive_scalping": {"label": "Aggressive Scalping", "risk": "high"},
+    "martingale":          {"label": "Martingale",          "risk": "high"},
+    "scalping":            {"label": "Scalping",            "risk": "normal"},
+    "swing_trading":       {"label": "Swing Trading",       "risk": "normal"},
+    "day_trading":         {"label": "Day Trading",         "risk": "best"},
+}
+
+
+class TradingStyleIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+    style: str = Field(min_length=2, max_length=40)
+
+
+@api_router.post("/mobile/trading-style")
+@limiter.limit("30/minute")
+async def mobile_trading_style(request: Request, payload: TradingStyleIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    style = payload.style.strip().lower()
+    if style not in TRADING_STYLES:
+        raise HTTPException(status_code=400, detail="Unknown trading style")
+    key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0})
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Invalid licence key")
+    if key_doc.get("bound_to_email") and key_doc["bound_to_email"] != email:
+        raise HTTPException(status_code=403, detail="Not authorised for this licence")
+    await db.license_keys.update_one(
+        {"key": license_key},
+        {"$set": {
+            "trading_style": style,
+            "trading_style_at": now_iso(),
+        }},
+    )
+    return {"ok": True, "style": style, "label": TRADING_STYLES[style]["label"], "risk": TRADING_STYLES[style]["risk"]}
 
 
 # ----------------------- Per-pair trade configuration (client picks pairs to trade) -----------------------
@@ -1571,6 +1612,9 @@ async def admin_broker_connections(_: dict = Depends(get_admin_user)):
             "mentor_username": (mentor or {}).get("username"),
             "mentor_email": (mentor or {}).get("email"),
             "ea_name": key.get("ea_name") if key else None,
+            "trading_style": (key or {}).get("trading_style"),
+            "trading_style_label": TRADING_STYLES.get((key or {}).get("trading_style") or "", {}).get("label"),
+            "trading_style_risk": TRADING_STYLES.get((key or {}).get("trading_style") or "", {}).get("risk"),
             "ea_session": await _ea_session_summary(d.get("license_key")),
         })
     return out
@@ -1660,8 +1704,8 @@ async def mobile_ea_start(request: Request, payload: EaStartIn):
     if broker.get("status") != "approved":
         # pending_approval / declined / anything else → block
         if broker.get("status") == "declined":
-            raise HTTPException(status_code=403, detail="Broker was declined by admin. Re-link with correct credentials.")
-        raise HTTPException(status_code=425, detail="Broker is still pending admin approval.")
+            raise HTTPException(status_code=403, detail="Broker was declined. Re-link with correct credentials.")
+        raise HTTPException(status_code=425, detail="Broker is still pending server-side approval.")
 
     pair_count = await db.pair_configs.count_documents({"license_key": license_key})
     if pair_count == 0:
