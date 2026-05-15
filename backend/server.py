@@ -494,7 +494,17 @@ async def yoco_webhook(request: Request):
     if not (webhook_id and webhook_timestamp and webhook_signature):
         raise HTTPException(status_code=400, detail="Missing Standard Webhooks headers")
 
-    # Yoco follows Standard Webhooks: secret is base64-encoded; sig is "v1,<base64>"
+    # Replay-attack protection: reject if the signed timestamp drifts more than 3 minutes
+    # from our clock (per Yoco's recommendation).
+    try:
+        ts_int = int(webhook_timestamp)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid webhook-timestamp header")
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    if abs(now_ts - ts_int) > 180:
+        raise HTTPException(status_code=400, detail="Webhook timestamp outside the 3-minute tolerance window")
+
+    # Yoco follows Standard Webhooks: secret is base64-encoded with whsec_ prefix; sig is "v1,<base64>"
     signed_payload = f"{webhook_id}.{webhook_timestamp}.{raw_body.decode('utf-8')}".encode("utf-8")
     try:
         key_bytes = base64.b64decode(secret_b64.removeprefix("whsec_"))
@@ -502,7 +512,13 @@ async def yoco_webhook(request: Request):
         key_bytes = secret_b64.encode("utf-8")
     import hmac as _hmac
     expected = base64.b64encode(_hmac.new(key_bytes, signed_payload, hashlib.sha256).digest()).decode()
-    sigs = [s.split(",", 1)[1] if "," in s else s for s in webhook_signature.split(" ")]
+    # Only accept v1 signatures (current Yoco scheme). Other versions are ignored.
+    sigs = []
+    for s in webhook_signature.split(" "):
+        if "," in s:
+            version, value = s.split(",", 1)
+            if version == "v1":
+                sigs.append(value)
     if not any(_hmac.compare_digest(expected, s) for s in sigs):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
