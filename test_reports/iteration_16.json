@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend-only verification of MobileApp.jsx layout vs. reference image. Seeded localStorage (email/license/install_dismissed) -> mobile-app-screen visible. ALL critical layout requirements PASS: (a) big circular avatar mobile-ea-avatar-default present and roughly circular (bbox ~362 incl. scaled img / container = min(64vw,230px)); (b) mobile-ea-nameplate renders EA name in large blue tracking-tight text + 'Fully automated EA' subtitle; (c) action row mobile-action-pairs / -start / -info all present, icons carry inline style filter:drop-shadow(...); (d) 'Powered by LOYISO' pill visible with LOYISO in blue font-display; (e) 'Robot List' text label present; (f) mobile-robot-card shows EA name + 'Adaptive AI Trading' and mobile-robot-expiry is ABSENT; (g) bottom nav has exactly 2 cols mobile-nav-home + mobile-nav-connect, mobile-nav-settings is ABSENT. Regression: mobile-menu-settings still present inside drawer; Pairs drawer opens via mobile-action-pairs; Broker drawer/form/approved-card opens via mobile-nav-connect. Chart background: mobile-chart-bg svg present with class 'absolute inset-0 w-full h-full pointer-events-none', parent position=absolute, behind z-10 foreground content. Responsive: desktop 1920 shows vertical side tickers 'EA-CENTRAL · MOBILE EA' and 'LIVE · TRADING · BRIDGE'; tablet 768 keeps phone frame centered (x=197, width=374 in 768 viewport => centered). Layout visually matches the reference image (large circular neon avatar -> nameplate -> action row -> LOYISO pill -> Robot List -> Robot card -> Broker bridge -> 2-col bottom nav, all on faint candlestick chart background).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "MobileApp /app", "issues": ["Minor: default ROBOT_IMG asset has the words 'EA-CENTRAL' and 'Fully automated EA' baked into the image bottom which becomes visible underneath the EA nameplate due to the 64vw avatar size + scale(1.6) + objectPosition 50% 32% — this is the image content itself, not a duplicate React node, but it visually competes with the real nameplate on small phone viewports. Consider a cleaner robot art OR cropping objectPosition further to hide baked-in text."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_16.json"],
+  "action_items": [
+    "Optional: choose/crop a robot avatar asset without baked-in 'EA-CENTRAL / Fully automated EA' text so the real nameplate is the only one visible.",
+    "Per request: re-unbind license_keys.bound_device_id=null for EAC-2F9D-E69F-6F75-CEB3 after this test cycle (NOT done here — no DB write performed by testing agent)."
+  ],
+  "critical_code_review_comments": [
+    "MobileApp.jsx is 1521 lines — exceeds the 700-line guideline; should be split into smaller modules (e.g., ChartBackground, ActionBtn/NavBtn, drawers) for maintainability.",
+    "All required data-testids in place; foreground content correctly uses z-10 above absolute chart background layer.",
+    "ActionBtn/NavBtn icons correctly apply filter:drop-shadow inline-style — matches reference image glow."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped", "frontend": "100%"},
+  "test_credentials": "TEST_it6_ui_1778753851@test.com / EAC-2F9D-E69F-6F75-CEB3 (seeded via localStorage only).",
+  "seed_data_creation": "Only localStorage seed (ea_mobile_email, ea_mobile_license, ea_mobile_install_dismissed). No DB writes. License remains in its prior bound state — main agent should re-run the unbind step as noted.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reference image layout is now implemented and verified in MobileApp.jsx. Critical testids: mobile-ea-avatar / mobile-ea-avatar-default (~64vw circle), mobile-ea-nameplate (name + 'Fully automated EA'), mobile-action-pairs/start/info (3-col), Powered by LOYISO pill, 'Robot List' label, mobile-robot-card (Adaptive AI Trading, NO expiry), mobile-nav-home + mobile-nav-connect (2-col only). REMOVED: mobile-nav-settings (now in menu drawer as mobile-menu-settings), mobile-robot-expiry, mobile-ea-avatar-chip. Chart bg: mobile-chart-bg with absolute inset-0 behind z-10 foreground. Side tickers visible at >=1920."
+}
