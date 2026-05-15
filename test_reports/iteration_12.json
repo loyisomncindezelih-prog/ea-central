@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 12 fully verified end-to-end. 9/9 backend pytest cases pass against /api/verify-account/status (public, no-auth), webhook auto-approve (status flips to approved + approved_by=yoco_auto for pending mentor; idempotent + non-overwriting on already-approved user), /mobile/activate-license device binding (first activation records bound_device_id, same-device re-activation OK, different device → 409 'already in use on another device', missing device_id legacy → 200), admin /admin/licenses/{id}/release clears bound_device_id and allows new device to activate, and regression of connect-broker → pending_approval + ea/start. UI verified: /payment-success polls /verify-account/status and shows the waiting indicator for a fresh pending user; for an already-approved user the indicator is hidden and a 'Go to login' button (data-testid=payment-success-login-btn) renders with heading 'You're in.'. /payment-cancelled?status=cancelled shows the orange 'Not finalised.' heading, retry button navigates to login when checkout returns already_approved; /payment-cancelled?status=failed correctly shows red 'Couldn't complete.' copy. /app broker drawer: when broker.status='approved', the drawer renders broker-approved-card with broker-approved-summary ('MT5 · ICMarketsSC-Demo · #12345678'), broker-relink-btn and broker-unlink-from-approved — and the form fields are hidden until Re-link is clicked, at which point three inputs (server / account / password) appear. Device-collision: changing localStorage 'ea_mobile_device_id' to a new value and reloading triggers the activate-license 409, and the page correctly kicks the user back to the Activate / Use a different email screen (no broker drawer or app shell visible). Email-uniqueness check (409) and the existing /verify-account/click + /verify-account/config + Yoco webhook signing flow remain green from iteration 11.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/payment-success",
+        "issues": [
+          "When user is already approved, the page still renders 'PAYMENT SUCCESSFUL' eyebrow and a 'Go to login' button, but the heading reads \"You're in.\" with no breadcrumb that this is the post-payment landing. Minor — copy is OK but consider adding a subtle 'Approved' pill so refreshed/legacy visitors understand context."
+        ]
+      },
+      {
+        "screen": "/payment-cancelled",
+        "issues": [
+          "When user is already approved and clicks Retry payment, the page silently redirects to /login with an 'Already approved — please log in' toast. Works as designed but the Retry button stays in 'Opening…' state for a brief flash before the navigation; consider disabling the loading text in the already_approved branch for clarity."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12.py",
+    "/app/test_reports/pytest/iter12_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py auto-approve block (line ~577) only checks role='mentor' (with default 'mentor' fallback) and status=='pending'. If a future role gets added, the default-to-mentor fallback could silently auto-approve other role types. Suggest dropping the default and being explicit: `existing_user.get('role') == 'mentor'`.",
+    "server.py /mobile/activate-license still does NOT validate device_id format (just trims to 64 chars). A malicious client can send `device_id='admin'` and lock the licence to that string. Consider regex-validating to UUID format or hash on the server.",
+    "server.py is now 1870 lines — pushed past the 700-line guideline; the verify-account, Yoco webhook, mobile, and admin sections should be split into routers. Same comment as iteration_11 — still unresolved.",
+    "PaymentSuccess.jsx polls via a setTimeout chain driven by a `poll` state counter; this works but using a useRef + setInterval (or react-query) would be more idiomatic and avoid the closure trap of capturing stale `poll` across re-renders. Functional today, but easy to introduce a bug here.",
+    "MobileApp.jsx getDeviceId reads/writes localStorage on every call (line ~42). Cache the value in a module-level variable to avoid repeated DOM reads on each activate call.",
+    "Frontend AuthContext still calls /api/auth/me on every public page load (visible as 401 noise on /payment-success and /payment-cancelled) — same comment as iteration_11."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration12.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 pytest cases pass)",
+    "frontend": "100% (PaymentSuccess polling, PaymentCancelled cancelled+failed copy + retry, MobileApp broker-approved-card + re-link form reveal + device-collision kick-back all pass)"
+  },
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123. Mentor for UI: TEST_it6_ui_1778753851@test.com / Passw0rd! (licence EAC-2F9D-E69F-6F75-CEB3). Webhook secret read from db.app_config.yoco_webhook_secret (already registered).",
+  "seed_data_creation": "Created 1 fresh pending mentor user per backend run (TEST_iter12_pending_<ts>_<uuid>@test.com) — auto-approved by the webhook test (status=approved, approved_by=yoco_auto, payment_confirmed=true). Created 1 fresh pending user for the PaymentSuccess polling UI verification (TEST_iter12_uipending_<ts>@test.com) — left in pending state to allow the next testing agent to verify the polling indicator. The EAC-2F9D-E69F-6F75-CEB3 licence was released and re-bound multiple times during the device-binding tests; final state after run: bound to the browser device id used in the UI test (a random crypto.randomUUID written by /app on first activation). Broker connection for TEST_it6_ui_1778753851 was re-approved via /api/admin/broker-connections/EAC-2F9D-E69F-6F75-CEB3/approve so the broker-approved-card UI test could pass.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test_iteration12.py is the regression baseline for iteration 12. The TestActivateLicenseDeviceBinding.reset_license fixture releases the licence on entry and re-binds it to 'restore-device-iter12' on teardown — if a UI test is run AFTER pytest, the licence will be bound to that device and the UI Activate will 409 until released. Workaround: hit POST /api/admin/licenses/5ccec275-04e2-4fcd-b8b1-e387e27c89a3/release before UI testing, OR simply let the UI's getDeviceId stomp the binding via a fresh activation (which is fine because release clears bound_to_email + bound_device_id). The webhook secret is already registered with Yoco (don't re-register; the iteration_11 test_register_webhook_live test is skipped on purpose). For new pending users used in webhook auto-approve tests, the email gets lowercased on register so always lookup db.users by `email.lower()`.",
+  "rca of the issue": "No bugs found in iteration 12. The iteration 11 outstanding toast bug on /verify-account?yoco= is now moot — Yoco redirects no longer return to /verify-account; they go to the new /payment-success and /payment-cancelled pages instead, which render their state via setState and route props rather than toasts. The bug is effectively retired by this iteration."
+}

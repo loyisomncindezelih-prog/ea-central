@@ -36,6 +36,17 @@ const LS_EMAIL = "ea_mobile_email";
 const LS_LICENSE = "ea_mobile_license";
 const LS_THEME = "ea_mobile_theme";
 const LS_BROKER = "ea_mobile_broker";
+const LS_DEVICE = "ea_mobile_device_id";
+
+// Stable per-device id so each licence/email is locked to one device.
+function getDeviceId() {
+  let d = localStorage.getItem(LS_DEVICE);
+  if (!d) {
+    d = (crypto?.randomUUID?.() || ("d_" + Math.random().toString(36).slice(2) + Date.now().toString(36)));
+    localStorage.setItem(LS_DEVICE, d);
+  }
+  return d;
+}
 
 const PLATFORMS = [
   { key: "mt4", label: "MetaTrader 4" },
@@ -78,6 +89,7 @@ export default function MobileApp() {
     }
   });
   const [brokerBusy, setBrokerBusy] = useState(false);
+  const [brokerRelink, setBrokerRelink] = useState(false);
 
   // PWA: install hints for iOS "Add to Home Screen" + standalone full-screen
   useEffect(() => {
@@ -143,6 +155,7 @@ export default function MobileApp() {
         const { data } = await api.post("/mobile/activate-license", {
           email: savedEmail,
           license_key: savedLicense,
+          device_id: getDeviceId(),
         });
         setEaData(data);
         setStage("app");
@@ -186,7 +199,7 @@ export default function MobileApp() {
     if (!needsPolling) return;
     const iv = setInterval(async () => {
       try {
-        const { data } = await api.post("/mobile/activate-license", { email, license_key: license });
+        const { data } = await api.post("/mobile/activate-license", { email, license_key: license, device_id: getDeviceId() });
         const oldStatus = eaData?.broker?.status;
         const newStatus = data?.broker?.status;
         if (oldStatus === "pending_approval" && newStatus === "approved") {
@@ -236,6 +249,7 @@ export default function MobileApp() {
       const { data } = await api.post("/mobile/activate-license", {
         email,
         license_key: license,
+        device_id: getDeviceId(),
       });
       localStorage.setItem(LS_LICENSE, license.trim().toUpperCase());
       setEaData(data);
@@ -633,6 +647,47 @@ export default function MobileApp() {
               </button>
             </div>
 
+            {/* When broker is already approved, show a summary card instead of the form
+                to prevent the user from accidentally re-submitting and going back to "linking". */}
+            {eaData?.broker?.status === "approved" && !brokerRelink ? (
+              <div className="px-5 py-4 space-y-4" data-testid="broker-approved-card">
+                <div className="border p-4" style={{ borderColor: accent, backgroundColor: theme.soft }}>
+                  <div className="text-[10px] tracking-[0.25em] uppercase mb-1" style={{ color: accent }}>Approved · live</div>
+                  <div className="text-white font-mono text-sm" data-testid="broker-approved-summary">
+                    {eaData.broker.platform?.toUpperCase()} · {eaData.broker.server} · #{eaData.broker.account}
+                  </div>
+                  <div className="text-[11px] text-white/55 mt-2">
+                    Your broker is linked and verified by admin. The ea-central bridge will use these credentials to execute trades.
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => setBrokerRelink(true)}
+                  className="w-full bg-transparent border border-white/15 hover:border-[#1E90FF] text-white rounded-none h-11 text-xs tracking-[0.18em] uppercase"
+                  data-testid="broker-relink-btn"
+                >
+                  Re-link with different credentials
+                </Button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm("Unlink broker? You'll need admin approval again next time.")) return;
+                    try {
+                      await api.post("/mobile/disconnect-broker", { email, license_key: license });
+                    } catch { /* ignore */ }
+                    setBroker({ platform: "mt4", server: "", account: "", password: "" });
+                    localStorage.removeItem(LS_BROKER);
+                    setEaData((d) => ({ ...(d || {}), broker: null }));
+                    toast.success("Broker unlinked");
+                    setConnectOpen(false);
+                  }}
+                  className="text-xs tracking-[0.22em] uppercase text-white/45 hover:text-[#FF3B3B] py-2 w-full text-center"
+                  data-testid="broker-unlink-from-approved"
+                >
+                  Unlink broker
+                </button>
+              </div>
+            ) : (
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -651,6 +706,7 @@ export default function MobileApp() {
                   }));
                   setEaData((d) => ({ ...(d || {}), broker: { platform: data.platform, server: data.server, account: data.account, connected_at: data.connected_at, status: data.status || "pending_approval" } }));
                   toast.info(`${data.platform.toUpperCase()} broker linking to server… awaiting admin verification`);
+                  setBrokerRelink(false);
                   setConnectOpen(false);
                 } catch (err) {
                   toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
@@ -717,6 +773,7 @@ export default function MobileApp() {
                 </button>
               )}
             </form>
+            )}
           </div>
         )}
 
@@ -935,7 +992,7 @@ const PairsDrawer = ({ email, license, allowedSymbols, pairConfigs, setEaData, t
 
   const refresh = async () => {
     try {
-      const { data } = await api.post("/mobile/activate-license", { email, license_key: license });
+      const { data } = await api.post("/mobile/activate-license", { email, license_key: license, device_id: getDeviceId() });
       setEaData(data);
     } catch { /* noop */ }
   };

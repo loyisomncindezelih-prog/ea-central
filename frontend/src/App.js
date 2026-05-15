@@ -19,6 +19,8 @@ import MobilePreview from "@/pages/MobilePreview";
 import MobileApp from "@/pages/MobileApp";
 import BridgePage from "@/pages/BridgePage";
 import Profile from "@/pages/Profile";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentCancelled from "@/pages/PaymentCancelled";
 import VerifyAccount from "@/pages/VerifyAccount";
 import PendingApproval from "@/pages/PendingApproval";
 import AdminLogin from "@/pages/AdminLogin";
@@ -41,6 +43,8 @@ function App() {
             <Route path="/mobile-preview" element={<MobilePreview />} />
             <Route path="/app" element={<MobileApp />} />
             <Route path="/verify-account" element={<VerifyAccount />} />
+            <Route path="/payment-success" element={<PaymentSuccess />} />
+            <Route path="/payment-cancelled" element={<PaymentCancelled />} />
 
             <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
             <Route path="/dashboard/generate-key" element={<Protected><GenerateKey /></Protected>} />

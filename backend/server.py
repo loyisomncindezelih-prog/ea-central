@@ -403,9 +403,9 @@ async def verify_account_checkout(request: Request, payload: VerifyClickIn):
     body = {
         "amount": YOCO_AMOUNT_CENTS,
         "currency": YOCO_CURRENCY,
-        "successUrl": f"{origin}/verify-account?yoco=success",
-        "cancelUrl": f"{origin}/verify-account?yoco=cancelled",
-        "failureUrl": f"{origin}/verify-account?yoco=failed",
+        "successUrl": f"{origin}/payment-success?email={email}",
+        "cancelUrl": f"{origin}/payment-cancelled?email={email}&status=cancelled",
+        "failureUrl": f"{origin}/payment-cancelled?email={email}&status=failed",
         "metadata": {
             "user_id": user["id"],
             "user_email": email,
@@ -565,16 +565,20 @@ async def yoco_webhook(request: Request):
         elif checkout_id:
             query["yoco_checkout_id"] = checkout_id
         if query:
-            await db.users.update_one(
-                query,
-                {"$set": {
-                    "payment_confirmed": True,
-                    "payment_amount_cents": amount_cents,
-                    "payment_currency": YOCO_CURRENCY,
-                    "payment_paid_at": now_iso(),
-                    "payment_method": "yoco",
-                }},
-            )
+            existing_user = await db.users.find_one(query, {"_id": 0})
+            update = {
+                "payment_confirmed": True,
+                "payment_amount_cents": amount_cents,
+                "payment_currency": YOCO_CURRENCY,
+                "payment_paid_at": now_iso(),
+                "payment_method": "yoco",
+            }
+            # Auto-approve mentor accounts on successful payment (per user request).
+            if existing_user and existing_user.get("role", "mentor") == "mentor" and existing_user.get("status") == "pending":
+                update["status"] = "approved"
+                update["approved_at"] = now_iso()
+                update["approved_by"] = "yoco_auto"
+            await db.users.update_one(query, {"$set": update})
         await db.yoco_events.update_one({"id": evt_id}, {"$set": {"processed": True}})
     elif evt_type in ("payment.failed", "checkout.payment.failed"):
         await db.yoco_events.update_one({"id": evt_id}, {"$set": {"processed": True}})
@@ -624,7 +628,7 @@ async def admin_yoco_status(_: dict = Depends(get_admin_user)):
 
 
 @api_router.get("/verify-account/status")
-async def verify_account_status(email: EmailStr, user: dict = Depends(get_current_user)):
+async def verify_account_status(email: EmailStr):
     target = await db.users.find_one({"email": email.lower()}, {"_id": 0})
     if not target:
         raise HTTPException(status_code=404, detail="No account found")
@@ -633,6 +637,9 @@ async def verify_account_status(email: EmailStr, user: dict = Depends(get_curren
         "status": target.get("status", "pending"),
         "payment_clicked": bool(target.get("payment_clicked", False)),
         "payment_clicked_at": target.get("payment_clicked_at"),
+        "payment_confirmed": bool(target.get("payment_confirmed", False)),
+        "payment_paid_at": target.get("payment_paid_at"),
+        "payment_amount_cents": target.get("payment_amount_cents"),
     }
 
 
@@ -972,6 +979,7 @@ class MobileEmailIn(BaseModel):
 class MobileActivateIn(BaseModel):
     email: EmailStr
     license_key: str = Field(min_length=4, max_length=64)
+    device_id: Optional[str] = Field(default=None, max_length=64)
 
 
 @api_router.post("/mobile/check-email")
@@ -1014,20 +1022,39 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
     if other:
         raise HTTPException(status_code=409, detail=f"This email is already linked to licence {other['key']}. Contact admin to release it before binding a new one.")
 
+    # Device binding: each licence is locked to the FIRST device that activates it.
+    # Subsequent devices using the same email+licence are rejected.
+    incoming_device = (payload.device_id or "").strip()[:64] or None
+    bound_device = key_doc.get("bound_device_id")
+    if incoming_device and bound_device and incoming_device != bound_device:
+        raise HTTPException(
+            status_code=409,
+            detail="This licence is already in use on another device. Contact admin to release it.",
+        )
+
     # Auto-activate + bind on first use
     if not key_doc.get("activated") or not bound:
         days = PLAN_DAYS.get(key_doc["plan"])
         expires = None if days is None else (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+        update_set = {
+            "activated": True,
+            "activated_at": now_iso(),
+            "expires_at": expires,
+            "bound_to_email": email,
+        }
+        if incoming_device and not bound_device:
+            update_set["bound_device_id"] = incoming_device
         await db.license_keys.update_one(
             {"id": key_doc["id"]},
-            {"$set": {
-                "activated": True,
-                "activated_at": now_iso(),
-                "expires_at": expires,
-                "bound_to_email": email,
-            }},
+            {"$set": update_set},
         )
         key_doc = await db.license_keys.find_one({"id": key_doc["id"]}, {"_id": 0})
+    elif incoming_device and not bound_device:
+        # Legacy: licence already activated but device was never recorded; record now.
+        await db.license_keys.update_one(
+            {"id": key_doc["id"]},
+            {"$set": {"bound_device_id": incoming_device}},
+        )
 
     if key_status(key_doc) == "expired":
         raise HTTPException(status_code=410, detail="Licence has expired. Please contact your mentor for a new key.")
@@ -1699,7 +1726,7 @@ async def admin_list_licenses(_: dict = Depends(get_admin_user)):
 async def admin_release_license(key_id: str, _: dict = Depends(get_admin_user)):
     result = await db.license_keys.update_one(
         {"id": key_id},
-        {"$set": {"bound_to_email": None, "activated": False, "activated_at": None, "expires_at": None}},
+        {"$set": {"bound_to_email": None, "bound_device_id": None, "activated": False, "activated_at": None, "expires_at": None}},
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Licence not found")
