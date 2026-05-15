@@ -69,9 +69,9 @@ const PLATFORMS = [
 ];
 
 const THEMES = {
-  blue:  { name: "Blue",  hex: "#1E90FF", soft: "rgba(30,144,255,0.10)", glow: "rgba(30,144,255,0.55)", border: "rgba(30,144,255,0.70)" },
-  red:   { name: "Red",   hex: "#FF3B3B", soft: "rgba(255,59,59,0.10)",  glow: "rgba(255,59,59,0.55)",  border: "rgba(255,59,59,0.70)" },
-  green: { name: "Green", hex: "#22C55E", soft: "rgba(34,197,94,0.10)",  glow: "rgba(34,197,94,0.55)",  border: "rgba(34,197,94,0.70)" },
+  blue:  { name: "Blue",  hex: "#1E90FF", soft: "rgba(30,144,255,0.22)",  glow: "rgba(30,144,255,0.95)", border: "rgba(30,144,255,1)" },
+  red:   { name: "Red",   hex: "#FF3B3B", soft: "rgba(255,59,59,0.22)",   glow: "rgba(255,59,59,0.95)",  border: "rgba(255,59,59,1)" },
+  green: { name: "Green", hex: "#22C55E", soft: "rgba(34,197,94,0.22)",   glow: "rgba(34,197,94,0.95)",  border: "rgba(34,197,94,1)" },
 };
 
 // Trading style options — risk:'high' renders red w/ warning; 'best' gets a badge.
@@ -143,10 +143,6 @@ export default function MobileApp() {
   });
   const [brokerBusy, setBrokerBusy] = useState(false);
   const [brokerRelink, setBrokerRelink] = useState(false);
-
-  // Live price ticker source — written by the background ChartBackground, read by LivePriceChip.
-  // Stored in a ref to avoid re-rendering the whole tree on every tick (chip self-subscribes).
-  const livePriceRef = useRef({ price: 0, delta: 0 });
 
   // PWA: install hints for iOS "Add to Home Screen" + standalone full-screen
   useEffect(() => {
@@ -538,13 +534,44 @@ export default function MobileApp() {
   return (
     <PhoneFrame standalone={isStandalone} accent={accent}>
       <div className="flex-1 flex flex-col overflow-y-auto bg-black relative" data-testid="mobile-app-screen">
-        {/* === FAINT BACKGROUND CHART (behind everything) === */}
+        {/* === STATIC PREMIUM BACKGROUND (4K vibe — no moving chart) === */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <ChartBackground accent={accent} running={running} onTick={(t) => { livePriceRef.current = t; }} />
-          <div className="absolute inset-0 ea-grid opacity-30" />
-          {/* Soft top + bottom black-fade so the avatar + bottom-nav stay readable */}
-          <div className="absolute inset-x-0 top-0 h-24" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%)" }} />
-          <div className="absolute inset-x-0 bottom-0 h-28" style={{ background: "linear-gradient(0deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0) 100%)" }} />
+          {/* Deep navy base */}
+          <div className="absolute inset-0" style={{ background: "radial-gradient(120% 80% at 50% 35%, #001a36 0%, #000814 45%, #000208 100%)" }} />
+          {/* Big central electric-blue halo behind the robot */}
+          <div
+            className="absolute left-1/2 top-[32%] -translate-x-1/2 -translate-y-1/2 w-[140%] aspect-square rounded-full"
+            style={{
+              background: `radial-gradient(circle, ${accent}55 0%, ${accent}22 22%, transparent 60%)`,
+              filter: "blur(28px)",
+            }}
+          />
+          {/* Secondary halo bottom-right for depth */}
+          <div
+            className="absolute -bottom-24 -right-24 w-[70%] aspect-square rounded-full opacity-60"
+            style={{
+              background: `radial-gradient(circle, ${accent}33 0%, transparent 65%)`,
+              filter: "blur(24px)",
+            }}
+          />
+          {/* Subtle dot grid texture (4K crisp) */}
+          <div
+            className="absolute inset-0 opacity-[0.18]"
+            style={{
+              backgroundImage: `radial-gradient(${accent}80 1px, transparent 1px)`,
+              backgroundSize: "22px 22px",
+            }}
+          />
+          {/* Diagonal sheen highlight (premium tilt) */}
+          <div
+            className="absolute inset-0 opacity-[0.08]"
+            style={{
+              background: `linear-gradient(135deg, transparent 0%, transparent 40%, ${accent} 50%, transparent 60%, transparent 100%)`,
+            }}
+          />
+          {/* Vignette top + bottom so foreground stays readable */}
+          <div className="absolute inset-x-0 top-0 h-32" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%)" }} />
+          <div className="absolute inset-x-0 bottom-0 h-32" style={{ background: "linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%)" }} />
         </div>
 
         {/* === FOREGROUND CONTENT === */}
@@ -572,8 +599,8 @@ export default function MobileApp() {
             style={{
               width: "min(64vw, 230px)",
               height: "min(64vw, 230px)",
-              border: `2px solid ${accent}`,
-              boxShadow: `0 0 45px ${theme.glow}, inset 0 0 30px ${theme.soft}`,
+              border: `3px solid ${accent}`,
+              boxShadow: `0 0 80px ${accent}, 0 0 140px ${theme.glow}, inset 0 0 50px ${theme.soft}`,
             }}
           >
             {eaData?.mentor_profile_image ? (
@@ -588,25 +615,25 @@ export default function MobileApp() {
         <div
           className="relative z-10 mx-4 mt-1 rounded-2xl px-4 py-4 text-center"
           style={{
-            border: `2px solid ${theme.border}`,
-            backgroundColor: "rgba(0,17,34,0.55)",
-            boxShadow: `0 0 28px ${theme.soft}, inset 0 0 24px ${theme.soft}`,
+            border: `3px solid ${accent}`,
+            backgroundColor: "rgba(0,8,18,0.65)",
+            boxShadow: `0 0 50px ${theme.glow}, inset 0 0 32px ${theme.soft}`,
           }}
           data-testid="mobile-ea-nameplate"
         >
-          <div className="font-display text-3xl sm:text-4xl font-black tracking-tight break-words" style={{ color: accent, textShadow: `0 0 18px ${theme.glow}` }}>
+          <div className="font-display text-3xl sm:text-4xl font-black tracking-tight break-words" style={{ color: accent, textShadow: `0 0 14px ${accent}, 0 0 28px ${accent}, 0 0 44px ${accent}99` }}>
             {eaName}
           </div>
-          <div className="text-white/85 text-sm mt-1 tracking-wider">Fully automated EA</div>
+          <div className="text-white text-sm sm:text-base mt-1 tracking-wider font-semibold" style={{ textShadow: `0 0 8px ${accent}55` }}>Fully automated EA</div>
         </div>
 
         {/* Action row — PAIRS · START · INFO */}
         <div
           className="relative z-10 mx-4 mt-3 rounded-2xl grid grid-cols-3 overflow-hidden"
           style={{
-            border: `2px solid ${theme.border}`,
-            backgroundColor: "rgba(0,17,34,0.55)",
-            boxShadow: `0 0 22px ${theme.soft}`,
+            border: `2.5px solid ${accent}`,
+            backgroundColor: "rgba(0,8,18,0.55)",
+            boxShadow: `0 0 32px ${theme.glow}, inset 0 0 22px ${theme.soft}`,
           }}
         >
           <ActionBtn icon={TrendingUp} label="PAIRS" accent={accent} testid="mobile-action-pairs"
@@ -636,10 +663,10 @@ export default function MobileApp() {
         {/* Powered by LOYISO */}
         <div
           className="relative z-10 mx-4 mt-3 py-2.5 px-5 flex items-center justify-center gap-3 rounded-full"
-          style={{ border: `1.5px solid ${accent}80`, backgroundColor: "rgba(0,17,34,0.55)", boxShadow: `0 0 14px ${theme.soft}` }}
+          style={{ border: `2px solid ${accent}`, backgroundColor: "rgba(0,8,18,0.65)", boxShadow: `0 0 22px ${theme.glow}, inset 0 0 12px ${theme.soft}` }}
         >
-          <span className="text-white text-xs sm:text-sm tracking-wider">Powered by</span>
-          <span className="font-display font-black tracking-[0.18em] text-sm sm:text-base" style={{ color: accent, textShadow: `0 0 10px ${theme.glow}` }}>LOYISO</span>
+          <span className="text-white text-xs sm:text-sm tracking-wider font-semibold">Powered by</span>
+          <span className="font-display font-black tracking-[0.18em] text-sm sm:text-base" style={{ color: accent, textShadow: `0 0 12px ${accent}, 0 0 22px ${accent}99` }}>LOYISO</span>
         </div>
 
         {/* Trading Style — risk profile picker */}
@@ -690,13 +717,13 @@ export default function MobileApp() {
 
         {/* Robot List */}
         <div className="relative z-10 mx-4 mt-4">
-          <div className="text-white text-sm font-semibold mb-2 tracking-wide">Robot List</div>
+          <div className="text-white text-sm font-bold mb-2 tracking-[0.2em] uppercase" style={{ textShadow: `0 0 8px ${accent}66` }}>Robot List</div>
           <div
             className="rounded-2xl p-3 flex items-center gap-3"
-            style={{ border: `2px solid ${theme.border}`, backgroundColor: "rgba(0,17,34,0.55)", boxShadow: `0 0 18px ${theme.soft}` }}
+            style={{ border: `2px solid ${accent}`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: `0 0 24px ${theme.glow}, inset 0 0 18px ${theme.soft}` }}
             data-testid="mobile-robot-card"
           >
-            <div className="w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ border: `1px solid ${accent}` }}>
+            <div className="w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ border: `2px solid ${accent}`, boxShadow: `0 0 16px ${accent}` }}>
               {eaData?.mentor_profile_image ? (
                 <img src={eaData.mentor_profile_image} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -704,10 +731,10 @@ export default function MobileApp() {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-white text-sm truncate" data-testid="mobile-robot-name">{eaName}</div>
-              <div className="text-xs" style={{ color: accent }}>Adaptive AI Trading</div>
+              <div className="font-bold text-white text-sm truncate" data-testid="mobile-robot-name" style={{ textShadow: `0 0 6px ${accent}55` }}>{eaName}</div>
+              <div className="text-xs font-semibold" style={{ color: accent, textShadow: `0 0 8px ${accent}66` }}>Adaptive AI Trading</div>
             </div>
-            <button onClick={handleExpire} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/5" style={{ border: `1px solid ${accent}80`, color: accent }} data-testid="mobile-robot-disconnect" title="Disconnect this EA">
+            <button onClick={handleExpire} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition" style={{ border: `2px solid ${accent}`, color: accent, boxShadow: `0 0 10px ${accent}66` }} data-testid="mobile-robot-disconnect" title="Disconnect this EA">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -718,11 +745,11 @@ export default function MobileApp() {
           <button
             type="button"
             onClick={() => setConnectOpen(true)}
-            className="w-full rounded-2xl p-3 flex items-center gap-3 text-left"
-            style={{ border: `2px solid ${eaData?.broker ? theme.border : "rgba(255,255,255,0.1)"}`, backgroundColor: "rgba(0,17,34,0.55)" }}
+            className="w-full rounded-2xl p-3 flex items-center gap-3 text-left transition hover:bg-white/[0.04]"
+            style={{ border: `2px solid ${eaData?.broker ? accent : "rgba(255,255,255,0.18)"}`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: eaData?.broker ? `0 0 18px ${theme.glow}55` : undefined }}
             data-testid="mobile-broker-status"
           >
-            <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `1px solid ${accent}`, color: accent }}>
+            <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `2px solid ${accent}`, color: accent, boxShadow: `0 0 12px ${accent}99` }}>
               <Server className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
@@ -764,9 +791,9 @@ export default function MobileApp() {
         <div
           className="relative z-10 mx-3 mb-3 mt-4 rounded-2xl grid grid-cols-2 overflow-hidden"
           style={{
-            border: `2px solid ${theme.border}`,
-            backgroundColor: "rgba(0,17,34,0.55)",
-            boxShadow: `0 0 22px ${theme.soft}`,
+            border: `2.5px solid ${accent}`,
+            backgroundColor: "rgba(0,8,18,0.55)",
+            boxShadow: `0 0 32px ${theme.glow}, inset 0 0 22px ${theme.soft}`,
           }}
         >
           <NavBtn icon={Home} label="Home" active accent={accent} themeSoft={theme.soft} testid="mobile-nav-home" />
@@ -1220,25 +1247,25 @@ const AuthScreen = ({ icon: Icon, title, subtitle, children, testid, accent = "#
 const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false, accent = "#1E90FF", themeSoft }) => (
   <button
     onClick={onClick}
-    className="py-5 sm:py-6 flex flex-col items-center gap-2 transition-all duration-200 border-r last:border-r-0 active:scale-95 hover:bg-white/[0.04] relative group"
+    className="py-5 sm:py-6 flex flex-col items-center gap-2 transition-all duration-200 border-r last:border-r-0 active:scale-95 hover:bg-white/[0.06] relative group"
     style={{
-      borderColor: `${accent}33`,
-      backgroundColor: highlight ? (themeSoft || `${accent}26`) : undefined,
-      boxShadow: highlight ? `inset 0 0 24px ${accent}55, 0 0 18px ${accent}66` : undefined,
+      borderColor: `${accent}66`,
+      backgroundColor: highlight ? (themeSoft || `${accent}40`) : "rgba(0,8,18,0.35)",
+      boxShadow: highlight ? `inset 0 0 32px ${accent}80, 0 0 24px ${accent}` : `inset 0 0 18px ${accent}22`,
     }}
     data-testid={testid}
   >
     <Icon
-      className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-200 group-hover:scale-110"
+      className="w-8 h-8 sm:w-9 sm:h-9 transition-all duration-200 group-hover:scale-110"
       style={{
         color: accent,
-        filter: `drop-shadow(0 0 8px ${accent}) drop-shadow(0 0 14px ${accent}99)`,
+        filter: `drop-shadow(0 0 10px ${accent}) drop-shadow(0 0 18px ${accent}) drop-shadow(0 0 28px ${accent}99)`,
       }}
-      strokeWidth={1.8}
+      strokeWidth={2.2}
     />
     <span
-      className="text-white text-xs sm:text-sm tracking-[0.2em] font-bold"
-      style={{ textShadow: `0 0 8px ${accent}99` }}
+      className="text-white text-xs sm:text-sm tracking-[0.22em] font-extrabold"
+      style={{ textShadow: `0 0 10px ${accent}, 0 0 18px ${accent}66` }}
     >
       {label}
     </span>
@@ -1248,29 +1275,29 @@ const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false, acce
 const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "#1E90FF", themeSoft }) => (
   <button
     onClick={onClick}
-    className="py-4 sm:py-5 flex flex-col items-center gap-1.5 border-r last:border-r-0 active:scale-95 transition-all duration-200 hover:bg-white/[0.04] relative group"
+    className="py-4 sm:py-5 flex flex-col items-center gap-1.5 border-r last:border-r-0 active:scale-95 transition-all duration-200 hover:bg-white/[0.06] relative group"
     style={{
-      borderColor: `${accent}33`,
-      backgroundColor: active ? (themeSoft || `${accent}1A`) : undefined,
-      boxShadow: active ? `inset 0 0 20px ${accent}44, 0 0 14px ${accent}55` : undefined,
+      borderColor: `${accent}66`,
+      backgroundColor: active ? (themeSoft || `${accent}33`) : "rgba(0,8,18,0.35)",
+      boxShadow: active ? `inset 0 0 28px ${accent}66, 0 0 18px ${accent}` : "none",
     }}
     data-testid={testid}
   >
     <Icon
-      className="w-6 h-6 sm:w-7 sm:h-7 transition-all duration-200 group-hover:scale-110"
+      className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-200 group-hover:scale-110"
       style={{
-        color: active ? accent : "rgba(255,255,255,0.8)",
+        color: active ? accent : "rgba(255,255,255,0.9)",
         filter: active
-          ? `drop-shadow(0 0 8px ${accent}) drop-shadow(0 0 14px ${accent}99)`
-          : `drop-shadow(0 0 4px rgba(255,255,255,0.4))`,
+          ? `drop-shadow(0 0 10px ${accent}) drop-shadow(0 0 18px ${accent}) drop-shadow(0 0 28px ${accent}99)`
+          : `drop-shadow(0 0 6px rgba(255,255,255,0.5))`,
       }}
-      strokeWidth={1.8}
+      strokeWidth={2.2}
     />
     <span
-      className="text-xs sm:text-sm tracking-wider"
+      className="text-xs sm:text-sm tracking-wider font-bold"
       style={{
-        color: active ? accent : "rgba(255,255,255,0.85)",
-        textShadow: active ? `0 0 8px ${accent}99` : "none",
+        color: active ? accent : "rgba(255,255,255,0.95)",
+        textShadow: active ? `0 0 10px ${accent}, 0 0 18px ${accent}66` : "none",
       }}
     >
       {label}
@@ -1284,124 +1311,6 @@ const DrawerInfo = ({ label, value, mono = false }) => (
     <div className={`text-sm text-white truncate ${mono ? "font-mono" : ""}`}>{value || "—"}</div>
   </div>
 );
-
-// Live price chip — self-refreshing from a ref filled by ChartBackground onTick.
-// Polls the ref every 500ms so the chip updates without re-rendering the whole app screen.
-const LivePriceChip = ({ accent, priceRef }) => {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => tick((t) => (t + 1) % 1_000_000), 500);
-    return () => clearInterval(id);
-  }, []);
-  const { price = 0, delta = 0 } = priceRef.current || {};
-  if (!price) return null;
-  const up = delta >= 0;
-  return (
-    <div
-      className="hidden sm:flex flex-col items-end px-2.5 py-1 font-mono"
-      style={{ border: `1px solid ${accent}55`, backgroundColor: "rgba(0,8,18,0.55)" }}
-      data-testid="mobile-live-price-chip"
-    >
-      <div className="text-sm font-bold leading-none" style={{ color: accent }}>{price.toFixed(2)}</div>
-      <div className="text-[9px] mt-0.5" style={{ color: up ? accent : "#FF3B3B" }}>
-        {up ? "+" : ""}{delta.toFixed(2)}%
-      </div>
-    </div>
-  );
-};
-
-
-// ============ candlestick seed (shared by ChartBackground) ============
-function seedCandles(n) {
-  let p = 1000 + Math.random() * 50;
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const open = p;
-    const close = open + (Math.random() - 0.5) * 2.5;
-    const high = Math.max(open, close) + Math.random() * 1.2;
-    const low = Math.min(open, close) - Math.random() * 1.2;
-    out.push({ open, close, high, low });
-    p = close;
-  }
-  return out;
-}
-
-// ============ Full-bleed background chart variant (cyberpunk-trader vibe) ============
-// Renders behind all content. Wider candle set, low opacity, no header chrome.
-// Surfaces the latest price/delta via onTick so the header can show it.
-const BG_CANDLE_COUNT = 56;
-const ChartBackground = ({ accent, running, onTick }) => {
-  const [candles, setCandles] = useState(() => seedCandles(BG_CANDLE_COUNT));
-  const lastPriceRef = useRef(candles[candles.length - 1].close);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCandles((prev) => {
-        const last = lastPriceRef.current;
-        const drift = (Math.random() - 0.5) * (running ? 3.0 : 1.8);
-        const open = last;
-        const close = Math.max(20, open + drift);
-        const high = Math.max(open, close) + Math.random() * 1.4;
-        const low = Math.min(open, close) - Math.random() * 1.4;
-        lastPriceRef.current = close;
-        return [...prev.slice(1), { open, close, high, low }];
-      });
-    }, running ? 850 : 1500);
-    return () => clearInterval(interval);
-  }, [running]);
-
-  const last = candles[candles.length - 1].close;
-  const first = candles[0].close;
-  const delta = ((last - first) / first) * 100;
-
-  useEffect(() => {
-    onTick?.({ price: last, delta });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [last]);
-
-  const max = Math.max(...candles.map((c) => c.high));
-  const min = Math.min(...candles.map((c) => c.low));
-  const range = Math.max(0.5, max - min);
-  const W = 600, H = 360, padY = 30;
-  const candleW = (W / BG_CANDLE_COUNT) * 0.6;
-  const slot = W / BG_CANDLE_COUNT;
-  const y = (v) => H - padY - ((v - min) / range) * (H - padY * 2);
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="xMidYMid slice"
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      aria-hidden="true"
-      data-testid="mobile-chart-bg"
-    >
-      {/* horizontal grid */}
-      {[0.2, 0.4, 0.6, 0.8].map((p, i) => (
-        <line key={i} x1="0" x2={W} y1={H * p} y2={H * p} stroke={accent} strokeOpacity="0.06" strokeDasharray="2,5" />
-      ))}
-      {/* candles */}
-      {candles.map((c, i) => {
-        const cx = i * slot + slot / 2;
-        const up = c.close >= c.open;
-        const color = up ? accent : "#7a8595";
-        return (
-          <g key={i} opacity="0.55">
-            <line x1={cx} x2={cx} y1={y(c.high)} y2={y(c.low)} stroke={color} strokeWidth="1" />
-            <rect
-              x={cx - candleW / 2}
-              y={y(Math.max(c.open, c.close))}
-              width={candleW}
-              height={Math.max(1, Math.abs(y(c.open) - y(c.close)))}
-              fill={up ? color : "transparent"}
-              stroke={color}
-              strokeWidth="1"
-            />
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
 
 // ============ Pairs drawer ============
 const DIRECTIONS = ["BUY", "SELL", "BOTH"];
