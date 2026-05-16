@@ -36,11 +36,14 @@ export default function AdminBrokers() {
 
   const decide = async (license_key, action) => {
     const reason = action === "decline"
-      ? (window.prompt("Reason shown to client? (optional)", "Invalid credentials or server.") || "")
+      ? (window.prompt(
+          "Decline reason — this message is shown to the client on /app:",
+          "Invalid credentials or server. Please re-check and re-link."
+        ) || "")
       : "";
     try {
       await api.post(`/admin/broker-connections/${license_key}/${action}`, { reason });
-      toast.success(action === "approve" ? "Broker approved" : "Broker declined");
+      toast.success(action === "approve" ? "Broker approved" : "Broker declined — client will see the reason");
       load();
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);

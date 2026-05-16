@@ -765,10 +765,10 @@ export default function MobileApp() {
             type="button"
             onClick={() => setConnectOpen(true)}
             className="w-full rounded-2xl p-3 flex items-center gap-3 text-left transition hover:bg-white/[0.04]"
-            style={{ border: `1.5px solid ${eaData?.broker ? `${accent}99` : "rgba(255,255,255,0.18)"}`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: eaData?.broker ? `0 0 10px ${theme.glow}` : undefined }}
+            style={{ border: `1.5px solid ${eaData?.broker?.status === "declined" ? "#FF3B3B" : (eaData?.broker ? `${accent}99` : "rgba(255,255,255,0.18)")}`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: eaData?.broker?.status === "declined" ? `0 0 12px rgba(255,59,59,0.55)` : (eaData?.broker ? `0 0 10px ${theme.glow}` : undefined) }}
             data-testid="mobile-broker-status"
           >
-            <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `1.5px solid ${accent}`, color: accent, boxShadow: `0 0 6px ${accent}55` }}>
+            <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `1.5px solid ${eaData?.broker?.status === "declined" ? "#FF3B3B" : accent}`, color: eaData?.broker?.status === "declined" ? "#FF3B3B" : accent, boxShadow: `0 0 6px ${eaData?.broker?.status === "declined" ? "rgba(255,59,59,0.55)" : `${accent}55`}` }}>
               <Server className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
@@ -802,6 +802,32 @@ export default function MobileApp() {
               );
             })()}
           </button>
+
+          {/* Decline reason banner — shown inline when admin declined the broker linking */}
+          {eaData?.broker?.status === "declined" && (
+            <div
+              className="mt-2 rounded-xl p-3 flex items-start gap-2.5"
+              style={{ border: "1.5px solid #FF3B3B", backgroundColor: "rgba(255,59,59,0.10)", boxShadow: "0 0 14px rgba(255,59,59,0.35), inset 0 0 12px rgba(255,59,59,0.10)" }}
+              data-testid="mobile-broker-decline-banner"
+            >
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#FF3B3B" }} />
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] tracking-[0.22em] uppercase font-bold" style={{ color: "#FF3B3B" }}>Linking declined</div>
+                <div className="text-xs text-white/90 mt-0.5 leading-relaxed" data-testid="mobile-broker-decline-reason">
+                  {eaData.broker.decision_reason || "Server couldn't authenticate with those credentials."}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConnectOpen(true)}
+                  className="mt-2 text-[10px] tracking-[0.22em] uppercase font-bold px-2.5 py-1 rounded"
+                  style={{ color: "#FF3B3B", border: "1px solid #FF3B3B", backgroundColor: "rgba(255,59,59,0.06)" }}
+                  data-testid="mobile-broker-decline-relink"
+                >
+                  Re-link broker
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* EA Status panel — last 3 trade signals from the bridge */}
