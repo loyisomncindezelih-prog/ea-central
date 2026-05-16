@@ -129,6 +129,8 @@ export default function MobileApp() {
   const [styleOpen, setStyleOpen] = useState(false);
   const [styleBusy, setStyleBusy] = useState(false);
   const [signals, setSignals] = useState([]); // Last 3 trade signals (EA status panel)
+  // Welcome popup — fires once per browser session when the user lands on the app stage.
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [themeKey, setThemeKey] = useState(localStorage.getItem(LS_THEME) || "blue");
   const theme = THEMES[themeKey] || THEMES.blue;
   const accent = theme.hex;
@@ -349,6 +351,15 @@ export default function MobileApp() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eaData]);
+
+  // Welcome popup — fires once per browser session the first time the user lands
+  // on the app stage. Uses sessionStorage so it returns on next browser open.
+  useEffect(() => {
+    if (stage !== "app") return;
+    if (sessionStorage.getItem("ea_mobile_welcome_seen") === "1") return;
+    const t = setTimeout(() => setWelcomeOpen(true), 400);
+    return () => clearTimeout(t);
+  }, [stage]);
 
   // Last-3 trade signals (EA status panel) — polls every 6s while in app stage.
   useEffect(() => {
@@ -679,13 +690,13 @@ export default function MobileApp() {
             onClick={() => toast.info(`Mentor: ${eaData?.mentor_username || "—"} · Plan: ${eaData?.plan_label}`)} />
         </div>
 
-        {/* Powered by LOYISO */}
+        {/* Powered by EA-CENTRAL */}
         <div
           className="relative z-10 mx-4 mt-3 py-2.5 px-5 flex items-center justify-center gap-3 rounded-full"
           style={{ border: `1.5px solid ${accent}99`, backgroundColor: "rgba(0,8,18,0.65)", boxShadow: `0 0 12px ${theme.glow}, inset 0 0 8px ${theme.soft}` }}
         >
           <span className="text-white text-xs sm:text-sm tracking-wider font-semibold">Powered by</span>
-          <span className="font-display font-black tracking-[0.18em] text-sm sm:text-base" style={{ color: accent, textShadow: `0 0 8px ${accent}99, 0 0 14px ${accent}55` }}>LOYISO</span>
+          <span className="font-display font-black tracking-[0.18em] text-sm sm:text-base" style={{ color: accent, textShadow: `0 0 8px ${accent}99, 0 0 14px ${accent}55` }} data-testid="mobile-powered-by">EA-CENTRAL</span>
         </div>
 
         {/* Trading Style — risk profile picker */}
@@ -1171,6 +1182,20 @@ export default function MobileApp() {
             theme={theme}
           />
         )}
+
+        {/* Welcome popup — motivational greeting on first app stage of session */}
+        {welcomeOpen && (
+          <WelcomePopup
+            username={eaData?.holder_username}
+            eaName={eaName}
+            accent={accent}
+            theme={theme}
+            onDismiss={() => {
+              sessionStorage.setItem("ea_mobile_welcome_seen", "1");
+              setWelcomeOpen(false);
+            }}
+          />
+        )}
       </div>
     </PhoneFrame>
   );
@@ -1296,6 +1321,84 @@ const InstallPrompt = ({ ios, canNativePrompt, onInstall, onDismiss, accent, the
     </div>
   </div>
 );
+
+// Welcome popup — motivating greeting shown once per session when the user opens /app.
+// Picks a random motivational line so it doesn't feel canned.
+const WELCOME_LINES = [
+  "Markets are open. Let's make some money.",
+  "Today the charts work for you, not the other way round.",
+  "Your bot doesn't sleep. Profits don't either.",
+  "Discipline beats prediction. Let the EA do its job.",
+  "Patience pays. Sit back — the bot's on it.",
+  "Big moves start small. Today is your day.",
+];
+
+const WelcomePopup = ({ username, eaName, accent, theme, onDismiss }) => {
+  const line = WELCOME_LINES[Math.floor(Math.random() * WELCOME_LINES.length)];
+  const hour = new Date().getHours();
+  const greeting = hour < 5 ? "Up early" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : hour < 22 ? "Good evening" : "Night owl";
+  const handle = (username || "trader").split(/[@\s]/)[0];
+  return (
+    <div
+      className="absolute inset-0 z-40 bg-black/72 backdrop-blur-sm flex items-center justify-center px-5 animate-in fade-in duration-300"
+      onClick={onDismiss}
+      data-testid="mobile-welcome-popup"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-[340px] rounded-2xl p-6 text-center animate-in zoom-in-95 duration-300"
+        style={{
+          border: `2px solid ${accent}`,
+          backgroundColor: "rgba(0,8,18,0.95)",
+          boxShadow: `0 0 32px ${theme.glow}, inset 0 0 18px ${theme.soft}`,
+        }}
+      >
+        {/* Money emoji icon ring */}
+        <div
+          className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
+          style={{
+            border: `2px solid ${accent}`,
+            backgroundColor: theme.soft,
+            boxShadow: `0 0 18px ${theme.glow}`,
+          }}
+        >
+          <TrendingUp className="w-8 h-8" style={{ color: accent, filter: `drop-shadow(0 0 6px ${accent})` }} strokeWidth={2.4} />
+        </div>
+
+        <div className="text-[10px] tracking-[0.32em] uppercase mb-1" style={{ color: accent, textShadow: `0 0 6px ${accent}99` }}>
+          {greeting}
+        </div>
+        <div className="font-display text-2xl font-black text-white tracking-tight" data-testid="mobile-welcome-headline">
+          {handle},
+        </div>
+        <div className="font-display text-2xl font-black tracking-tight mt-0.5" style={{ color: accent, textShadow: `0 0 10px ${accent}99, 0 0 18px ${accent}55` }}>
+          let's make money.
+        </div>
+
+        <div className="text-sm text-white/85 leading-relaxed mt-4" data-testid="mobile-welcome-quote">
+          {line}
+        </div>
+        <div className="text-[10px] tracking-[0.22em] uppercase text-white/45 mt-2 font-mono">
+          / {eaName} · ready
+        </div>
+
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-6 w-full text-black font-extrabold text-xs tracking-[0.22em] uppercase py-3 rounded transition active:scale-[0.97] hover:brightness-110"
+          style={{
+            backgroundColor: accent,
+            boxShadow: `0 0 18px ${theme.glow}, 0 0 32px ${accent}55`,
+          }}
+          data-testid="mobile-welcome-dismiss"
+        >
+          Let's go
+        </button>
+      </div>
+    </div>
+  );
+};
+
 
 const BrokerField = ({ label, value, onChange, placeholder, type = "text", accent, testid }) => (
   <div>
