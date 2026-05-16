@@ -28,6 +28,8 @@ import {
   Download,
   Crosshair,
   AlertTriangle,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -72,6 +74,8 @@ const THEMES = {
   blue:  { name: "Blue",  hex: "#1E90FF", soft: "rgba(30,144,255,0.22)",  glow: "rgba(30,144,255,0.95)", border: "rgba(30,144,255,1)" },
   red:   { name: "Red",   hex: "#FF3B3B", soft: "rgba(255,59,59,0.22)",   glow: "rgba(255,59,59,0.95)",  border: "rgba(255,59,59,1)" },
   green: { name: "Green", hex: "#22C55E", soft: "rgba(34,197,94,0.22)",   glow: "rgba(34,197,94,0.95)",  border: "rgba(34,197,94,1)" },
+  // Premium gold — trading-floor vibe. Recommended.
+  gold:  { name: "Gold",  hex: "#F5C150", soft: "rgba(245,193,80,0.22)",  glow: "rgba(245,193,80,0.95)", border: "rgba(245,193,80,1)" },
 };
 
 // Trading style options — risk:'high' renders red w/ warning; 'best' gets a badge.
@@ -125,6 +129,7 @@ export default function MobileApp() {
   const [startOpen, setStartOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   const [styleBusy, setStyleBusy] = useState(false);
+  const [signals, setSignals] = useState([]); // Last 3 trade signals (EA status panel)
   const [themeKey, setThemeKey] = useState(localStorage.getItem(LS_THEME) || "blue");
   const theme = THEMES[themeKey] || THEMES.blue;
   const accent = theme.hex;
@@ -345,6 +350,21 @@ export default function MobileApp() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eaData]);
+
+  // Last-3 trade signals (EA status panel) — polls every 6s while in app stage.
+  useEffect(() => {
+    if (stage !== "app" || !email || !license) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const { data } = await api.post("/mobile/trade-signals", { email, license_key: license });
+        if (!cancelled) setSignals(data.signals || []);
+      } catch { /* swallow */ }
+    };
+    tick(); // immediate fetch on mount
+    const iv = setInterval(tick, 6000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [stage, email, license]);
 
   const submitEmail = async (e) => {
     e.preventDefault();
@@ -785,6 +805,35 @@ export default function MobileApp() {
           </button>
         </div>
 
+        {/* EA Status panel — last 3 trade signals from the bridge */}
+        <div className="relative z-10 mx-4 mt-3" data-testid="mobile-ea-status">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-white text-sm font-bold tracking-[0.2em] uppercase" style={{ textShadow: `0 0 8px ${accent}66` }}>
+              EA Status
+            </div>
+            <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: signals.length ? accent : "rgba(255,255,255,0.4)" }} data-testid="mobile-ea-status-count">
+              {signals.length === 0 ? "no signals yet" : `last ${signals.length}`}
+            </div>
+          </div>
+
+          {signals.length === 0 ? (
+            <div
+              className="rounded-2xl p-4 text-center"
+              style={{ border: `2px dashed ${accent}55`, backgroundColor: "rgba(0,8,18,0.45)" }}
+              data-testid="mobile-ea-status-empty"
+            >
+              <div className="text-sm text-white/65">Waiting for the mentor's bot to fire a signal…</div>
+              <div className="text-[10px] mt-1 text-white/35 font-mono">poll · 6s · server-side</div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {signals.map((s) => (
+                <SignalRow key={s.id} s={s} accent={accent} theme={theme} />
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="flex-1" />
 
         {/* Bottom nav — Home / Connect (matches reference design) */}
@@ -846,20 +895,26 @@ export default function MobileApp() {
                 <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3 flex items-center gap-2">
                   <Palette className="w-3 h-3" /> Theme
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {Object.entries(THEMES).map(([k, t]) => (
                     <button
                       key={k}
                       onClick={() => { setTheme(k); toast.success(`Theme: ${t.name}`); }}
-                      className="py-4 flex flex-col items-center gap-2 transition"
+                      className="relative py-4 flex flex-col items-center gap-2 transition rounded-md"
                       style={{
                         border: `2px solid ${themeKey === k ? t.hex : "rgba(255,255,255,0.1)"}`,
-                        backgroundColor: themeKey === k ? `${t.hex}1A` : "transparent",
+                        backgroundColor: themeKey === k ? `${t.hex}22` : "transparent",
+                        boxShadow: themeKey === k ? `0 0 18px ${t.hex}66` : undefined,
                       }}
                       data-testid={`mobile-theme-${k}`}
                     >
-                      <span className="w-8 h-8 rounded-full" style={{ backgroundColor: t.hex, boxShadow: `0 0 20px ${t.hex}80` }} />
-                      <span className="text-[10px] tracking-[0.2em] uppercase text-white">{t.name}</span>
+                      <span className="w-8 h-8 rounded-full" style={{ backgroundColor: t.hex, boxShadow: `0 0 22px ${t.hex}, 0 0 36px ${t.hex}99` }} />
+                      <span className="text-[10px] tracking-[0.2em] uppercase font-bold" style={{ color: themeKey === k ? t.hex : "white", textShadow: themeKey === k ? `0 0 8px ${t.hex}99` : "none" }}>{t.name}</span>
+                      {k === "gold" && (
+                        <span className="absolute -top-1.5 -right-1.5 text-[8px] tracking-[0.18em] uppercase font-extrabold px-1.5 py-0.5" style={{ color: "#000", backgroundColor: "#F5C150", boxShadow: "0 0 10px rgba(245,193,80,0.8)" }}>
+                          NEW
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1097,6 +1152,58 @@ export default function MobileApp() {
 }
 
 // ============ small components ============
+
+// SignalRow — one row in the EA Status panel.
+// Status palette: pending/delivered = amber (in flight), executed = green, failed = red, skipped = grey.
+const SignalRow = ({ s, accent, theme }) => {
+  const status = s.status || "pending";
+  const isUp = s.action === "BUY";
+  const isClose = s.action === "CLOSE";
+  const statusColor =
+    status === "executed" ? "#22C55E" :
+    status === "failed"   ? "#FF3B3B" :
+    status === "skipped"  ? "rgba(255,255,255,0.5)" :
+    "#F5C150"; // pending / delivered
+  const ts = s.created_at ? new Date(s.created_at) : null;
+  const timeLabel = ts ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
+  return (
+    <div
+      className="rounded-xl p-3 flex items-center gap-3"
+      style={{
+        border: `1.5px solid ${statusColor}66`,
+        backgroundColor: "rgba(0,8,18,0.55)",
+        boxShadow: `inset 0 0 14px ${statusColor}22`,
+      }}
+      data-testid={`mobile-signal-${s.id}`}
+    >
+      <div
+        className="w-9 h-9 flex items-center justify-center shrink-0 rounded"
+        style={{
+          border: `1.5px solid ${statusColor}`,
+          color: statusColor,
+          boxShadow: `0 0 12px ${statusColor}99`,
+        }}
+      >
+        {isClose ? <X className="w-4 h-4" /> : isUp ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="font-mono font-bold text-sm" style={{ color: accent, textShadow: `0 0 8px ${accent}55` }}>{s.symbol}</span>
+          <span className="text-[10px] tracking-[0.22em] uppercase font-bold" style={{ color: statusColor }}>{s.action}</span>
+          <span className="text-[10px] text-white/45 font-mono">{Number(s.lot || 0).toFixed(2)} lot</span>
+        </div>
+        <div className="text-[10px] mt-0.5 truncate font-mono" style={{ color: statusColor }} data-testid={`mobile-signal-status-${s.id}`}>
+          {status === "executed" && s.mt_order_id ? `#${s.mt_order_id} · filled` :
+           status === "executed" ? "filled" :
+           status === "failed" ? (s.error || "rejected") :
+           status === "skipped" ? "skipped — bridge offline" :
+           "in flight…"}
+        </div>
+      </div>
+      <div className="text-[10px] font-mono text-white/40 shrink-0" data-testid={`mobile-signal-time-${s.id}`}>{timeLabel}</div>
+    </div>
+  );
+};
 
 const InstallPrompt = ({ ios, canNativePrompt, onInstall, onDismiss, accent, theme }) => (
   <div

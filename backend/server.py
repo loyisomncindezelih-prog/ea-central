@@ -1183,6 +1183,41 @@ async def mobile_disconnect_broker(request: Request, payload: MobileActivateIn):
     return {"ok": True}
 
 
+# ----------------------- Recent trade signals (last N for the licence) -----------------------
+class TradeSignalsIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+
+
+@api_router.post("/mobile/trade-signals")
+@limiter.limit("60/minute")
+async def mobile_trade_signals(request: Request, payload: TradeSignalsIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0, "bound_to_email": 1})
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Invalid licence key")
+    if key_doc.get("bound_to_email") and key_doc["bound_to_email"] != email:
+        raise HTTPException(status_code=403, detail="Not authorised for this licence")
+    sigs = await db.trade_signals.find(
+        {"license_key": license_key}, {"_id": 0}
+    ).sort("created_at", -1).to_list(3)
+    return {
+        "signals": [{
+            "id": s.get("id"),
+            "symbol": s.get("symbol"),
+            "action": s.get("action"),
+            "lot": s.get("lot"),
+            "status": s.get("status"),  # pending / delivered / executed / failed / skipped
+            "created_at": s.get("created_at"),
+            "ack_at": s.get("ack_at"),
+            "mt_order_id": (s.get("result") or {}).get("mt_order_id"),
+            "error": (s.get("result") or {}).get("error"),
+            "trading_style": s.get("trading_style"),
+        } for s in sigs],
+    }
+
+
 # ----------------------- Trading style (client chooses risk profile on /app) -----------------------
 TRADING_STYLES = {
     "aggressive_scalping": {"label": "Aggressive Scalping", "risk": "high"},

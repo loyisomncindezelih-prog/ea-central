@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 19 — EA Status panel (last 3 trade signals) + Gold theme with NEW badge. Backend: 5/5 pytest pass (POST /api/mobile/trade-signals — happy path returns up to 3 sorted DESC by created_at, response shape correct (id/symbol/action/lot/status/created_at/ack_at/mt_order_id/error/trading_style), 404 on unknown licence, 403 on email mismatch when bound, cap at 3 enforced even with 5+ rows). Frontend (mobile 390×844): empty state renders mobile-ea-status-empty with the 'Waiting for the mentor's bot to fire a signal…' copy and mobile-ea-status-count='no signals yet'; populated state with 3 mock signals renders mobile-signal-{id} rows in DESC order with correct borders (executed=rgb(34,197,94), failed=rgb(255,59,59), pending=rgb(245,193,80)), action labels BUY/SELL/CLOSE, lot 0.10/0.20/0.15, time format HH:MM, executed shows '#12345 · filled', failed shows 'no liquidity', pending shows 'in flight…', count='last 3'; Settings drawer (Menu → Settings) shows 4 theme tiles (blue/red/green/gold) with NEW badge only on gold; clicking gold fires 'Theme: Gold' toast and switches nameplate borderColor to rgb(245, 193, 80); theme persists across reload via LS_THEME; regression: mobile-action-pairs/start/info, mobile-trading-style-card, mobile-broker-status, mobile-nav-home/connect, mobile-ea-nameplate all still present; broker drawer still opens; no non-401 console errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/app populated EA Status panel", "issues": ["All three signal rows show the same timestamp '06:10' (because the mock seed was within the same minute). Real-world data with seconds-spaced signals will all collapse to the same HH:MM label — consider showing 'just now' / '15s ago' for rows < 60s old, or appending seconds when consecutive rows share the same minute."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration19_trade_signals.py",
+    "/app/test_reports/pytest/iteration19.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 2012 lines — continues to exceed the 700-line guideline by ~2.9×. The mobile section (check-email, activate-license, ack-license, disconnect-broker, trade-signals, trading-style, trading-styles, broker, push subscribe, ...) is a clear extraction candidate into routers/mobile.py.",
+    "MobileApp.jsx is 1802 lines — also well over the 700-line guideline. THEMES dict, SignalRow, ActionBtn, NavBtn, Settings/Menu/Connect drawers each deserve their own module under src/pages/mobile/.",
+    "POST /api/mobile/trade-signals returns 200 with email mismatch when the licence is UNBOUND (bound_to_email is null). The check `if key_doc.get('bound_to_email') and key_doc['bound_to_email'] != email` skips the comparison entirely for unbound keys. This is consistent with /api/mobile/activate-license behaviour (any email can claim an unbound key), but it means trade-signals on an unbound licence leak signal data to any caller who guesses the licence key. Consider also requiring email==bound_to_email and 403 if the licence is currently unbound (or returning empty array).",
+    "POST /api/mobile/trade-signals hard-codes the limit of 3 (.to_list(3)). If the panel ever needs to show 5 or 10, the limit must be edited in both server.py and MobileApp.jsx polling. Consider a `limit` query param with a server-side max (e.g. min(payload.limit or 3, 20)).",
+    "Polling every 6s with no ETag / If-Modified-Since support means every mobile client hits Mongo every 6s even when no new signals exist. For 100 concurrent /app users this is 1k req/min just for the status panel. Add a Last-Modified header from the newest created_at and short-circuit with 304 when the client passes If-Modified-Since.",
+    "SignalRow renders `s.created_at` via `new Date(...).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})` — locale dependent. CI/Playwright happened to produce '06:10' but a user in a 12h locale will see '6:10 AM'. Pin to 24h with `hourCycle:'h23'` for consistency with the EA Status compact look."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration19_trade_signals.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (all flows verified)"},
+  "test_credentials": "Mentor TEST_it6_ui_1778753851@test.com / Passw0rd!; licence EAC-2F9D-E69F-6F75-CEB3 (unbound, restored at teardown); ea_id=0694ce52-d108-491d-9f91-0eaa6276bd1e",
+  "seed_data_creation": "test_iteration19_trade_signals.py inserts 3 trade_signals (executed/failed/pending) at module setup and deletes them in teardown. The 'email_mismatch_403' test temporarily binds bound_to_email and unbinds it in finally. Frontend gold-theme test bound the licence to allow the app stage to render; final cleanup script reset bound_to_email=null, bound_device_id=null and cleared all trade_signals for the licence.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression-safe at /app/backend/tests/test_iteration19_trade_signals.py (5 tests). Frontend testids new in iter19: mobile-ea-status, mobile-ea-status-empty, mobile-ea-status-count, mobile-signal-{id}, mobile-signal-status-{id}, mobile-signal-time-{id}, mobile-theme-gold. THEMES dict gained 'gold' (#F5C150). Polling interval is 6s — Playwright tests should rely on initial fetch (fires on mount) rather than waiting for the 6s tick. Licence EAC-2F9D-E69F-6F75-CEB3 is reset to fully unbound, trade_signals collection is empty for that licence. The 401 console errors observed during runs are /api/auth/me probes from the global Layout/Nav and are unrelated to /app flow.",
+  "rca of the issue": "N/A — no defects. All 5 backend assertions and 100% of frontend flows (empty state, populated rows with all status variants, Settings drawer with NEW badge, gold accent application, LS persistence, regression testids, drawer integrations) pass."
+}
