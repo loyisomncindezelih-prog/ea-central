@@ -1192,6 +1192,20 @@ TRADING_STYLES = {
     "day_trading":         {"label": "Day Trading",         "risk": "best"},
 }
 
+# Per-style execution multipliers applied when fanning out trade signals.
+#   lot_mult:        multiplier on the mentor's lot size (or pair_config default)
+#   max_trades_mult: multiplier on the pair_config max_trades cap
+#   martingale:      if True, server multiplies lot by 2^streak (streak = consecutive failed acks,
+#                    capped at 5 = 32×) until a successful ack resets the counter.
+TRADING_STYLE_RULES = {
+    "aggressive_scalping": {"lot_mult": 1.5, "max_trades_mult": 2.0, "martingale": False},
+    "martingale":          {"lot_mult": 1.0, "max_trades_mult": 1.0, "martingale": True},
+    "scalping":            {"lot_mult": 1.0, "max_trades_mult": 1.0, "martingale": False},
+    "swing_trading":       {"lot_mult": 1.2, "max_trades_mult": 0.5, "martingale": False},
+    "day_trading":         {"lot_mult": 1.0, "max_trades_mult": 1.0, "martingale": False},
+}
+MARTINGALE_STREAK_CAP = 5  # 2^5 = 32× base lot max
+
 
 class TradingStyleIn(BaseModel):
     email: EmailStr
@@ -1217,6 +1231,9 @@ async def mobile_trading_style(request: Request, payload: TradingStyleIn):
         {"$set": {
             "trading_style": style,
             "trading_style_at": now_iso(),
+            # Reset Martingale streak when switching styles so we never carry
+            # a stale doubling counter into a brand-new strategy.
+            "martingale_streak": 0,
         }},
     )
     return {"ok": True, "style": style, "label": TRADING_STYLES[style]["label"], "risk": TRADING_STYLES[style]["risk"]}
@@ -1380,14 +1397,34 @@ async def bridge_mentor_push(request: Request, payload: MentorPushIn):
         if payload.action in ("BUY", "SELL") and cfg["direction"] not in ("BOTH", payload.action):
             continue
 
+        # --- Trading style multipliers (iter20) -----------------------------
+        # Pull the client's chosen trading_style from license_keys and apply per-style rules.
+        style_key = (k.get("trading_style") or "day_trading")
+        rules = TRADING_STYLE_RULES.get(style_key, TRADING_STYLE_RULES["day_trading"])
+        base_lot = float(payload.lot if payload.lot is not None else cfg.get("lot_size", 0.01))
+        base_max = int(cfg.get("max_trades", 1))
+
+        eff_lot = base_lot * float(rules["lot_mult"])
+        eff_max = max(1, int(round(base_max * float(rules["max_trades_mult"]))))
+
+        # Martingale doubling: only on entry orders (BUY/SELL), never on CLOSE.
+        # streak is incremented on failed acks, reset on executed acks.
+        if rules["martingale"] and payload.action in ("BUY", "SELL"):
+            streak = int(k.get("martingale_streak") or 0)
+            streak = min(streak, MARTINGALE_STREAK_CAP)
+            eff_lot = eff_lot * (2 ** streak)
+
+        # Round lot to a sensible MT-friendly precision (most brokers accept 0.01 step).
+        eff_lot = round(eff_lot, 2)
+
         jobs_to_insert.append({
             "id": str(uuid.uuid4()),
             "license_key": k["key"],
             "ea_id": payload.ea_id,
             "symbol": sym,
             "action": payload.action,
-            "lot": float(payload.lot if payload.lot is not None else cfg.get("lot_size", 0.01)),
-            "max_trades": int(cfg.get("max_trades", 1)),
+            "lot": eff_lot,
+            "max_trades": eff_max,
             "platform": cfg.get("platform", "mt4"),
             "stop_loss": payload.stop_loss,
             "take_profit": payload.take_profit,
@@ -1397,6 +1434,12 @@ async def bridge_mentor_push(request: Request, payload: MentorPushIn):
             "delivered_at": None,
             "ack_at": None,
             "result": None,
+            # Audit trail — captures the style + multipliers applied so the bridge log
+            # and /mentor/bridge/activity can show "1.5× Aggressive Scalping" etc.
+            "trading_style": style_key,
+            "lot_base": base_lot,
+            "lot_mult": float(rules["lot_mult"]),
+            "martingale_streak": int(k.get("martingale_streak") or 0) if rules["martingale"] else 0,
         })
     if jobs_to_insert:
         await db.trade_signals.insert_many(jobs_to_insert)
@@ -1541,6 +1584,26 @@ async def bridge_ack_job(request: Request, job_id: str, payload: BridgeAckIn):
             },
         }},
     )
+
+    # --- Martingale streak maintenance (iter20) ----------------------------
+    # Only meaningful for licences on the 'martingale' style. We bump streak on
+    # 'failed' acks (broker rejected / no fill) and reset on 'executed' acks.
+    # 'skipped' acks (e.g. bridge couldn't reach MT5) do not change the counter.
+    key_doc = await db.license_keys.find_one({"key": bridge["license_key"]}, {"_id": 0, "trading_style": 1, "martingale_streak": 1})
+    if key_doc and key_doc.get("trading_style") == "martingale":
+        if payload.status == "failed":
+            new_streak = min(MARTINGALE_STREAK_CAP, int(key_doc.get("martingale_streak") or 0) + 1)
+            await db.license_keys.update_one(
+                {"key": bridge["license_key"]},
+                {"$set": {"martingale_streak": new_streak, "martingale_streak_at": now_iso()}},
+            )
+        elif payload.status == "executed":
+            if int(key_doc.get("martingale_streak") or 0) != 0:
+                await db.license_keys.update_one(
+                    {"key": bridge["license_key"]},
+                    {"$set": {"martingale_streak": 0, "martingale_streak_at": now_iso()}},
+                )
+
     return {"ok": True, "already_acked": False, "status": payload.status}
 
 

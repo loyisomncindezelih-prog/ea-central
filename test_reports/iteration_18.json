@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 18 — Phase 3 trading-style-driven execution in /api/bridge/mentor-push + martingale streak maintenance. 21/21 pytest passed. Verified per-style multipliers (aggressive_scalping 1.5×/2× max_trades, day_trading 1×/1×, scalping 1×/1×, swing_trading 1.2×/0.5× floored to 1 via max(1,…), martingale 1×/1×); audit fields trading_style/lot_base/lot_mult/martingale_streak inserted on every trade_signal; martingale 2^streak doubling at streak=2 (0.10→0.40) and capped at MARTINGALE_STREAK_CAP=5 with streak=10 (0.10→3.20); CLOSE actions never doubled even with streak=3; ack streak maintenance: failed=>+1, executed=>reset 0, skipped=>unchanged, and only applies when trading_style='martingale' (day_trading + failed ack leaves streak=0); /api/mobile/trading-style resets martingale_streak to 0 on any style switch (incl. martingale→martingale); regression checks pass: symbol allow-list 400, direction filter (SELL pair_config blocks BUY push, fanned_out=0 eligible_clients=1), BOTH allows BUY, eligible_clients count correct.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration18_trading_style_execution.py",
+    "/app/test_reports/pytest/iteration18.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 1977 lines — exceeds the 700-line guideline by 2.8×. Consider splitting bridge/mentor-push, mobile, bridge ack, admin into separate routers/modules.",
+    "TRADING_STYLE_RULES['swing_trading'].max_trades_mult=0.5 multiplied by max_trades=1 rounds to 1 via max(1,round(0.5))=max(1,0)=1. Behaviour is consistent with the spec (floor at 1) but may be counter-intuitive — a swing trader expecting fewer concurrent trades will see no reduction until pair_config.max_trades≥2. Documenting in the rules dict (or a comment near the calc) would help future readers.",
+    "bridge_ack_job reads license_keys then conditionally writes — two round-trips per ack. For high-frequency ack traffic, a single findOneAndUpdate with $cond would be cheaper; current rate is bounded by 600/min so acceptable now.",
+    "Martingale lot multiplier is applied AFTER the style lot_mult; for the martingale style lot_mult=1.0 so order is irrelevant, but if a future style combines martingale=True with lot_mult≠1 the audit field 'lot_mult' won't reflect the 2^streak factor. Consider also persisting the effective multiplier (e.g. lot_mult_effective) for cleaner audit.",
+    "TRADING_STYLE_RULES and MARTINGALE_STREAK_CAP are server-only — frontend cannot show the user the effective lot/multiplier before a trade fires. Exposing read-only via /api/mobile/trading-styles would let the mobile UI preview 'next trade ≈ 0.40 lots' for martingale users."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration18_trading_style_execution.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "Admin admin@ea-central.com / Admin@123; Mentor test_it6_ui_1778753851@test.com / Passw0rd! (mentor_api_key=mk_l7qx0ZhSMVz0pasVO33V5KphaH1G6yjllxzINQ); Licence EAC-2F9D-E69F-6F75-CEB3 (ea_id=0694ce52-d108-491d-9f91-0eaa6276bd1e)",
+  "seed_data_creation": "Upserted pair_configs row for (EAC-2F9D-E69F-6F75-CEB3, EURUSD, BOTH, mt5, lot_size=0.10, max_trades=1) during test run; restored lot_size=0.01 at teardown. trade_signals collection cleaned (delete_many) for the licence. license_keys reset to {trading_style:null, martingale_streak:0, bound_device_id:null} for next iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 3 fully passing. Test file /app/backend/tests/test_iteration18_trading_style_execution.py is regression-safe and self-cleans (sets pair_config back to lot_size=0.01, purges trade_signals, nulls trading_style/martingale_streak on the licence). For next iteration: licence EAC-2F9D-E69F-6F75-CEB3 is unbound (bound_device_id=null) and trading_style=null. The /bridge/pair endpoint succeeds for this licence (bound_to_email='test_it6_ui_1778753851@test.com'); pair fixture pulls a long-lived bridge_token via that route. MARTINGALE_STREAK_CAP=5 (so max doubling = 32×). New trade_signal fields: trading_style, lot_base, lot_mult, martingale_streak. New license_keys field: martingale_streak (counter, reset by /mobile/trading-style and /bridge/jobs/{id}/ack executed).",
+  "rca of the issue": "N/A — no defects. Implementation matches spec exactly for all 21 assertions: multipliers, audit, martingale doubling+cap, CLOSE exemption, ack streak transitions (failed/executed/skipped), non-martingale styles never touch streak, style-switch resets, symbol allow-list, direction filter."
+}
