@@ -71,11 +71,10 @@ const PLATFORMS = [
 ];
 
 const THEMES = {
-  blue:  { name: "Blue",  hex: "#1E90FF", soft: "rgba(30,144,255,0.22)",  glow: "rgba(30,144,255,0.95)", border: "rgba(30,144,255,1)" },
-  red:   { name: "Red",   hex: "#FF3B3B", soft: "rgba(255,59,59,0.22)",   glow: "rgba(255,59,59,0.95)",  border: "rgba(255,59,59,1)" },
-  green: { name: "Green", hex: "#22C55E", soft: "rgba(34,197,94,0.22)",   glow: "rgba(34,197,94,0.95)",  border: "rgba(34,197,94,1)" },
-  // Premium gold — trading-floor vibe. Recommended.
-  gold:  { name: "Gold",  hex: "#F5C150", soft: "rgba(245,193,80,0.22)",  glow: "rgba(245,193,80,0.95)", border: "rgba(245,193,80,1)" },
+  blue:  { name: "Blue",  hex: "#1E90FF", soft: "rgba(30,144,255,0.12)",  glow: "rgba(30,144,255,0.45)", border: "rgba(30,144,255,0.70)" },
+  red:   { name: "Red",   hex: "#FF3B3B", soft: "rgba(255,59,59,0.12)",   glow: "rgba(255,59,59,0.45)",  border: "rgba(255,59,59,0.70)" },
+  green: { name: "Green", hex: "#22C55E", soft: "rgba(34,197,94,0.12)",   glow: "rgba(34,197,94,0.45)",  border: "rgba(34,197,94,0.70)" },
+  gold:  { name: "Gold",  hex: "#F5C150", soft: "rgba(245,193,80,0.12)",  glow: "rgba(245,193,80,0.45)", border: "rgba(245,193,80,0.70)" },
 };
 
 // Trading style options — risk:'high' renders red w/ warning; 'best' gets a badge.
@@ -562,21 +561,21 @@ export default function MobileApp() {
           <div
             className="absolute left-1/2 top-[32%] -translate-x-1/2 -translate-y-1/2 w-[140%] aspect-square rounded-full"
             style={{
-              background: `radial-gradient(circle, ${accent}55 0%, ${accent}22 22%, transparent 60%)`,
+              background: `radial-gradient(circle, ${accent}33 0%, ${accent}14 22%, transparent 60%)`,
               filter: "blur(28px)",
             }}
           />
           {/* Secondary halo bottom-right for depth */}
           <div
-            className="absolute -bottom-24 -right-24 w-[70%] aspect-square rounded-full opacity-60"
+            className="absolute -bottom-24 -right-24 w-[70%] aspect-square rounded-full opacity-40"
             style={{
-              background: `radial-gradient(circle, ${accent}33 0%, transparent 65%)`,
+              background: `radial-gradient(circle, ${accent}1F 0%, transparent 65%)`,
               filter: "blur(24px)",
             }}
           />
           {/* Subtle dot grid texture (4K crisp) */}
           <div
-            className="absolute inset-0 opacity-[0.18]"
+            className="absolute inset-0 opacity-[0.10]"
             style={{
               backgroundImage: `radial-gradient(${accent}80 1px, transparent 1px)`,
               backgroundSize: "22px 22px",
@@ -584,7 +583,7 @@ export default function MobileApp() {
           />
           {/* Diagonal sheen highlight (premium tilt) */}
           <div
-            className="absolute inset-0 opacity-[0.08]"
+            className="absolute inset-0 opacity-[0.05]"
             style={{
               background: `linear-gradient(135deg, transparent 0%, transparent 40%, ${accent} 50%, transparent 60%, transparent 100%)`,
             }}
@@ -619,8 +618,8 @@ export default function MobileApp() {
             style={{
               width: "min(64vw, 230px)",
               height: "min(64vw, 230px)",
-              border: `3px solid ${accent}`,
-              boxShadow: `0 0 80px ${accent}, 0 0 140px ${theme.glow}, inset 0 0 50px ${theme.soft}`,
+              border: `2px solid ${accent}`,
+              boxShadow: `0 0 28px ${accent}66, 0 0 60px ${theme.glow}, inset 0 0 22px ${theme.soft}`,
             }}
           >
             {eaData?.mentor_profile_image ? (
@@ -635,25 +634,25 @@ export default function MobileApp() {
         <div
           className="relative z-10 mx-4 mt-1 rounded-2xl px-4 py-4 text-center"
           style={{
-            border: `3px solid ${accent}`,
+            border: `2px solid ${accent}`,
             backgroundColor: "rgba(0,8,18,0.65)",
-            boxShadow: `0 0 50px ${theme.glow}, inset 0 0 32px ${theme.soft}`,
+            boxShadow: `0 0 20px ${theme.glow}, inset 0 0 16px ${theme.soft}`,
           }}
           data-testid="mobile-ea-nameplate"
         >
-          <div className="font-display text-3xl sm:text-4xl font-black tracking-tight break-words" style={{ color: accent, textShadow: `0 0 14px ${accent}, 0 0 28px ${accent}, 0 0 44px ${accent}99` }}>
+          <div className="font-display text-3xl sm:text-4xl font-black tracking-tight break-words" style={{ color: accent, textShadow: `0 0 8px ${accent}99, 0 0 16px ${accent}55` }}>
             {eaName}
           </div>
-          <div className="text-white text-sm sm:text-base mt-1 tracking-wider font-semibold" style={{ textShadow: `0 0 8px ${accent}55` }}>Fully automated EA</div>
+          <div className="text-white text-sm sm:text-base mt-1 tracking-wider font-semibold" style={{ textShadow: `0 0 4px ${accent}44` }}>Fully automated EA</div>
         </div>
 
         {/* Action row — PAIRS · START · INFO */}
         <div
           className="relative z-10 mx-4 mt-3 rounded-2xl grid grid-cols-3 overflow-hidden"
           style={{
-            border: `2.5px solid ${accent}`,
+            border: `2px solid ${accent}99`,
             backgroundColor: "rgba(0,8,18,0.55)",
-            boxShadow: `0 0 32px ${theme.glow}, inset 0 0 22px ${theme.soft}`,
+            boxShadow: `0 0 14px ${theme.glow}, inset 0 0 12px ${theme.soft}`,
           }}
         >
           <ActionBtn icon={TrendingUp} label="PAIRS" accent={accent} testid="mobile-action-pairs"
@@ -683,10 +682,10 @@ export default function MobileApp() {
         {/* Powered by LOYISO */}
         <div
           className="relative z-10 mx-4 mt-3 py-2.5 px-5 flex items-center justify-center gap-3 rounded-full"
-          style={{ border: `2px solid ${accent}`, backgroundColor: "rgba(0,8,18,0.65)", boxShadow: `0 0 22px ${theme.glow}, inset 0 0 12px ${theme.soft}` }}
+          style={{ border: `1.5px solid ${accent}99`, backgroundColor: "rgba(0,8,18,0.65)", boxShadow: `0 0 12px ${theme.glow}, inset 0 0 8px ${theme.soft}` }}
         >
           <span className="text-white text-xs sm:text-sm tracking-wider font-semibold">Powered by</span>
-          <span className="font-display font-black tracking-[0.18em] text-sm sm:text-base" style={{ color: accent, textShadow: `0 0 12px ${accent}, 0 0 22px ${accent}99` }}>LOYISO</span>
+          <span className="font-display font-black tracking-[0.18em] text-sm sm:text-base" style={{ color: accent, textShadow: `0 0 8px ${accent}99, 0 0 14px ${accent}55` }}>LOYISO</span>
         </div>
 
         {/* Trading Style — risk profile picker */}
@@ -737,13 +736,13 @@ export default function MobileApp() {
 
         {/* Robot List */}
         <div className="relative z-10 mx-4 mt-4">
-          <div className="text-white text-sm font-bold mb-2 tracking-[0.2em] uppercase" style={{ textShadow: `0 0 8px ${accent}66` }}>Robot List</div>
+          <div className="text-white text-sm font-bold mb-2 tracking-[0.2em] uppercase" style={{ textShadow: `0 0 4px ${accent}44` }}>Robot List</div>
           <div
             className="rounded-2xl p-3 flex items-center gap-3"
-            style={{ border: `2px solid ${accent}`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: `0 0 24px ${theme.glow}, inset 0 0 18px ${theme.soft}` }}
+            style={{ border: `1.5px solid ${accent}99`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: `0 0 14px ${theme.glow}, inset 0 0 12px ${theme.soft}` }}
             data-testid="mobile-robot-card"
           >
-            <div className="w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ border: `2px solid ${accent}`, boxShadow: `0 0 16px ${accent}` }}>
+            <div className="w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ border: `1.5px solid ${accent}`, boxShadow: `0 0 10px ${accent}66` }}>
               {eaData?.mentor_profile_image ? (
                 <img src={eaData.mentor_profile_image} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -751,10 +750,10 @@ export default function MobileApp() {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-white text-sm truncate" data-testid="mobile-robot-name" style={{ textShadow: `0 0 6px ${accent}55` }}>{eaName}</div>
-              <div className="text-xs font-semibold" style={{ color: accent, textShadow: `0 0 8px ${accent}66` }}>Adaptive AI Trading</div>
+              <div className="font-bold text-white text-sm truncate" data-testid="mobile-robot-name" style={{ textShadow: `0 0 4px ${accent}33` }}>{eaName}</div>
+              <div className="text-xs font-semibold" style={{ color: accent, textShadow: `0 0 4px ${accent}44` }}>Adaptive AI Trading</div>
             </div>
-            <button onClick={handleExpire} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition" style={{ border: `2px solid ${accent}`, color: accent, boxShadow: `0 0 10px ${accent}66` }} data-testid="mobile-robot-disconnect" title="Disconnect this EA">
+            <button onClick={handleExpire} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition" style={{ border: `1.5px solid ${accent}`, color: accent, boxShadow: `0 0 6px ${accent}44` }} data-testid="mobile-robot-disconnect" title="Disconnect this EA">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -766,10 +765,10 @@ export default function MobileApp() {
             type="button"
             onClick={() => setConnectOpen(true)}
             className="w-full rounded-2xl p-3 flex items-center gap-3 text-left transition hover:bg-white/[0.04]"
-            style={{ border: `2px solid ${eaData?.broker ? accent : "rgba(255,255,255,0.18)"}`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: eaData?.broker ? `0 0 18px ${theme.glow}55` : undefined }}
+            style={{ border: `1.5px solid ${eaData?.broker ? `${accent}99` : "rgba(255,255,255,0.18)"}`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: eaData?.broker ? `0 0 10px ${theme.glow}` : undefined }}
             data-testid="mobile-broker-status"
           >
-            <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `2px solid ${accent}`, color: accent, boxShadow: `0 0 12px ${accent}99` }}>
+            <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `1.5px solid ${accent}`, color: accent, boxShadow: `0 0 6px ${accent}55` }}>
               <Server className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
@@ -840,9 +839,9 @@ export default function MobileApp() {
         <div
           className="relative z-10 mx-3 mb-3 mt-4 rounded-2xl grid grid-cols-2 overflow-hidden"
           style={{
-            border: `2.5px solid ${accent}`,
+            border: `2px solid ${accent}99`,
             backgroundColor: "rgba(0,8,18,0.55)",
-            boxShadow: `0 0 32px ${theme.glow}, inset 0 0 22px ${theme.soft}`,
+            boxShadow: `0 0 14px ${theme.glow}, inset 0 0 12px ${theme.soft}`,
           }}
         >
           <NavBtn icon={Home} label="Home" active accent={accent} themeSoft={theme.soft} testid="mobile-nav-home" />
@@ -1356,9 +1355,9 @@ const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false, acce
     onClick={onClick}
     className="py-5 sm:py-6 flex flex-col items-center gap-2 transition-all duration-200 border-r last:border-r-0 active:scale-95 hover:bg-white/[0.06] relative group"
     style={{
-      borderColor: `${accent}66`,
-      backgroundColor: highlight ? (themeSoft || `${accent}40`) : "rgba(0,8,18,0.35)",
-      boxShadow: highlight ? `inset 0 0 32px ${accent}80, 0 0 24px ${accent}` : `inset 0 0 18px ${accent}22`,
+      borderColor: `${accent}44`,
+      backgroundColor: highlight ? (themeSoft || `${accent}22`) : "rgba(0,8,18,0.35)",
+      boxShadow: highlight ? `inset 0 0 18px ${accent}55, 0 0 10px ${accent}55` : `inset 0 0 10px ${accent}11`,
     }}
     data-testid={testid}
   >
@@ -1366,13 +1365,13 @@ const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false, acce
       className="w-8 h-8 sm:w-9 sm:h-9 transition-all duration-200 group-hover:scale-110"
       style={{
         color: accent,
-        filter: `drop-shadow(0 0 10px ${accent}) drop-shadow(0 0 18px ${accent}) drop-shadow(0 0 28px ${accent}99)`,
+        filter: `drop-shadow(0 0 6px ${accent}77) drop-shadow(0 0 12px ${accent}33)`,
       }}
       strokeWidth={2.2}
     />
     <span
       className="text-white text-xs sm:text-sm tracking-[0.22em] font-extrabold"
-      style={{ textShadow: `0 0 10px ${accent}, 0 0 18px ${accent}66` }}
+      style={{ textShadow: `0 0 6px ${accent}66` }}
     >
       {label}
     </span>
@@ -1384,9 +1383,9 @@ const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "
     onClick={onClick}
     className="py-4 sm:py-5 flex flex-col items-center gap-1.5 border-r last:border-r-0 active:scale-95 transition-all duration-200 hover:bg-white/[0.06] relative group"
     style={{
-      borderColor: `${accent}66`,
-      backgroundColor: active ? (themeSoft || `${accent}33`) : "rgba(0,8,18,0.35)",
-      boxShadow: active ? `inset 0 0 28px ${accent}66, 0 0 18px ${accent}` : "none",
+      borderColor: `${accent}44`,
+      backgroundColor: active ? (themeSoft || `${accent}1F`) : "rgba(0,8,18,0.35)",
+      boxShadow: active ? `inset 0 0 16px ${accent}44, 0 0 8px ${accent}55` : "none",
     }}
     data-testid={testid}
   >
@@ -1395,8 +1394,8 @@ const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "
       style={{
         color: active ? accent : "rgba(255,255,255,0.9)",
         filter: active
-          ? `drop-shadow(0 0 10px ${accent}) drop-shadow(0 0 18px ${accent}) drop-shadow(0 0 28px ${accent}99)`
-          : `drop-shadow(0 0 6px rgba(255,255,255,0.5))`,
+          ? `drop-shadow(0 0 6px ${accent}77) drop-shadow(0 0 12px ${accent}33)`
+          : `drop-shadow(0 0 3px rgba(255,255,255,0.3))`,
       }}
       strokeWidth={2.2}
     />
@@ -1404,7 +1403,7 @@ const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "
       className="text-xs sm:text-sm tracking-wider font-bold"
       style={{
         color: active ? accent : "rgba(255,255,255,0.95)",
-        textShadow: active ? `0 0 10px ${accent}, 0 0 18px ${accent}66` : "none",
+        textShadow: active ? `0 0 6px ${accent}66` : "none",
       }}
     >
       {label}
