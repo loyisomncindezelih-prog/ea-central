@@ -172,6 +172,15 @@
   - Frontend `/admin/brokers`: status badge label is now "pending server-side approval"; primary CTA reads "Approve linking (server-side)".
 - **Tested (iter18)**: 12/12 backend pytest pass (POST trading-style, invalid, ownership, activate-license payload, admin response shape, broker notice copy); 100% frontend (style card + drawer + persistence + admin display + every copy rename verified).
 
+## What's been implemented (2026-02 — Iteration 19)
+- **/app moving chart REMOVED** — `ChartBackground`, `LivePriceChip`, `seedCandles`, `livePriceRef`, `BG_CANDLE_COUNT` all deleted (~120 lines removed).
+- **Premium static "4K" background** (`MobileApp.jsx` ~line 480): 8-layer composite — deep navy radial gradient base `radial-gradient(120% 80% at 50% 35%, #001a36, #000814, #000208)`; large central electric-blue halo behind the avatar (140% width, blurred 28px); secondary corner halo bottom-right; subtle dot-grid texture (22px spacing, accent-tinted); diagonal sheen highlight; top + bottom black-fade vignettes.
+- **Saturated color tokens**: THEMES now use `soft: 0.22` (was 0.10), `glow: 0.95` (was 0.55), `border: 1.0` (was 0.70). All theme variants (blue/red/green) feel ~2× more vibrant.
+- **Triple-layer button glows**: ActionBtn + NavBtn icons now have `drop-shadow(0 0 10px) drop-shadow(0 0 18px) drop-shadow(0 0 28px)` for 4K-style halos (was a single 8px shadow). Stroke widened to 2.2. Labels get `font-extrabold` + dual text-shadow.
+- **Thicker accent borders**: avatar ring 2px→3px, EA name plate 2px→3px solid accent, action row 2px→2.5px, robot list card 2px solid accent, broker card 2px solid accent (linked), bottom nav 2px→2.5px solid accent.
+- **Multi-radius shadows on cards**: 50px/80px/140px halo radii combined with inset glows for a "premium aircraft cockpit" depth.
+- **Tested (iter19)**: 100% — `mobile-chart-bg` confirmed removed, 8 background layers detected, triple drop-shadow confirmed via computed-style on action buttons, 3px nameplate border confirmed, all preserved testids intact, responsive across 375/768/1920.
+
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
 - **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)
