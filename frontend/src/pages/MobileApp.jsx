@@ -1165,7 +1165,7 @@ const SignalRow = ({ s, accent, theme }) => {
     status === "skipped"  ? "rgba(255,255,255,0.5)" :
     "#F5C150"; // pending / delivered
   const ts = s.created_at ? new Date(s.created_at) : null;
-  const timeLabel = ts ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
+  const timeLabel = ts ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "—";
   return (
     <div
       className="rounded-xl p-3 flex items-center gap-3"

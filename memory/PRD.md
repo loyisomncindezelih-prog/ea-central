@@ -198,6 +198,13 @@
 - **Audit fields** added to every `trade_signal`: `trading_style`, `lot_base`, `lot_mult`, `martingale_streak` — usable for /mentor/bridge/activity UI and admin debugging.
 - **Tested (iter20)**: 21/21 backend pytest pass — zero defects, zero action items. Test file: `/app/backend/tests/test_iteration18_trading_style_execution.py`.
 
+## What's been implemented (2026-02 — Iteration 21)
+- **EA Status panel on /app**: new card between Broker bridge and Bottom nav, shows the last 3 trade signals fanned out to this licence with rich row UI per status (executed=green/`#mt_order_id · filled`, failed=red/error text, pending=amber/"in flight…", skipped=grey). 6-second polling via new endpoint `POST /api/mobile/trade-signals`. Empty state ("Waiting for the mentor's bot…") + signal count chip. New `SignalRow` component with ArrowUp/ArrowDown/X icons + glow border per status color.
+- **Backend**: new endpoint `POST /api/mobile/trade-signals` (rate-limit 60/min) — returns `{signals: [...]}` sorted DESC by `created_at`. Tightened security after iter19 review — requires the licence to be **bound** AND the requesting email to match `bound_to_email` (403 if unbound or mismatched). Prevents signal-history leak via licence-key guess on freshly-issued unbound keys.
+- **Gold theme** added to `THEMES` (hex `#F5C150`) and Settings drawer — 4-column grid (was 3), gold tile shows a "NEW" yellow corner badge. Theme persists via `LS_THEME`. Selecting it switches every accent (avatar ring, name plate border, action button glows, LOYISO pill, Robot List, broker card, bottom nav) to premium gold.
+- **24h time format** on signal rows (`hourCycle: 'h23'`) so locales never render 12h "6:10 AM" inconsistencies.
+- **Tested (iter21)**: backend 5/5 pytest + frontend 100% (empty state, populated rows with all status colors verified via computed border-color, Settings drawer 4-col + NEW badge, gold theme application + persistence, all regression testids intact).
+
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
 - **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)

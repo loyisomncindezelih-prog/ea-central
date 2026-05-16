@@ -1197,7 +1197,11 @@ async def mobile_trade_signals(request: Request, payload: TradeSignalsIn):
     key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0, "bound_to_email": 1})
     if not key_doc:
         raise HTTPException(status_code=404, detail="Invalid licence key")
-    if key_doc.get("bound_to_email") and key_doc["bound_to_email"] != email:
+    # Require licence to be bound AND to the requesting email. An unbound licence cannot
+    # leak signal history — the client must complete the device-binding flow on /app first.
+    if not key_doc.get("bound_to_email"):
+        raise HTTPException(status_code=403, detail="Activate this licence on your device first")
+    if key_doc["bound_to_email"] != email:
         raise HTTPException(status_code=403, detail="Not authorised for this licence")
     sigs = await db.trade_signals.find(
         {"license_key": license_key}, {"_id": 0}
