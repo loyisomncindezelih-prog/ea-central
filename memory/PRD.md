@@ -181,6 +181,23 @@
 - **Multi-radius shadows on cards**: 50px/80px/140px halo radii combined with inset glows for a "premium aircraft cockpit" depth.
 - **Tested (iter19)**: 100% — `mobile-chart-bg` confirmed removed, 8 background layers detected, triple drop-shadow confirmed via computed-style on action buttons, 3px nameplate border confirmed, all preserved testids intact, responsive across 375/768/1920.
 
+## What's been implemented (2026-02 — Iteration 20 — Bridge Phase 3a)
+- **Trading-style-driven trade execution** in `/api/bridge/mentor-push`:
+  - **Aggressive Scalping**: lot × 1.5, max_trades × 2
+  - **Martingale**: server-side 2^streak doubling on consecutive failed acks (cap = 5 → 32× max)
+  - **Scalping** / **Day Trading**: baseline (1× / 1×)
+  - **Swing Trading**: lot × 1.2, max_trades × 0.5 (floored at 1)
+  - When mentor pushes a signal, each licence's `trading_style` decides the effective lot + max_trades the bridge receives.
+- **Martingale streak counter** on `license_keys.martingale_streak`:
+  - +1 on `/bridge/jobs/{id}/ack` with `status='failed'`
+  - reset to 0 on `status='executed'`
+  - unchanged on `status='skipped'` (bridge couldn't reach MT5)
+  - **non-martingale styles never touch this counter** (defensive isolation)
+  - **resets to 0** when client changes style via `/api/mobile/trading-style` (any new style)
+  - **never applied to CLOSE actions** — exit/safety signals always use base lot
+- **Audit fields** added to every `trade_signal`: `trading_style`, `lot_base`, `lot_mult`, `martingale_streak` — usable for /mentor/bridge/activity UI and admin debugging.
+- **Tested (iter20)**: 21/21 backend pytest pass — zero defects, zero action items. Test file: `/app/backend/tests/test_iteration18_trading_style_execution.py`.
+
 ## Next Action Items
 - **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
 - **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)
