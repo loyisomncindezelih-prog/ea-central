@@ -296,7 +296,9 @@ async def login(payload: LoginIn, request: Request, response: Response):
 
     status = user.get("status", "approved")
     role = user.get("role", "mentor")
-    paid = bool(user.get("payment_clicked", False))
+    # Only the actual proof-of-payment image counts as "paid" — a stale `payment_clicked`
+    # flag without a proof_data_url must not pass the payment gate.
+    paid = bool(user.get("payment_proof_data_url"))
 
     # Mentors must pay R500.00 before they can even sit in the approval queue.
     # Admins skip the payment gate.
@@ -485,15 +487,10 @@ async def verify_account_click(payload: VerifyClickIn):
             "message": "Your account is already approved. Please log in.",
         }
 
-    already_paid = bool(user.get("payment_clicked"))
-    if not already_paid:
-        await db.users.update_one(
-            {"email": email},
-            {"$set": {
-                "payment_clicked": True,
-                "payment_clicked_at": now_iso(),
-            }},
-        )
+    # IMPORTANT: clicking "continue to bank details" is NOT a payment.
+    # We only flag the account as paid when the proof-of-payment image actually
+    # arrives at /verify-account/proof. Returning the bank details here is harmless.
+    already_paid = bool(user.get("payment_proof_data_url"))
 
     return {
         "ok": True,
@@ -501,9 +498,9 @@ async def verify_account_click(payload: VerifyClickIn):
         "already_paid": already_paid,
         "payment_link": PAYMENT_LINK,
         "message": (
-            "Payment already received — admin is verifying your account."
+            "Proof of payment received — admin is verifying your account."
             if already_paid else
-            "Send the EFT — once uploaded, an admin will activate your account."
+            "Send the EFT, then upload your proof of payment so admin can verify."
         ),
     }
 
@@ -2599,16 +2596,38 @@ async def admin_list_users(
     query = {}
     if status in ("pending", "approved", "rejected"):
         query["status"] = status
+    # Surface proof-of-payment fields so admin can verify the EFT before approving.
+    # `payment_proof_data_url` can be large (image base64) — only return for pending users
+    # to keep the response lean for /approved and /rejected tabs.
     users = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
-    # Ensure legacy users have a status field surfaced
     for u in users:
         u.setdefault("status", "approved")
+        # For non-pending users, strip the heavy base64 to keep the list responsive —
+        # admin can still see the filename / upload time so the audit trail isn't lost.
+        if u.get("status") != "pending" and "payment_proof_data_url" in u:
+            u["payment_proof_data_url"] = "" if u["payment_proof_data_url"] else None
+        # Convenience flag used by the UI to show "awaiting proof".
+        u["has_payment_proof"] = bool(u.get("payment_proof_data_url"))
     return users
 
 
 @api_router.post("/admin/users/{user_id}/approve")
 async def admin_approve_user(user_id: str, admin: dict = Depends(get_admin_user)):
-    result = await db.users.update_one(
+    target = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    # Refuse to approve a mentor who hasn't uploaded proof of payment yet.
+    # Admins/owners and previously-approved accounts skip this gate.
+    if (
+        target.get("role", "mentor") == "mentor"
+        and target.get("status", "pending") == "pending"
+        and not target.get("payment_proof_data_url")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot approve — user hasn't uploaded proof of payment yet.",
+        )
+    await db.users.update_one(
         {"id": user_id},
         {"$set": {
             "status": "approved",
@@ -2616,8 +2635,6 @@ async def admin_approve_user(user_id: str, admin: dict = Depends(get_admin_user)
             "approved_by": admin["id"],
         }},
     )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
     return {"ok": True, "user_id": user_id, "status": "approved"}
 
 

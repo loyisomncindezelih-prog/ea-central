@@ -17,6 +17,8 @@ import {
   Phone,
   CreditCard,
   Webhook,
+  Receipt,
+  AlertCircle,
 } from "lucide-react";
 
 const TABS = [
@@ -36,6 +38,7 @@ export default function AdminDashboard() {
   const [actingId, setActingId] = useState(null);
   const [yoco, setYoco] = useState(null);
   const [yocoBusy, setYocoBusy] = useState(false);
+  const [proofView, setProofView] = useState(null); // { src, filename, email } or null
 
   const loadYoco = useCallback(async () => {
     try {
@@ -226,6 +229,27 @@ export default function AdminDashboard() {
           ))}
         </div>
 
+        {/* Pending proof approvals banner */}
+        {tab === "pending" && users.some((u) => u.has_payment_proof && u.role === "mentor") && (
+          <div
+            className="mt-6 ea-glass p-4 sm:p-5 border-[#22C55E]/35 bg-[#22C55E]/[0.04]"
+            data-testid="admin-pending-proof-banner"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex items-center justify-center border border-[#22C55E]/55 bg-[#22C55E]/10 text-[#22C55E]">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="text-[10px] tracking-[0.25em] uppercase text-[#22C55E]">Awaiting your approval</div>
+                <div className="text-white text-sm">
+                  <span className="font-bold">{users.filter((u) => u.has_payment_proof && u.role === "mentor").length}</span>
+                  {" "}mentor{users.filter((u) => u.has_payment_proof && u.role === "mentor").length === 1 ? "" : "s"} uploaded proof of payment — view their proof and approve below.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         <div className="mt-6 ea-glass">
           {/* Desktop header */}
@@ -276,19 +300,50 @@ export default function AdminDashboard() {
                 </div>
                 <div className="md:col-span-1">
                   <StatusBadge status={u.status} />
-                  {u.payment_clicked && (
-                    <div className="mt-1 text-[9px] tracking-[0.2em] uppercase text-[#1E90FF] flex items-center gap-1" data-testid={`admin-paid-${u.id}`}>
-                      💳 paid · check
+                  {u.status === "pending" && (
+                    u.has_payment_proof ? (
+                      <div className="mt-1 text-[9px] tracking-[0.2em] uppercase text-[#22C55E] flex items-center gap-1" data-testid={`admin-proof-uploaded-${u.id}`}>
+                        <Receipt className="w-3 h-3" /> proof uploaded
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-[9px] tracking-[0.2em] uppercase text-[#F5C150] flex items-center gap-1" data-testid={`admin-proof-missing-${u.id}`}>
+                        <AlertCircle className="w-3 h-3" /> awaiting proof
+                      </div>
+                    )
+                  )}
+                  {u.status !== "pending" && u.payment_proof_uploaded_at && (
+                    <div className="mt-1 text-[9px] tracking-[0.2em] uppercase text-white/40">
+                      proof on file
                     </div>
                   )}
                 </div>
-                <div className="md:col-span-2 flex md:justify-end gap-2 flex-wrap">
+                <div className="md:col-span-2 flex md:justify-end gap-2 flex-wrap items-start">
+                  {/* Proof preview / view button */}
+                  {u.status === "pending" && u.has_payment_proof && u.payment_proof_data_url && (
+                    <button
+                      onClick={() => setProofView({ src: u.payment_proof_data_url, filename: u.payment_proof_filename, email: u.email, uploadedAt: u.payment_proof_uploaded_at })}
+                      className="h-9 w-9 border border-[#1E90FF]/50 hover:border-[#1E90FF] bg-[#1E90FF]/5 flex items-center justify-center overflow-hidden"
+                      title="View proof of payment"
+                      data-testid={`admin-view-proof-${u.id}`}
+                    >
+                      {u.payment_proof_data_url.startsWith("data:image/") ? (
+                        <img src={u.payment_proof_data_url} alt="proof" className="w-full h-full object-cover" />
+                      ) : (
+                        <Receipt className="w-4 h-4 text-[#1E90FF]" />
+                      )}
+                    </button>
+                  )}
                   {u.status !== "approved" && (
                     <Button
-                      disabled={actingId === u.id || u.role === "admin"}
+                      disabled={
+                        actingId === u.id ||
+                        u.role === "admin" ||
+                        (u.status === "pending" && u.role === "mentor" && !u.has_payment_proof)
+                      }
                       onClick={() => act(u.id, "approve")}
-                      className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-9 px-3 text-xs tracking-wide disabled:opacity-50"
+                      className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-9 px-3 text-xs tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
                       data-testid={`admin-approve-${u.id}`}
+                      title={u.status === "pending" && u.role === "mentor" && !u.has_payment_proof ? "Waiting for user to upload proof of payment" : "Approve"}
                     >
                       <CheckCircle2 className="w-4 h-4 mr-1.5" />
                       Approve
@@ -311,6 +366,38 @@ export default function AdminDashboard() {
             ))}
         </div>
       </main>
+
+      {/* Proof of payment lightbox */}
+      {proofView && (
+        <div
+          onClick={() => setProofView(null)}
+          className="fixed inset-0 bg-black/92 z-50 flex items-center justify-center p-4 cursor-zoom-out"
+          data-testid="admin-proof-lightbox"
+        >
+          <div onClick={(e) => e.stopPropagation()} className="max-w-3xl w-full ea-glass p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-[10px] tracking-[0.25em] uppercase text-[#1E90FF]">Proof of Payment</div>
+                <div className="text-sm text-white">{proofView.email}</div>
+                {proofView.uploadedAt && (
+                  <div className="text-[11px] text-white/45 font-mono">{new Date(proofView.uploadedAt).toLocaleString()}</div>
+                )}
+              </div>
+              <button onClick={() => setProofView(null)} className="text-white/60 hover:text-white">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            {proofView.src.startsWith("data:image/") ? (
+              <img src={proofView.src} alt="proof" className="w-full max-h-[70vh] object-contain border border-white/10" />
+            ) : (
+              <a href={proofView.src} target="_blank" rel="noreferrer" download={proofView.filename || "proof.pdf"} className="inline-flex items-center gap-2 px-4 py-3 border border-[#1E90FF]/50 text-[#1E90FF] hover:bg-[#1E90FF]/10">
+                <Receipt className="w-4 h-4" /> Open / download {proofView.filename || "proof.pdf"}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );

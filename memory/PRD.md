@@ -244,6 +244,18 @@
 - Backend smoke (curl): `/api/auth/register` with `.ex5` file → 200, `users` doc shows `ea_file_name: "MyBot.ex5"`, `ea_file_platform: "mt5"`, `ea_file_uploaded_at` set.
 - Frontend smoke: Landing page no longer contains "PC Bot Bridge" or `download-bridge-*` testids; Signup page exposes `signup-ea-file` input. Lint clean.
 
+## What's been implemented (2026-02 — Iteration 28 — Proof-of-payment is now the only path to "paid")
+- **Login gate fix**: `auth/login` now treats `payment_proof_data_url` (not the stale `payment_clicked` boolean) as the source of truth for "paid". Previously a user could simply click "continue to bank details" and the system flagged them as paid.
+- **`/api/verify-account/click`** no longer sets `payment_clicked=true` — it just returns bank details. Message updated to "Send the EFT, then upload your proof of payment so admin can verify."
+- **`/api/admin/users`** now exposes `has_payment_proof` (boolean), `payment_proof_filename`, `payment_proof_uploaded_at`, and the full base64 `payment_proof_data_url` for **pending** users (stripped for approved/rejected to keep responses lean).
+- **`/api/admin/users/{id}/approve`** returns 400 *"Cannot approve — user hasn't uploaded proof of payment yet."* if a pending mentor has no proof on file. Admins/owners and previously-approved users skip the gate.
+- **`/admin/dashboard` UI**:
+  - New "Awaiting your approval" green banner above the table when ≥1 mentor uploaded proof.
+  - Per-pending-row badge: green **"PROOF UPLOADED"** (`Receipt` icon) or amber **"AWAITING PROOF"** (`AlertCircle`).
+  - Per-row proof **thumbnail button** (40×40) opens a full-screen lightbox with the EFT image (or download-PDF link).
+  - **Approve button disabled** for pending mentors with no proof — tooltip: "Waiting for user to upload proof of payment".
+- Verified end-to-end via curl: click → no flag set → admin approve refused (400) → upload proof → admin list shows base64 + flag → admin approve succeeds.
+
 ## What's been implemented (2026-02 — Iteration 25 — Terminal EA Status + Chart Scanner module)
 ### `/app` Mobile client
 - **EA Status terminal**: replaced bulky 3-row signal cards with an **MT4-Journal-style monospace log** (fixed-height 160px, scrolls internally) inside a glass card with mac-window title bar. Shows up to 20 lines, one signal per line: `[HH:MM:SS] TAG SYMBOL ACTION lot · note`. Tags: `OK`(executed) / `CLS`(closed) / `ERR` / `BAL`(low margin) / `SKP` / `RUN`(executing) / `PEN`(pending) — colour-coded.
