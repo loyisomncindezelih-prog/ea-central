@@ -61,6 +61,24 @@ export default function AdminBrokers() {
     }
   };
 
+  // Skip the bridge queue — admin already placed/closed this trade manually on MT5
+  // and just wants the client's EA Status terminal to reflect the final state instantly.
+  const pushInstant = async (license_key, symbol, action, final_status) => {
+    const note = window.prompt(
+      `${final_status.toUpperCase()} ${action} ${symbol} — optional note shown to the client (e.g. "filled @ 1.0852"):`,
+      ""
+    );
+    if (note === null) return; // user cancelled
+    try {
+      await api.post(`/admin/broker-connections/${license_key}/signal/instant`, {
+        symbol, action, final_status, note: note || null,
+      });
+      toast.success(`${final_status} · ${action} ${symbol} — posted to client`);
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    }
+  };
+
   const filtered = rows.filter((r) => {
     if (!q.trim()) return true;
     const t = q.toLowerCase();
@@ -295,6 +313,37 @@ export default function AdminBrokers() {
                     <p className="text-[10px] text-white/40 mt-2 leading-relaxed">
                       Hits the desktop bridge in 2-5s · client sees status as <span className="text-[#F5C150]">queued</span> → <span className="text-[#1E90FF]">executing</span> → <span className="text-[#22C55E]">filled</span>.
                     </p>
+
+                    {/* Instant-status row — bypass the bridge queue when you already placed the trade on MT5 */}
+                    <div className="mt-3 border-t border-white/5 pt-3">
+                      <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-2">
+                        ⚡ Forward final status (no bridge — already done on MT5)
+                      </div>
+                      <div className="space-y-1.5">
+                        {r.pair_configs.map((p, idx) => (
+                          <div key={`inst-${idx}`} className="grid grid-cols-12 gap-2 items-center text-xs border border-white/8 px-2.5 py-1.5">
+                            <div className="col-span-3 font-mono text-white font-bold tracking-wide">{p.symbol}</div>
+                            <div className="col-span-9 flex gap-1.5 justify-end flex-wrap">
+                              <Button onClick={() => pushInstant(r.license_key, p.symbol, p.direction === "SELL" ? "SELL" : "BUY", "executed")} className="bg-[#22C55E]/15 hover:bg-[#22C55E]/30 border border-[#22C55E]/60 text-[#22C55E] rounded-none h-8 px-2.5 text-[10px] tracking-[0.18em] uppercase font-bold" data-testid={`broker-mark-exec-${i}-${idx}`}>
+                                Mark Executed
+                              </Button>
+                              <Button onClick={() => pushInstant(r.license_key, p.symbol, "CLOSE", "closed")} className="bg-white/10 hover:bg-white/20 border border-white/30 text-white/85 rounded-none h-8 px-2.5 text-[10px] tracking-[0.18em] uppercase font-bold" data-testid={`broker-mark-closed-${i}-${idx}`}>
+                                Mark Closed
+                              </Button>
+                              <Button onClick={() => pushInstant(r.license_key, p.symbol, p.direction === "SELL" ? "SELL" : "BUY", "low_balance")} className="bg-[#FF8A1F]/15 hover:bg-[#FF8A1F]/30 border border-[#FF8A1F]/60 text-[#FF8A1F] rounded-none h-8 px-2.5 text-[10px] tracking-[0.18em] uppercase font-bold" data-testid={`broker-mark-lowbal-${i}-${idx}`}>
+                                Low Bal
+                              </Button>
+                              <Button onClick={() => pushInstant(r.license_key, p.symbol, p.direction === "SELL" ? "SELL" : "BUY", "failed")} className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-8 px-2.5 text-[10px] tracking-[0.18em] uppercase font-bold" data-testid={`broker-mark-failed-${i}-${idx}`}>
+                                Failed
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-white/40 mt-2 leading-relaxed">
+                        Instant — appears on client EA Status terminal within 3 seconds. No MT5 contact, no martingale streak update.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

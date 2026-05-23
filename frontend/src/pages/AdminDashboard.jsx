@@ -126,6 +126,14 @@ export default function AdminDashboard() {
               Brokers
             </Button>
             <Button
+              onClick={() => navigate("/admin/scans")}
+              variant="ghost"
+              className="border border-[#1E90FF]/40 text-[#1E90FF] hover:bg-[#1E90FF]/10 rounded-none h-11"
+              data-testid="admin-scans-btn"
+            >
+              Scanner
+            </Button>
+            <Button
               onClick={load}
               variant="ghost"
               className="border border-white/20 hover:border-[#1E90FF] hover:text-[#1E90FF] text-white rounded-none h-11"

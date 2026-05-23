@@ -1259,21 +1259,27 @@ async def mobile_trade_signals(request: Request, payload: TradeSignalsIn):
         raise HTTPException(status_code=403, detail="Activate this licence on your device first")
     if key_doc["bound_to_email"] != email:
         raise HTTPException(status_code=403, detail="Not authorised for this licence")
+    # Terminal-style EA Status: only the last 5 minutes, up to 20 lines.
+    # Older signals are filtered out (they remain in DB for admin audit, but the client
+    # only sees a rolling 5-minute window so the panel never scrolls forever).
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
     sigs = await db.trade_signals.find(
-        {"license_key": license_key}, {"_id": 0}
-    ).sort("created_at", -1).to_list(3)
+        {"license_key": license_key, "created_at": {"$gte": cutoff}}, {"_id": 0}
+    ).sort("created_at", -1).to_list(20)
     return {
         "signals": [{
             "id": s.get("id"),
             "symbol": s.get("symbol"),
             "action": s.get("action"),
             "lot": s.get("lot"),
-            "status": s.get("status"),  # pending / delivered / executed / failed / skipped
+            # pending / delivered / executing / executed / closed / failed / low_balance / skipped
+            "status": s.get("status"),
             "created_at": s.get("created_at"),
             "ack_at": s.get("ack_at"),
             "mt_order_id": (s.get("result") or {}).get("mt_order_id"),
             "error": (s.get("result") or {}).get("error"),
             "trading_style": s.get("trading_style"),
+            "issued_by": s.get("issued_by"),
         } for s in sigs],
     }
 
@@ -1594,6 +1600,8 @@ async def admin_scans(limit: int = 50, admin: dict = Depends(get_admin_user)):
             "key_levels": s.get("key_levels"),
             "executed_at": s.get("executed_at"),
             "executed_signal_id": s.get("executed_signal_id"),
+            "execution_requested_at": s.get("execution_requested_at"),
+            "execution_status": s.get("execution_status"),
             "image_data_url": s.get("image_data_url"),  # for thumbnail
         })
     return {"scans": rows}
@@ -2241,6 +2249,217 @@ async def admin_push_trade_signal(
         "status": "pending",
         "trading_style": style_key,
     }
+
+
+# ---------- Admin: INSTANT-status push (no bridge queue) ----------
+# Use when admin already manually placed the trade on MT5 and just wants the client's
+# EA Status terminal to reflect "EXECUTED @ price" or "CLOSED" immediately.
+class AdminInstantSignalIn(BaseModel):
+    symbol: str = Field(min_length=2, max_length=24)
+    action: Literal["BUY", "SELL", "CLOSE"]
+    final_status: Literal["executed", "closed", "low_balance", "failed"]
+    lot: float | None = Field(default=None, ge=0.01, le=100)
+    mt_order_id: str | None = Field(default=None, max_length=40)
+    note: str | None = Field(default=None, max_length=200)
+
+
+@api_router.post("/admin/broker-connections/{license_key}/signal/instant")
+async def admin_push_instant_signal(
+    license_key: str,
+    payload: AdminInstantSignalIn,
+    admin: dict = Depends(get_admin_user),
+):
+    """Admin already executed/closed the trade themselves on MT5; this endpoint just
+    posts the resulting status straight onto the client's EA Status terminal
+    (no bridge queue, no martingale streak update, no symbol membership check)."""
+    license_key = license_key.strip().upper()
+    symbol = payload.symbol.strip().upper()
+    key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0})
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Licence not found")
+
+    job_id = str(uuid.uuid4())
+    now = now_iso()
+    doc = {
+        "id": job_id,
+        "license_key": license_key,
+        "ea_id": key_doc.get("ea_id"),
+        "symbol": symbol,
+        "action": payload.action.upper(),
+        "lot": float(payload.lot) if payload.lot is not None else None,
+        "max_trades": 1,
+        "platform": "manual",
+        "status": payload.final_status,        # bypass the queue lifecycle entirely
+        "created_at": now,
+        "delivered_at": now,
+        "ack_at": now,
+        "result": {
+            "mt_order_id": payload.mt_order_id or None,
+            "error": payload.note if payload.final_status in ("failed", "low_balance") else None,
+            "note": payload.note,
+        },
+        "trading_style": key_doc.get("trading_style") or "day_trading",
+        "issued_by": "server",                 # client still sees "server", not "admin"
+        "issued_by_email": admin.get("email"),
+        "instant": True,
+    }
+    await db.trade_signals.insert_one(doc)
+    return {"ok": True, "id": job_id, "status": payload.final_status}
+
+
+# ---------- Mobile client: REQUEST execution of a scanner result ----------
+# When a user taps "Execute Trade" under a scan result we record their intent.
+# Admin sees these on /admin/scans and decides whether to actually push the trade.
+class ScannerExecuteIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+    scan_id: str = Field(min_length=4, max_length=64)
+
+
+@api_router.post("/mobile/scanner/execute-request")
+@limiter.limit("30/minute")
+async def mobile_scanner_execute_request(request: Request, payload: ScannerExecuteIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0, "bound_to_email": 1})
+    if not key_doc or key_doc.get("bound_to_email") != email:
+        raise HTTPException(status_code=403, detail="Not authorised for this licence")
+    scan = await db.scans.find_one({"id": payload.scan_id}, {"_id": 0})
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if scan.get("email") != email:
+        raise HTTPException(status_code=403, detail="Not your scan")
+    if scan.get("direction") not in ("BUY", "SELL"):
+        raise HTTPException(status_code=400, detail="Only BUY/SELL scans can be executed")
+    if scan.get("execution_requested_at"):
+        return {"ok": True, "already_requested": True}
+    await db.scans.update_one(
+        {"id": payload.scan_id},
+        {"$set": {"execution_requested_at": now_iso(), "execution_status": "verifying"}},
+    )
+    return {"ok": True, "status": "verifying"}
+
+
+# ---------- Mobile client: BUY scan tokens (EFT proof of payment) ----------
+SCAN_PURCHASE_PLANS = {
+    "100":       {"label": "100 Scans",       "price_zar": 350, "scans": 100},
+    "unlimited": {"label": "Unlimited Scans", "price_zar": 730, "scans": -1},
+}
+
+
+class ScanPurchaseIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+    plan: Literal["100", "unlimited"]
+    proof_data_url: str = Field(min_length=20, max_length=4 * 1024 * 1024)
+
+
+@api_router.post("/mobile/scanner/purchase")
+@limiter.limit("10/minute")
+async def mobile_scanner_purchase(request: Request, payload: ScanPurchaseIn):
+    email = payload.email.lower()
+    license_key = payload.license_key.strip().upper()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+    key_doc = await db.license_keys.find_one(
+        {"key": license_key}, {"_id": 0, "bound_to_email": 1}
+    )
+    if not key_doc or key_doc.get("bound_to_email") != email:
+        raise HTTPException(status_code=403, detail="Not authorised for this licence")
+    if not payload.proof_data_url.startswith("data:"):
+        raise HTTPException(status_code=400, detail="Upload a clear proof of payment image.")
+
+    plan = SCAN_PURCHASE_PLANS[payload.plan]
+    purchase_id = str(uuid.uuid4())
+    doc = {
+        "id": purchase_id,
+        "email": email,
+        "username": user.get("username"),
+        "license_key": license_key,
+        "plan": payload.plan,
+        "plan_label": plan["label"],
+        "price_zar": plan["price_zar"],
+        "scans": plan["scans"],
+        "proof_data_url": payload.proof_data_url[:4_000_000],
+        "status": "pending",
+        "created_at": now_iso(),
+        "approved_at": None,
+        "approved_by": None,
+        "decline_reason": None,
+    }
+    await db.scan_purchases.insert_one(doc)
+    return {
+        "ok": True,
+        "id": purchase_id,
+        "status": "pending",
+        "message": f"{plan['label']} purchase submitted — admin will approve within minutes.",
+    }
+
+
+# ---------- Admin: list pending scan token purchases ----------
+@api_router.get("/admin/scan-purchases")
+async def admin_scan_purchases(admin: dict = Depends(get_admin_user)):
+    cur = db.scan_purchases.find({}, {"_id": 0}).sort("created_at", -1).limit(200)
+    rows = []
+    async for r in cur:
+        rows.append(r)
+    return {"purchases": rows}
+
+
+class ScanPurchaseDecisionIn(BaseModel):
+    reason: str | None = Field(default=None, max_length=200)
+
+
+@api_router.post("/admin/scan-purchases/{purchase_id}/approve")
+async def admin_approve_scan_purchase(
+    purchase_id: str,
+    admin: dict = Depends(get_admin_user),
+):
+    p = await db.scan_purchases.find_one({"id": purchase_id}, {"_id": 0})
+    if not p:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    if p.get("status") != "pending":
+        raise HTTPException(status_code=400, detail=f"Already {p.get('status')}")
+    if p["plan"] == "unlimited":
+        await db.users.update_one(
+            {"email": p["email"]},
+            {"$set": {"scans_plan": "unlimited", "scans_topup_at": now_iso(), "scans_topup_by": admin.get("email")}},
+        )
+    else:
+        await db.users.update_one(
+            {"email": p["email"]},
+            {"$inc": {"scans_balance": int(p["scans"])},
+             "$set": {"scans_topup_at": now_iso(), "scans_topup_by": admin.get("email")}},
+        )
+    await db.scan_purchases.update_one(
+        {"id": purchase_id},
+        {"$set": {"status": "approved", "approved_at": now_iso(), "approved_by": admin.get("email")}},
+    )
+    return {"ok": True}
+
+
+@api_router.post("/admin/scan-purchases/{purchase_id}/decline")
+async def admin_decline_scan_purchase(
+    purchase_id: str,
+    payload: ScanPurchaseDecisionIn,
+    admin: dict = Depends(get_admin_user),
+):
+    p = await db.scan_purchases.find_one({"id": purchase_id}, {"_id": 0})
+    if not p:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    if p.get("status") != "pending":
+        raise HTTPException(status_code=400, detail=f"Already {p.get('status')}")
+    await db.scan_purchases.update_one(
+        {"id": purchase_id},
+        {"$set": {
+            "status": "declined",
+            "decline_reason": payload.reason or "Payment proof unclear",
+            "approved_at": now_iso(),
+            "approved_by": admin.get("email"),
+        }},
+    )
+    return {"ok": True}
 
 
 

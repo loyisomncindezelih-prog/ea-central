@@ -31,6 +31,11 @@ import {
   ArrowUp,
   ArrowDown,
   Clock,
+  Camera,
+  Upload,
+  Activity,
+  Sparkles,
+  Coins,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -129,7 +134,15 @@ export default function MobileApp() {
   const [startOpen, setStartOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   const [styleBusy, setStyleBusy] = useState(false);
-  const [signals, setSignals] = useState([]); // Last 3 trade signals (EA status panel)
+  const [signals, setSignals] = useState([]); // Rolling 5-min EA Status terminal feed
+  // Bottom-nav tabs: 'home' (default) | 'connect' | 'scanner'
+  const [tab, setTab] = useState("home");
+  // Chart Scanner state
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [scanBalance, setScanBalance] = useState({ scans_balance: 0, scans_plan: null });
+  const [buyOpen, setBuyOpen] = useState(false);
+  const [buyBusy, setBuyBusy] = useState(false);
   // Welcome popup — fires once per browser session when the user lands on the app stage.
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [themeKey, setThemeKey] = useState(localStorage.getItem(LS_THEME) || "blue");
@@ -387,6 +400,22 @@ export default function MobileApp() {
     return () => { cancelled = true; clearInterval(iv); };
   }, [stage, email, license, running]);
 
+  // Scan balance — refreshed when entering app or scanner tab, and every 15s while on scanner.
+  useEffect(() => {
+    if (stage !== "app" || !email || !license) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const { data } = await api.post("/mobile/scanner/balance", { email, license_key: license, style: "scalping" });
+        if (!cancelled) setScanBalance({ scans_balance: data.scans_balance, scans_plan: data.scans_plan });
+      } catch { /* swallow */ }
+    };
+    tick();
+    if (tab !== "scanner") return () => { cancelled = true; };
+    const iv = setInterval(tick, 15000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [stage, email, license, tab]);
+
   const submitEmail = async (e) => {
     e.preventDefault();
     setBusy(true);
@@ -438,7 +467,85 @@ export default function MobileApp() {
     setEaData(null);
     setRunning(false);
     setMenuOpen(false);
+    setTab("home");
     setStage("email");
+  };
+
+  // ============ SCANNER HANDLERS ============
+  const onScanFile = async (file) => {
+    if (!file) return;
+    if (file.size > 6 * 1024 * 1024) {
+      toast.error("Image too large. Keep it under 6 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = String(reader.result || "");
+      if (!dataUrl.startsWith("data:image/")) {
+        toast.error("Please upload a JPG, PNG or WEBP image.");
+        return;
+      }
+      setScanBusy(true);
+      setScanResult(null);
+      try {
+        const { data } = await api.post("/mobile/scanner/upload", {
+          email,
+          license_key: license,
+          image_data_url: dataUrl,
+          chart_context: null,
+        });
+        setScanResult(data);
+        setScanBalance({ scans_balance: data.scans_balance, scans_plan: data.scans_plan });
+        toast.success(`Scan complete: ${data.direction} · ${data.confidence}%`);
+      } catch (err) {
+        const detail = formatApiErrorDetail(err.response?.data?.detail) || err.message;
+        if (err.response?.status === 402) {
+          setBuyOpen(true);
+          toast.error(detail);
+        } else {
+          toast.error(detail);
+        }
+      } finally {
+        setScanBusy(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const onExecuteScan = async () => {
+    if (!scanResult || !scanResult.id) return;
+    setScanBusy(true);
+    try {
+      await api.post("/mobile/scanner/execute-request", {
+        email,
+        license_key: license,
+        scan_id: scanResult.id,
+      });
+      setScanResult((r) => ({ ...(r || {}), execution_status: "verifying" }));
+      toast.message("Verifying trade for best results — please wait…", { duration: 5000 });
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
+  const onBuyScans = async (plan, proofDataUrl) => {
+    setBuyBusy(true);
+    try {
+      await api.post("/mobile/scanner/purchase", {
+        email,
+        license_key: license,
+        plan,
+        proof_data_url: proofDataUrl,
+      });
+      setBuyOpen(false);
+      toast.success("Submitted! Admin will approve your purchase shortly.");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setBuyBusy(false);
+    }
   };
 
   // ============ RENDER ============
@@ -634,6 +741,7 @@ export default function MobileApp() {
         </div>
 
         {/* Robot in neon ring */}
+        {tab === "home" && (<>
         <div className="relative z-10 flex justify-center py-4 sm:py-6">
           <div
             className="relative rounded-full overflow-hidden"
@@ -852,7 +960,7 @@ export default function MobileApp() {
           )}
         </div>
 
-        {/* EA Status panel — last 3 trade signals from the bridge */}
+        {/* EA Status — terminal-style rolling log (last 5 minutes, max 20 lines) */}
         <div className="relative z-10 mx-4 mt-3" data-testid="mobile-ea-status">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -876,42 +984,81 @@ export default function MobileApp() {
               )}
             </div>
             <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: signals.length ? accent : "rgba(255,255,255,0.4)" }} data-testid="mobile-ea-status-count">
-              {signals.length === 0 ? "no signals yet" : `last ${signals.length}`}
+              {signals.length === 0 ? "idle" : `${signals.length} · last 5m`}
             </div>
           </div>
 
-          {signals.length === 0 ? (
+          <div
+            className="rounded-lg overflow-hidden"
+            style={{
+              border: `1px solid ${accent}55`,
+              backgroundColor: "rgba(0,4,10,0.85)",
+              boxShadow: `inset 0 0 18px ${accent}11, 0 0 12px ${accent}22`,
+            }}
+            data-testid="mobile-ea-terminal"
+          >
+            {/* Terminal title bar */}
+            <div className="flex items-center justify-between px-3 py-1.5 border-b" style={{ borderColor: `${accent}33`, backgroundColor: "rgba(0,8,18,0.65)" }}>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#FF5F57]" />
+                <span className="w-2 h-2 rounded-full bg-[#FEBC2E]" />
+                <span className="w-2 h-2 rounded-full bg-[#28C840]" />
+              </div>
+              <div className="font-mono text-[9px] tracking-[0.22em] uppercase text-white/40">terminal · ea-central</div>
+              <div className="font-mono text-[9px] text-white/30">5m window</div>
+            </div>
+
+            {/* Terminal body — fixed height, scrolls internally */}
             <div
-              className="rounded-2xl p-4 text-center"
-              style={{ border: `2px dashed ${accent}55`, backgroundColor: "rgba(0,8,18,0.45)" }}
-              data-testid="mobile-ea-status-empty"
+              className="font-mono text-[11px] leading-snug px-3 py-2 overflow-y-auto"
+              style={{ height: 160, color: "rgba(255,255,255,0.85)" }}
+              data-testid="mobile-ea-terminal-body"
             >
-              <div className="text-sm text-white/65">Waiting for the mentor's bot to fire a signal…</div>
-              <div className="text-[10px] mt-1 text-white/35 font-mono">poll · 6s · server-side</div>
+              {signals.length === 0 ? (
+                <div className="text-white/45">
+                  <span style={{ color: accent }}>$</span> ea-central --watch<br />
+                  <span className="text-white/30">[--]</span> waiting for the mentor's bot…<br />
+                  <span className="text-white/30">[--]</span> rolling 5-minute log · polls every {running ? "3s" : "8s"}
+                </div>
+              ) : (
+                signals.map((s) => <TerminalLine key={s.id} s={s} accent={accent} />)
+              )}
             </div>
-          ) : (
-            <div className="space-y-2">
-              {signals.map((s) => (
-                <SignalRow key={s.id} s={s} accent={accent} theme={theme} />
-              ))}
-            </div>
-          )}
+          </div>
         </div>
+        </>)}
+
+        {tab === "scanner" && (
+          <ScannerPanel
+            scanBusy={scanBusy}
+            scanResult={scanResult}
+            scanBalance={scanBalance}
+            accent={accent}
+            theme={theme}
+            onPickFile={onScanFile}
+            onExecute={onExecuteScan}
+            onOpenBuy={() => setBuyOpen(true)}
+            onClearResult={() => setScanResult(null)}
+          />
+        )}
 
         <div className="flex-1" />
 
-        {/* Bottom nav — Home / Connect (matches reference design) */}
+        {/* Bottom nav — Home · Connect · Scanner */}
         <div
-          className="relative z-10 mx-3 mb-3 mt-4 rounded-2xl grid grid-cols-2 overflow-hidden"
+          className="relative z-10 mx-3 mb-3 mt-4 rounded-2xl grid grid-cols-3 overflow-hidden"
           style={{
             border: `2px solid ${accent}99`,
             backgroundColor: "rgba(0,8,18,0.55)",
             boxShadow: `0 0 14px ${theme.glow}, inset 0 0 12px ${theme.soft}`,
           }}
         >
-          <NavBtn icon={Home} label="Home" active accent={accent} themeSoft={theme.soft} testid="mobile-nav-home" />
-          <NavBtn icon={Server} label="Connect" accent={accent} testid="mobile-nav-connect"
-            onClick={() => setConnectOpen(true)} />
+          <NavBtn icon={Home} label="Home" active={tab === "home"} accent={accent} themeSoft={theme.soft} testid="mobile-nav-home"
+            onClick={() => setTab("home")} />
+          <NavBtn icon={Server} label="Connect" active={tab === "connect"} accent={accent} testid="mobile-nav-connect"
+            onClick={() => { setTab("connect"); setConnectOpen(true); }} />
+          <NavBtn icon={Sparkles} label="Scanner" active={tab === "scanner"} accent={accent} themeSoft={theme.soft} testid="mobile-nav-scanner"
+            onClick={() => setTab("scanner")} />
         </div>
 
         {/* Menu drawer */}
@@ -1210,6 +1357,16 @@ export default function MobileApp() {
             }}
           />
         )}
+
+        {/* Buy Scans modal */}
+        <BuyScansModal
+          open={buyOpen}
+          onClose={() => setBuyOpen(false)}
+          onSubmit={onBuyScans}
+          busy={buyBusy}
+          accent={accent}
+          theme={theme}
+        />
 
         {/* Add-to-Home-Screen tooltip (iOS Safari = manual instructions, Android = native prompt) */}
         {!isStandalone && showInstallTip && (installEvent || iosSafari) && (
@@ -1983,5 +2140,372 @@ const TradingStyleDrawer = ({ current, theme, accent, busy, onClose, onPick }) =
         );
       })}
     </div>
+  </div>
+);
+
+
+// ============ Terminal line (single MT4-Journal-style row) ============
+const TerminalLine = ({ s, accent }) => {
+  const status = (s.status || "pending").toLowerCase();
+  const action = (s.action || "").toUpperCase();
+  const ts = s.created_at ? new Date(s.created_at) : null;
+  const t = ts ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }) : "--:--:--";
+  const color =
+    status === "executed"    ? "#22C55E" :
+    status === "closed"      ? "#9CA3AF" :
+    status === "failed"      ? "#FF3B3B" :
+    status === "low_balance" ? "#FF8A1F" :
+    status === "skipped"     ? "rgba(255,255,255,0.45)" :
+    status === "executing"   ? "#1E90FF" :
+                                "#F5C150"; // pending
+  const tag =
+    status === "executed"    ? "OK" :
+    status === "closed"      ? "CLS" :
+    status === "failed"      ? "ERR" :
+    status === "low_balance" ? "BAL" :
+    status === "skipped"     ? "SKP" :
+    status === "executing"   ? "RUN" :
+                                "PEN";
+  const lotStr = s.lot != null ? Number(s.lot).toFixed(2) : "—";
+  const order = (s.mt_order_id ? `#${s.mt_order_id}` : "");
+  const extra =
+    status === "executed"    ? `filled ${order}` :
+    status === "closed"      ? "closed by server" :
+    status === "failed"      ? (s.error || "rejected") :
+    status === "low_balance" ? "low margin" :
+    status === "skipped"     ? "bridge offline" :
+    status === "executing"   ? "placing order…" :
+                                "queued by server";
+  return (
+    <div className="whitespace-nowrap" data-testid={`mobile-term-line-${s.id}`}>
+      <span className="text-white/40">[{t}]</span>{" "}
+      <span style={{ color, fontWeight: 700 }}>{tag}</span>{" "}
+      <span style={{ color: accent, fontWeight: 700 }}>{s.symbol || "—"}</span>{" "}
+      <span className="text-white/85">{action}</span>{" "}
+      <span className="text-white/55">{lotStr} lot</span>{" "}
+      <span className="text-white/45">· {extra}</span>
+    </div>
+  );
+};
+
+
+// ============ Scanner panel (Chart Scanner tab) ============
+const ScannerPanel = ({ scanBusy, scanResult, scanBalance, accent, theme, onPickFile, onExecute, onOpenBuy, onClearResult }) => {
+  const fileRef = useRef(null);
+  const isUnlimited = scanBalance?.scans_plan === "unlimited";
+  const remaining = isUnlimited ? "∞" : (scanBalance?.scans_balance ?? 0);
+  const noTokens = !isUnlimited && (scanBalance?.scans_balance ?? 0) <= 0;
+  return (
+    <div className="relative z-10 px-4 mt-4 space-y-4" data-testid="mobile-scanner-panel">
+      <div className="rounded-2xl px-4 py-4" style={{
+        border: `2px solid ${accent}`,
+        backgroundColor: "rgba(0,8,18,0.7)",
+        boxShadow: `0 0 20px ${theme.glow}, inset 0 0 16px ${theme.soft}`,
+      }}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" style={{ color: accent }} />
+            <h2 className="font-display text-base font-bold tracking-[0.22em] uppercase" style={{ color: accent }}>Chart Scanner</h2>
+          </div>
+          <div
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+            style={{
+              color: noTokens ? "#FF8A1F" : accent,
+              border: `1px solid ${noTokens ? "#FF8A1F" : accent}66`,
+              backgroundColor: noTokens ? "rgba(255,138,31,0.10)" : `${accent}11`,
+            }}
+            data-testid="mobile-scanner-balance"
+          >
+            <Coins className="w-3 h-3" />
+            {remaining}
+          </div>
+        </div>
+        <div className="text-[11px] text-white/55 leading-relaxed">
+          AI reads your chart screenshot and gives you direction + confidence.
+        </div>
+      </div>
+
+      {/* Result OR uploader */}
+      {scanResult ? (
+        <ScannerResult result={scanResult} accent={accent} theme={theme} onExecute={onExecute} onClear={onClearResult} busy={scanBusy} />
+      ) : (
+        <div
+          className="rounded-2xl p-5 text-center"
+          style={{
+            border: `2px dashed ${accent}66`,
+            backgroundColor: "rgba(0,8,18,0.5)",
+          }}
+        >
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => onPickFile(e.target.files?.[0])}
+            data-testid="mobile-scanner-file-input"
+          />
+          <div className="flex justify-center mb-3">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center"
+              style={{ border: `2px solid ${accent}66`, backgroundColor: `${accent}11`, boxShadow: `0 0 18px ${accent}44` }}>
+              <Camera className="w-6 h-6" style={{ color: accent }} />
+            </div>
+          </div>
+          <div className="text-white text-sm font-semibold">Upload a chart screenshot</div>
+          <div className="text-[11px] text-white/55 mt-1 mb-4">JPG · PNG · WEBP · up to 6 MB</div>
+
+          {noTokens ? (
+            <button
+              onClick={onOpenBuy}
+              className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded"
+              style={{
+                color: "#000",
+                backgroundColor: accent,
+                boxShadow: `0 0 18px ${accent}99`,
+              }}
+              data-testid="mobile-scanner-buy-tokens"
+            >
+              <Coins className="w-4 h-4 inline-block mr-2" />
+              Buy scan tokens
+            </button>
+          ) : (
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={scanBusy}
+              className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded disabled:opacity-50"
+              style={{
+                color: "#000",
+                backgroundColor: accent,
+                boxShadow: `0 0 18px ${accent}99`,
+              }}
+              data-testid="mobile-scanner-upload-btn"
+            >
+              {scanBusy ? "Analysing…" : (<><Upload className="w-4 h-4 inline-block mr-2" />Upload chart</>)}
+            </button>
+          )}
+
+          <button
+            onClick={onOpenBuy}
+            className="mt-3 text-[11px] text-white/55 hover:text-white tracking-[0.18em] uppercase"
+            data-testid="mobile-scanner-buy-link"
+          >
+            Need more scans? Top up here
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ScannerResult = ({ result, accent, theme, onExecute, onClear, busy }) => {
+  const dir = (result.direction || "NEUTRAL").toUpperCase();
+  const color =
+    dir === "BUY"  ? "#22C55E" :
+    dir === "SELL" ? "#FF3B3B" :
+                     "#9CA3AF";
+  const conf = Math.max(0, Math.min(100, Number(result.confidence || 0)));
+  const isExecutable = dir === "BUY" || dir === "SELL";
+  const requested = result.execution_status === "verifying";
+  return (
+    <div
+      className="rounded-2xl p-4"
+      style={{
+        border: `2px solid ${color}`,
+        backgroundColor: "rgba(0,8,18,0.75)",
+        boxShadow: `0 0 22px ${color}55, inset 0 0 16px ${color}22`,
+      }}
+      data-testid="mobile-scanner-result"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4" style={{ color }} />
+          <span className="text-[10px] tracking-[0.22em] uppercase text-white/55">AI Scan Result</span>
+        </div>
+        <button onClick={onClear} className="text-white/40 hover:text-white" data-testid="mobile-scanner-result-close">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="flex items-baseline justify-between mb-3">
+        <div>
+          <div className="font-display text-3xl font-black" style={{ color, textShadow: `0 0 12px ${color}99` }} data-testid="mobile-scanner-result-direction">
+            {dir}
+          </div>
+          {result.symbol && <div className="font-mono text-sm mt-0.5 text-white/80">{result.symbol}{result.timeframe ? ` · ${result.timeframe.toUpperCase()}` : ""}</div>}
+        </div>
+        <div className="text-right">
+          <div className="font-mono text-2xl font-bold" style={{ color: accent }} data-testid="mobile-scanner-result-confidence">{conf}%</div>
+          <div className="text-[10px] tracking-[0.22em] uppercase text-white/45">confidence</div>
+        </div>
+      </div>
+
+      {/* Confidence bar */}
+      <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+        <div
+          className="h-full transition-all"
+          style={{ width: `${conf}%`, backgroundColor: color, boxShadow: `0 0 8px ${color}` }}
+        />
+      </div>
+
+      {result.reasoning && (
+        <div className="text-[12px] leading-relaxed text-white/75 mb-3 font-mono" data-testid="mobile-scanner-result-reasoning">
+          {result.reasoning}
+        </div>
+      )}
+
+      {(result.entry || result.stop_loss || result.take_profit) && (
+        <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+          <ScanMetric label="Entry"      value={result.entry}        color="white" />
+          <ScanMetric label="Stop"       value={result.stop_loss}    color="#FF8A1F" />
+          <ScanMetric label="Target"     value={result.take_profit}  color="#22C55E" />
+        </div>
+      )}
+
+      {isExecutable ? (
+        <button
+          onClick={onExecute}
+          disabled={busy || requested}
+          className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded disabled:opacity-60"
+          style={{
+            color: "#000",
+            backgroundColor: color,
+            boxShadow: `0 0 18px ${color}99`,
+          }}
+          data-testid="mobile-scanner-execute-btn"
+        >
+          {requested
+            ? "Verifying trade for best results — please wait…"
+            : (busy ? "…" : `Execute ${dir} trade`)}
+        </button>
+      ) : (
+        <div className="text-center text-[11px] text-white/55 py-2 border border-white/10 rounded" data-testid="mobile-scanner-neutral">
+          No clear direction — wait for a better setup.
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ScanMetric = ({ label, value, color }) => (
+  <div className="border border-white/10 rounded py-1.5 px-1">
+    <div className="text-[9px] tracking-[0.22em] uppercase text-white/45">{label}</div>
+    <div className="font-mono text-xs mt-0.5 truncate" style={{ color: color === "white" ? "white" : color }}>{value || "—"}</div>
+  </div>
+);
+
+
+// ============ Buy Scan Tokens Modal ============
+const BuyScansModal = ({ open, onClose, onSubmit, busy, accent, theme }) => {
+  const [plan, setPlan] = useState("100");
+  const [proof, setProof] = useState(null); // data URL
+  const proofRef = useRef(null);
+  if (!open) return null;
+
+  const pickProof = (file) => {
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error("Proof image too large. Keep it under 3 MB.");
+      return;
+    }
+    const r = new FileReader();
+    r.onload = () => setProof(String(r.result || ""));
+    r.readAsDataURL(file);
+  };
+
+  const submit = () => {
+    if (!proof) {
+      toast.error("Upload your proof of payment first.");
+      return;
+    }
+    onSubmit(plan, proof);
+  };
+
+  const plans = [
+    { id: "100",       label: "100 Scans",       price: 350, perk: "Pay-as-you-scan" },
+    { id: "unlimited", label: "Unlimited / 30d", price: 730, perk: "Best value · scan all you want" },
+  ];
+
+  return (
+    <div className="absolute inset-0 z-40 bg-black/92 backdrop-blur-sm flex flex-col overflow-y-auto" data-testid="mobile-scanner-buy-modal">
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <h2 className="font-display tracking-[0.22em] uppercase text-sm" style={{ color: accent }}>Buy Scan Tokens</h2>
+        <button onClick={onClose} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-scanner-buy-close">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="px-5 pb-6 space-y-5">
+        <div className="space-y-3">
+          {plans.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPlan(p.id)}
+              className="w-full text-left p-4 rounded-xl transition"
+              style={{
+                border: `2px solid ${plan === p.id ? accent : "rgba(255,255,255,0.12)"}`,
+                backgroundColor: plan === p.id ? `${accent}1A` : "rgba(0,8,18,0.55)",
+                boxShadow: plan === p.id ? `0 0 18px ${accent}55` : undefined,
+              }}
+              data-testid={`mobile-scanner-buy-plan-${p.id}`}
+            >
+              <div className="flex items-baseline justify-between">
+                <div className="font-bold text-white">{p.label}</div>
+                <div className="font-mono text-lg font-bold" style={{ color: accent }}>R{p.price}.00</div>
+              </div>
+              <div className="text-[11px] text-white/55 mt-1">{p.perk}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="rounded-xl p-4" style={{ border: `1px solid ${accent}33`, backgroundColor: "rgba(0,8,18,0.6)" }}>
+          <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-2">EFT Payment Details</div>
+          <BankRow k="Bank" v="Capitec Bank" />
+          <BankRow k="Holder" v="LoyisoFx123$" />
+          <BankRow k="Account" v="2195277943" mono />
+          <BankRow k="Branch" v="470010" mono />
+          <BankRow k="Amount" v={`R${plans.find(p => p.id === plan)?.price}.00`} mono accent={accent} />
+          <BankRow k="Reference" v="ea-central scans" />
+        </div>
+
+        <div>
+          <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-2">Proof of Payment</div>
+          <input ref={proofRef} type="file" accept="image/*,application/pdf" className="hidden"
+            onChange={(e) => pickProof(e.target.files?.[0])} data-testid="mobile-scanner-buy-proof-input" />
+          <button
+            onClick={() => proofRef.current?.click()}
+            className="w-full py-3 text-xs tracking-[0.22em] uppercase border rounded"
+            style={{ borderColor: `${accent}66`, color: accent, backgroundColor: theme.soft }}
+            data-testid="mobile-scanner-buy-proof-pick"
+          >
+            <Upload className="w-4 h-4 inline-block mr-2" /> {proof ? "Replace proof" : "Upload proof"}
+          </button>
+          {proof && proof.startsWith("data:image/") && (
+            <img src={proof} alt="proof" className="mt-2 w-full max-h-40 object-contain rounded border border-white/10" />
+          )}
+          {proof && proof.startsWith("data:application/pdf") && (
+            <div className="mt-2 text-[11px] text-white/55 font-mono">📄 PDF attached</div>
+          )}
+        </div>
+
+        <button
+          onClick={submit}
+          disabled={busy || !proof}
+          className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded disabled:opacity-50"
+          style={{ color: "#000", backgroundColor: accent, boxShadow: `0 0 18px ${accent}99` }}
+          data-testid="mobile-scanner-buy-submit"
+        >
+          {busy ? "Submitting…" : "I paid — submit for approval"}
+        </button>
+        <div className="text-[10px] text-white/45 text-center leading-relaxed">
+          Admin will approve your purchase within minutes and your scans will be credited automatically.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BankRow = ({ k, v, mono = false, accent }) => (
+  <div className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-b-0">
+    <span className="text-[11px] text-white/55">{k}</span>
+    <span className={`text-[12px] ${mono ? "font-mono" : ""}`} style={accent ? { color: accent, fontWeight: 700 } : { color: "white" }}>{v}</span>
   </div>
 );

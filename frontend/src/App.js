@@ -28,6 +28,7 @@ import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminLicenses from "@/pages/AdminLicenses";
 import AdminBrokers from "@/pages/AdminBrokers";
+import AdminScans from "@/pages/AdminScans";
 
 const Protected = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
@@ -69,6 +70,10 @@ function App() {
             <Route
               path="/admin/brokers"
               element={<AdminRoute><AdminBrokers /></AdminRoute>}
+            />
+            <Route
+              path="/admin/scans"
+              element={<AdminRoute><AdminScans /></AdminRoute>}
             />
           </Routes>
           <Toaster
