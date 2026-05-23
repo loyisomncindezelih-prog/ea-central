@@ -205,14 +205,31 @@
 - **24h time format** on signal rows (`hourCycle: 'h23'`) so locales never render 12h "6:10 AM" inconsistencies.
 - **Tested (iter21)**: backend 5/5 pytest + frontend 100% (empty state, populated rows with all status colors verified via computed border-color, Settings drawer 4-col + NEW badge, gold theme application + persistence, all regression testids intact).
 
+## What's been implemented (2026-02 — Iteration 22 — Manual EFT + Welcome Popup + Realistic /app)
+- **Yoco fully removed** → **Manual Capitec EFT** with R700.00 fixed amount. New flow at `/verify-account`:
+  - Show bank details (Capitec account from `.env`), require **Proof of Payment** (image or PDF, ≤3MB) base64 upload before "I paid" is enabled.
+  - WhatsApp redirect after upload (deep link to admin number from `WHATSAPP_NUMBER`).
+  - Admin reviews proof in `/admin/dashboard`, can view base64 attachment + Approve/Decline (decline reason persisted to `users.decline_reason` and surfaced to client).
+- **Backend env** (`/app/backend/.env`): `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_BRANCH_CODE`, `BANK_AMOUNT_ZAR=700`, `WHATSAPP_NUMBER`. Hardcoded fallbacks in `server.py` to survive partial VPS env updates.
+- **Terms & Conditions page** at `/terms` — linked from signup checkbox and footer.
+- **Motivating welcome popup** on `/app` first open (uses `sessionStorage`) — "It's time to make money" themed glass card with neon CTA.
+- **Realistic 4K Premium upgrade** of `/app` — replaced flat chart bg with layered cyberpunk-trader aesthetic, multi-radius halo shadows, glass cards, neon glows on all interactive elements, live pulsing EA status dot.
+
+## What's been implemented (2026-02 — Iteration 23 — Admin Push Trade + Bridge Statuses)
+- **Admin manual trade injection** from `/admin/brokers` per-user actions: Buy / Sell / Close buttons → `POST /api/admin/push-signal` writes a `trade_signal` with `pushed_by='server'` so client EA Status panel displays it as executed by **server** (not "admin").
+- **New signal statuses** on the bridge polling/ack pipeline:
+  - `executing` — bridge has picked up the job and is placing the order (shown amber with spinner on `/app`).
+  - `low_balance` — MT4/MT5 returned insufficient margin / balance (shown red with "Account balance low — top up to continue" tooltip).
+  - Backend tightened substring matching for "margin" / "balance" / "insufficient" in `error_message` to auto-classify acks as `low_balance`.
+- **Audit fields** on every admin-pushed signal: `pushed_by`, `admin_user_id`, `lot_override`, `note`.
+- **Tested (iter20)**: `testing_agent_v3_fork` — 0 defects. Regression file: `/app/backend/tests/test_iteration20_admin_push.py`.
+
 ## Next Action Items
-- **Admin "Test login to broker"** button on `/admin/brokers`: backend uses stored creds to call `MetaTrader5.initialize()` in a sandbox and report success/fail. (P1)
-- **Webhook log section on `/admin/dashboard`**: show last 20 `yoco_events` for auditability. (P2)
+- **Android Floating Overlay (Bubble)** — wrap PWA with **Capacitor** for native APK + `SYSTEM_ALERT_WINDOW`, OR implement **Web Push (FCM)**. Awaiting user direction. (P1)
+- **Webhook / Audit log section on `/admin/dashboard`** — show last 20 admin push-signal + EFT verification events. (P2)
 - **Mentor profile image on Landing testimonials + License receipt** pages. (P2)
-- **"Add to Home Screen" tooltip** on `/app` for iOS/Android first-time visitors. (P2)
-- **MetaTrader bridge Phase 3** — real automated trade execution against live MT4/MT5. (P1)
-- **Security hardening** (carried over from iter13 code review):
-  - `device_id` should be regex-validated to UUID format (currently any 64-char string is accepted).
-  - `/verify-account/checkout` should send a Yoco idempotency key to avoid duplicate checkouts.
-  - Split `server.py` (>1870 lines) into routers `auth.py`, `mentor.py`, `mobile.py`, `admin.py`, `yoco.py`, `bridge.py`.
+- **Refactor monoliths**: split `server.py` (>2100 lines) into routers (`auth.py`, `mentor.py`, `mobile.py`, `admin.py`, `bridge.py`) and break `MobileApp.jsx` (>1900 lines) into per-stage components. (P2)
+- **Security hardening**:
+  - `device_id` regex-validate to UUID format.
   - Rotate `JWT_SECRET` before production deployment.
+  - Consider moving base64 proof-of-payment to S3/GridFS to keep MongoDB doc size manageable as user count grows.
