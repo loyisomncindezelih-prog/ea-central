@@ -298,7 +298,7 @@ async def login(payload: LoginIn, request: Request, response: Response):
     role = user.get("role", "mentor")
     paid = bool(user.get("payment_clicked", False))
 
-    # Mentors must pay R439.00 before they can even sit in the approval queue.
+    # Mentors must pay R500.00 before they can even sit in the approval queue.
     # Admins skip the payment gate.
     if status == "pending" and role != "admin" and not paid:
         await clear_failures(identifier)
@@ -306,7 +306,7 @@ async def login(payload: LoginIn, request: Request, response: Response):
             status_code=402,
             detail={
                 "code": "payment_required",
-                "message": "Complete the R439.00 verification payment to unlock your mentor account.",
+                "message": "Complete the R500.00 verification payment to unlock your mentor account.",
                 "email": email,
             },
         )
@@ -406,7 +406,7 @@ async def verify_account_config():
             "account":       os.environ.get("BANK_ACCOUNT", "2195277943"),
             "branch_code":   os.environ.get("BANK_BRANCH_CODE", "470010"),
             "account_type":  os.environ.get("BANK_ACCOUNT_TYPE", "Savings"),
-            "amount":        os.environ.get("BANK_AMOUNT_ZAR", "700"),
+            "amount":        os.environ.get("BANK_AMOUNT_ZAR", "500"),
             "currency":      "ZAR",
         },
         "whatsapp": {

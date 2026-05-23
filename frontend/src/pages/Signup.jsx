@@ -61,7 +61,7 @@ export default function Signup() {
         payload.ea_file_data_url = eaFile.dataUrl;
       }
       const res = await register(payload);
-      toast.success("Account created — complete the R700 payment to unlock your dashboard");
+      toast.success("Account created — complete the R500 payment to unlock your dashboard");
       navigate(`/verify-account?email=${encodeURIComponent(res?.user?.email || form.email)}&new=1`);
     } catch (err) {
       const msg = formatApiErrorDetail(err.response?.data?.detail) || err.message;

@@ -20,7 +20,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-const PRICE_LABEL = "R700.00";
+const PRICE_LABEL = "R500.00";
 const PRICE_SUBLABEL = "ZAR · one-time verification";
 const MAX_PROOF_MB = 5;
 

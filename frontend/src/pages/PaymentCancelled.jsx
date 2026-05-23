@@ -45,7 +45,7 @@ export default function PaymentCancelled() {
             <p className="text-white/70 mt-4 text-sm sm:text-base">
               {isFailed
                 ? "Yoco couldn't complete the charge. This is usually a card decline — try a different card or contact your bank."
-                : "You cancelled the R439.00 verification payment. No charge was made. You can try again any time."}
+                : "You cancelled the R500.00 verification payment. No charge was made. You can try again any time."}
             </p>
 
             {email && (
