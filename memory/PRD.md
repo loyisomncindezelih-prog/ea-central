@@ -224,12 +224,56 @@
 - **Audit fields** on every admin-pushed signal: `pushed_by`, `admin_user_id`, `lot_override`, `note`.
 - **Tested (iter20)**: `testing_agent_v3_fork` — 0 defects. Regression file: `/app/backend/tests/test_iteration20_admin_push.py`.
 
+## What's been implemented (2026-02 — Iteration 25 — Terminal EA Status + Chart Scanner module)
+### `/app` Mobile client
+- **EA Status terminal**: replaced bulky 3-row signal cards with an **MT4-Journal-style monospace log** (fixed-height 160px, scrolls internally) inside a glass card with mac-window title bar. Shows up to 20 lines, one signal per line: `[HH:MM:SS] TAG SYMBOL ACTION lot · note`. Tags: `OK`(executed) / `CLS`(closed) / `ERR` / `BAL`(low margin) / `SKP` / `RUN`(executing) / `PEN`(pending) — colour-coded.
+- **Auto-clear 5-minute window**: backend `/api/mobile/trade-signals` now filters `created_at >= now-5min` and returns up to 20 entries instead of 3. Old signals stay in DB for admin audit but vanish from the client terminal.
+- **3-tab bottom nav**: Home · Connect · **Scanner** (was 2 tabs). Tab state persists during the session; switching to Connect opens the broker drawer.
+
+### Chart Scanner (new module)
+- **`/app` Scanner tab** (lives in 3rd bottom-nav slot):
+  - Header card shows live scan balance (∞ for unlimited, integer otherwise; orange when 0).
+  - Upload zone (JPG/PNG/WEBP up to 6 MB) → `POST /api/mobile/scanner/upload` → AI vision returns `direction`, `confidence`, `reasoning`, `entry/stop/target`, `symbol`, `timeframe`.
+  - Result card: huge BUY/SELL badge, confidence bar, reasoning, 3-cell Entry/Stop/Target grid, **Execute Trade** button (BUY/SELL only — NEUTRAL hides it).
+  - On Execute: `POST /api/mobile/scanner/execute-request` → status flips to **"Verifying trade for best results — please wait…"** and admin sees a pending request on `/admin/scans`.
+  - **0 tokens?** → upload button morphs into "Buy scan tokens" CTA that opens the purchase modal.
+- **Buy Scan Tokens modal**: choose **100 Scans (R350)** or **Unlimited 30d (R730)** → shows Capitec EFT bank details → upload proof of payment (image or PDF) → `POST /api/mobile/scanner/purchase` records pending purchase. User gets toast: "Admin will approve within minutes."
+
+### Admin
+- **`/admin/scans`** — brand-new admin page:
+  - **Pending Purchases** grid at top — view proof image (lightbox enlarge), Approve (credits user's `scans_balance` or sets `scans_plan='unlimited'`) / Decline (records reason).
+  - **Manual Top-up form** — admin can credit any email with +100, +Unlimited, or custom qty.
+  - **All Scans table** with email/symbol/direction filter, click to expand chart preview + reasoning + entry/stop/target, **Execute** button next to each row pushes the trade via the existing `/admin/broker-connections/{lk}/signal` queue. Pending-execution shows a "Verifying" badge.
+- **`/admin/brokers`** — added a second "⚡ Forward final status (no bridge — already done on MT5)" row beneath the existing Buy/Sell/Close queue. New buttons per pair:
+  - **Mark Executed** → `final_status=executed` (green badge on client terminal)
+  - **Mark Closed** → `final_status=closed` (grey CLS badge)
+  - **Low Bal** → `final_status=low_balance` (orange BAL badge)
+  - **Failed** → `final_status=failed` (red ERR badge)
+  - Each button calls new `POST /api/admin/broker-connections/{license_key}/signal/instant` which inserts the trade_signal **with the final status already set** (no pending/executing lifecycle, no martingale streak update, no broker connection check). Optional `note` displayed on the client. `issued_by='server'` so client still sees "by server".
+- `/admin/dashboard` got a new **Scanner** button next to Brokers.
+
+### Backend additions
+- `POST /api/admin/broker-connections/{license_key}/signal/instant` — admin-only instant-status push.
+- `POST /api/mobile/scanner/execute-request` — user requests execution of a scan; sets `scans.execution_requested_at` + `execution_status='verifying'`.
+- `POST /api/mobile/scanner/purchase` — user submits token purchase + base64 proof (image-only validation enforced); creates `scan_purchases` doc with `status='pending'`.
+- `GET /api/admin/scan-purchases` — list all token purchases.
+- `POST /api/admin/scan-purchases/{id}/approve` — credits user balance or sets unlimited, marks purchase approved.
+- `POST /api/admin/scan-purchases/{id}/decline` — records reason, marks declined.
+- `GET /api/admin/scans` now returns `execution_requested_at` and `execution_status` so admin UI can show pending-execute badges.
+- **Atomic scan balance** — `/scanner/upload` now uses `find_one_and_update` to decrement + read post-update balance (no race conditions under concurrent uploads).
+
+### Tested (iter25)
+- **Backend pytest 25/25 pass** at `/app/backend/tests/test_iteration25_scanner.py` — covers 5-min filter, instant signal auth + happy path, execute-request guards, purchase flow, admin approve/decline credit logic, regression on existing scanner upload/balance/topup/queued push.
+- Frontend lint clean, scanner tab smoke-tested end-to-end (email → license → home → scanner tab navigates without error).
+- 0 critical defects, 0 minor defects, 0 action items.
+
 ## Next Action Items
-- **Android Floating Overlay (Bubble)** — *cancelled by user (2026-02).* Capacitor scaffold was built and then removed at user's request; PWA + admin push-signal flow remain the primary delivery channel.
-- **Webhook / Audit log section on `/admin/dashboard`** — show last 20 admin push-signal + EFT verification events. (P2)
+- Save to GitHub → pull on VPS → `cd /var/www/ea-central && git pull origin main && cd backend && source venv/bin/activate && pip install -r requirements.txt && deactivate && sudo systemctl restart ea-central-backend && cd ../frontend && yarn install && yarn build && sudo systemctl reload nginx`.
+- **Webhook / Audit log section on `/admin/dashboard`** — last 20 admin push-signal + EFT verification events. (P2)
 - **Mentor profile image on Landing testimonials + License receipt** pages. (P2)
-- **Refactor monoliths**: split `server.py` (>2100 lines) into routers (`auth.py`, `mentor.py`, `mobile.py`, `admin.py`, `bridge.py`) and break `MobileApp.jsx` (>1900 lines) into per-stage components. (P2)
+- **Refactor monoliths**: split `server.py` (now ~2700 lines) into routers (`auth.py`, `mentor.py`, `mobile.py`, `admin.py`, `bridge.py`, `scanner.py`) and break `MobileApp.jsx` (>2500 lines) into per-stage components. (P2)
 - **Security hardening**:
   - `device_id` regex-validate to UUID format.
   - Rotate `JWT_SECRET` before production deployment.
-  - Consider moving base64 proof-of-payment to S3/GridFS to keep MongoDB doc size manageable as user count grows.
+  - Move base64 storage (proof-of-payment + chart screenshots) to S3/GridFS as user count grows.
+  - Store `created_at` as native BSON datetime instead of ISO strings (the current 5-min filter works but is fragile to migration).

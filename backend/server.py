@@ -1492,9 +1492,17 @@ async def mobile_scanner_upload(request: Request, payload: ScannerUploadIn):
     }
     await db.scans.insert_one(scan_doc)
 
-    # Deduct 1 scan (skip for unlimited)
+    # Deduct 1 scan atomically and read the post-update balance so the response
+    # is correct even under concurrent uploads.
+    new_balance = -1  # unlimited sentinel
     if not is_unlimited:
-        await db.users.update_one({"email": email}, {"$inc": {"scans_balance": -1}})
+        updated = await db.users.find_one_and_update(
+            {"email": email},
+            {"$inc": {"scans_balance": -1}},
+            return_document=True,
+            projection={"_id": 0, "scans_balance": 1},
+        )
+        new_balance = max(0, int((updated or {}).get("scans_balance") or 0))
 
     return {
         "ok": True,
@@ -1508,7 +1516,7 @@ async def mobile_scanner_upload(request: Request, payload: ScannerUploadIn):
         "stop_loss": scan_doc["stop_loss"],
         "take_profit": scan_doc["take_profit"],
         "key_levels": scan_doc["key_levels"],
-        "scans_balance": -1 if is_unlimited else max(0, int(user.get("scans_balance") or 0) - 1),
+        "scans_balance": new_balance,
         "scans_plan": sd["scans_plan"],
     }
 
@@ -2367,8 +2375,8 @@ async def mobile_scanner_purchase(request: Request, payload: ScanPurchaseIn):
     )
     if not key_doc or key_doc.get("bound_to_email") != email:
         raise HTTPException(status_code=403, detail="Not authorised for this licence")
-    if not payload.proof_data_url.startswith("data:"):
-        raise HTTPException(status_code=400, detail="Upload a clear proof of payment image.")
+    if not payload.proof_data_url.startswith("data:image/"):
+        raise HTTPException(status_code=400, detail="Upload a clear proof of payment image (JPG / PNG / WEBP).")
 
     plan = SCAN_PURCHASE_PLANS[payload.plan]
     purchase_id = str(uuid.uuid4())
