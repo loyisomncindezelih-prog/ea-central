@@ -15,10 +15,14 @@ import {
   Clock,
   ExternalLink,
   Landmark,
+  Upload,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 
-const PRICE_LABEL = "R439.00";
+const PRICE_LABEL = "R700.00";
 const PRICE_SUBLABEL = "ZAR · one-time verification";
+const MAX_PROOF_MB = 5;
 
 // Open WhatsApp with a pre-filled message. `number` may include "+" — strip non-digits.
 function openWhatsApp({ number, template, email, license }) {
@@ -70,6 +74,9 @@ export default function VerifyAccount() {
   const [loading, setLoading] = useState(false);
   const [state, setState] = useState("form"); // form | bank | paid-pending | already-approved
   const [cfg, setCfg] = useState(null);
+  const [proofName, setProofName] = useState("");
+  const [proofUploaded, setProofUploaded] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Pull bank + whatsapp config once on mount so we can render the EFT card.
   useEffect(() => {
@@ -112,7 +119,45 @@ export default function VerifyAccount() {
     }
   };
 
+  const handleProofUpload = async (file) => {
+    if (!file) return;
+    if (file.size > MAX_PROOF_MB * 1024 * 1024) {
+      toast.error(`File is too large. Max ${MAX_PROOF_MB}MB.`);
+      return;
+    }
+    const allowed = ["image/", "application/pdf"];
+    if (!allowed.some((t) => file.type.startsWith(t))) {
+      toast.error("Please upload an image or PDF.");
+      return;
+    }
+    if (!email) {
+      toast.error("Enter your email first.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      await api.post("/verify-account/proof", { email, proof_data_url: dataUrl, filename: file.name });
+      setProofName(file.name);
+      setProofUploaded(true);
+      toast.success("Proof of payment uploaded ✓");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const onIPaid = () => {
+    if (!proofUploaded) {
+      toast.error("Please upload your proof of payment first.");
+      return;
+    }
     if (!cfg?.whatsapp?.number) {
       toast.error("WhatsApp number not configured. Please contact support.");
       return;
@@ -122,7 +167,6 @@ export default function VerifyAccount() {
       template: cfg.whatsapp.template,
       email,
     });
-    // Switch UI into a "we're verifying" holding state so the user knows to wait.
     setState("paid-pending");
   };
 
@@ -206,6 +250,19 @@ export default function VerifyAccount() {
             {state === "bank" && (
               <div className="mt-8 max-w-md mx-auto" data-testid="verify-bank-card">
                 <div className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-3 text-center">/ pay via EFT</div>
+
+                {/* Immediate payment warning — critical for SA banks: standard EFT can take 24-48h */}
+                <div
+                  className="mb-3 flex items-start gap-2 border border-[#FFC850]/55 bg-[#FFC850]/[0.08] px-3 py-2.5"
+                  data-testid="verify-immediate-warning"
+                >
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-[#FFC850]" />
+                  <div className="text-xs text-white/85 leading-relaxed">
+                    <span className="font-bold text-[#FFC850]">Use IMMEDIATE / PayShap payment</span> only.
+                    Standard EFT takes 24–48 hours and your account won't activate until it reflects.
+                  </div>
+                </div>
+
                 <div className="border border-[#1E90FF]/40 bg-black/40 px-5 py-3">
                   <BankRow label="Bank"          value={eft.bank_name}    testid="bank-name" />
                   <BankRow label="Account holder" value={eft.holder}       testid="bank-holder" />
@@ -216,9 +273,47 @@ export default function VerifyAccount() {
                   <BankRow label="Amount"         value={amount}           testid="bank-amount" />
                 </div>
 
+                {/* Proof of payment upload (required) */}
+                <label
+                  className="mt-4 block cursor-pointer"
+                  data-testid="verify-proof-uploader"
+                >
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleProofUpload(e.target.files?.[0])}
+                    data-testid="verify-proof-input"
+                  />
+                  <div
+                    className={`flex items-center gap-3 px-4 py-3 transition ${
+                      proofUploaded
+                        ? "border border-[#22C55E]/60 bg-[#22C55E]/[0.08]"
+                        : "border border-dashed border-[#1E90FF]/50 bg-[#1E90FF]/[0.04] hover:bg-[#1E90FF]/[0.08]"
+                    }`}
+                  >
+                    {uploading ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-[#1E90FF]" />
+                    ) : proofUploaded ? (
+                      <CheckCircle2 className="w-5 h-5 text-[#22C55E]" />
+                    ) : (
+                      <Upload className="w-5 h-5 text-[#1E90FF]" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-xs tracking-[0.22em] uppercase font-bold ${proofUploaded ? "text-[#22C55E]" : "text-[#1E90FF]"}`}>
+                        {uploading ? "Uploading…" : proofUploaded ? "Proof uploaded" : "Upload proof of payment"}
+                      </div>
+                      <div className="text-[11px] text-white/55 truncate mt-0.5">
+                        {proofUploaded ? proofName : `Image or PDF · max ${MAX_PROOF_MB}MB`}
+                      </div>
+                    </div>
+                  </div>
+                </label>
+
                 <Button
                   onClick={onIPaid}
-                  className="mt-5 w-full bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-12 tracking-wide"
+                  disabled={!proofUploaded || uploading}
+                  className="mt-4 w-full bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-12 tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
                   data-testid="verify-i-paid-btn"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />

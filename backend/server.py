@@ -484,9 +484,46 @@ async def verify_account_click(payload: VerifyClickIn):
         "message": (
             "Payment already received — admin is verifying your account."
             if already_paid else
-            "Opening secure Yoco checkout. Complete the R439.00 payment to unlock your account."
+            "Send the EFT — once uploaded, an admin will activate your account."
         ),
     }
+
+
+# ---------- Upload proof of EFT payment ----------
+class ProofIn(BaseModel):
+    email: EmailStr
+    proof_data_url: str = Field(min_length=20, max_length=8 * 1024 * 1024)  # ~8MB base64 cap
+    filename: str | None = Field(default=None, max_length=200)
+
+
+@api_router.post("/verify-account/proof")
+@limiter.limit("10/minute")
+async def verify_account_proof(request: Request, payload: ProofIn):
+    """Stores a base64 image/pdf proof of EFT payment.
+    Frontend sends a data URL (image/png, image/jpeg, application/pdf).
+    Admin can later view it on /admin/dashboard to reconcile against bank statement.
+    """
+    email = payload.email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email. Please sign up first.")
+    if not payload.proof_data_url.startswith("data:"):
+        raise HTTPException(status_code=400, detail="Invalid file format")
+    # Basic MIME allow-list
+    head = payload.proof_data_url.split(",", 1)[0]
+    if not any(t in head for t in ("image/", "application/pdf")):
+        raise HTTPException(status_code=400, detail="Only image or PDF files are accepted")
+    await db.users.update_one(
+        {"email": email},
+        {"$set": {
+            "payment_proof_data_url": payload.proof_data_url,
+            "payment_proof_filename": payload.filename or "proof",
+            "payment_proof_uploaded_at": now_iso(),
+            "payment_clicked": True,
+            "payment_clicked_at": user.get("payment_clicked_at") or now_iso(),
+        }},
+    )
+    return {"ok": True, "uploaded_at": now_iso()}
 
 
 # ---------- Yoco webhook receiver (signature verified per Standard Webhooks) ----------
