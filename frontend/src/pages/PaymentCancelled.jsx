@@ -15,27 +15,12 @@ export default function PaymentCancelled() {
   const [loading, setLoading] = useState(false);
 
   const retry = async () => {
-    if (!email) {
-      navigate("/verify-account");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data } = await api.post("/verify-account/checkout", { email });
-      if (data.redirect_url) {
-        window.location.href = data.redirect_url;
-        return;
-      }
-      if (data.already_approved) {
-        toast.success("Already approved — please log in.");
-        navigate(`/login?email=${encodeURIComponent(email)}`);
-        return;
-      }
+    // EFT flow — just bounce back to /verify-account with the email pre-filled.
+    // The bank details + WhatsApp button live on that page.
+    if (email) {
       navigate(`/verify-account?email=${encodeURIComponent(email)}`);
-    } catch (err) {
-      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
-    } finally {
-      setLoading(false);
+    } else {
+      navigate("/verify-account");
     }
   };
 

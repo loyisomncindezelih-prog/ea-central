@@ -380,6 +380,23 @@ async def verify_account_config():
         "yoco_configured": bool(YOCO_SECRET_KEY),
         "amount_cents": YOCO_AMOUNT_CENTS,
         "currency": YOCO_CURRENCY,
+        # EFT bank-transfer flow (replaces Yoco UI on /verify-account)
+        "eft": {
+            "bank_name":     os.environ.get("BANK_NAME", ""),
+            "holder":        os.environ.get("BANK_HOLDER", ""),
+            "account":       os.environ.get("BANK_ACCOUNT", ""),
+            "branch_code":   os.environ.get("BANK_BRANCH_CODE", ""),
+            "account_type":  os.environ.get("BANK_ACCOUNT_TYPE", ""),
+            "amount":        os.environ.get("BANK_AMOUNT_ZAR", "439"),
+            "currency":      "ZAR",
+        },
+        "whatsapp": {
+            "number":   os.environ.get("WHATSAPP_NUMBER", ""),
+            "template": os.environ.get(
+                "WHATSAPP_TEMPLATE",
+                "Hi, I just made the payment for ea-central verification. My email: {{email}}. Please verify and activate my account.",
+            ),
+        },
     }
 
 
