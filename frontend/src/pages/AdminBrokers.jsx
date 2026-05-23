@@ -182,6 +182,36 @@ export default function AdminBrokers() {
                       )}
                     </div>
                   </div>
+
+                  {/* Pairs the client is trading on */}
+                  <div className="md:col-span-2">
+                    <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-1.5">Pairs traded</div>
+                    {(r.pair_configs && r.pair_configs.length > 0) ? (
+                      <div className="flex flex-wrap gap-1.5" data-testid={`broker-pairs-${i}`}>
+                        {r.pair_configs.map((p, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs tracking-wider px-2 py-1 font-mono"
+                            style={{
+                              border: "1px solid rgba(30,144,255,0.6)",
+                              color: "#1E90FF",
+                              backgroundColor: "rgba(30,144,255,0.08)",
+                            }}
+                          >
+                            {p.symbol}
+                            <span className="text-white/45 ml-1.5">·</span>
+                            <span className="text-white/60 ml-1.5">{p.direction}</span>
+                            <span className="text-white/45 ml-1.5">·</span>
+                            <span className="text-white/60 ml-1.5">{Number(p.lot_size || 0).toFixed(2)} lot</span>
+                            <span className="text-white/45 ml-1.5">·</span>
+                            <span className="text-white/60 ml-1.5">max {p.max_trades}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-white/45" data-testid={`broker-pairs-empty-${i}`}>— (no pairs configured yet)</div>
+                    )}
+                  </div>
                 </div>
 
                 {/* EA session detail */}

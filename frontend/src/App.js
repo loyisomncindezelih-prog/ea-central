@@ -21,6 +21,7 @@ import BridgePage from "@/pages/BridgePage";
 import Profile from "@/pages/Profile";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancelled from "@/pages/PaymentCancelled";
+import Terms from "@/pages/Terms";
 import VerifyAccount from "@/pages/VerifyAccount";
 import PendingApproval from "@/pages/PendingApproval";
 import AdminLogin from "@/pages/AdminLogin";
@@ -43,6 +44,7 @@ function App() {
             <Route path="/mobile-preview" element={<MobilePreview />} />
             <Route path="/app" element={<MobileApp />} />
             <Route path="/verify-account" element={<VerifyAccount />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-cancelled" element={<PaymentCancelled />} />
 

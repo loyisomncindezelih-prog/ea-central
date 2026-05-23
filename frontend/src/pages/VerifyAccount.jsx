@@ -323,6 +323,9 @@ export default function VerifyAccount() {
                 <p className="text-[10px] tracking-[0.22em] uppercase text-white/35 text-center pt-3">
                   Use your <span className="text-white/65">email</span> as the EFT reference so we can match it.
                 </p>
+                <p className="text-[10px] tracking-[0.18em] uppercase text-white/35 text-center pt-1">
+                  By paying you accept the <a href="/terms" target="_blank" rel="noopener" className="text-[#1E90FF] hover:underline" data-testid="verify-terms-link">Terms & Conditions</a> · payments are <span className="text-[#FF3B3B]">non-refundable</span>.
+                </p>
               </div>
             )}
 

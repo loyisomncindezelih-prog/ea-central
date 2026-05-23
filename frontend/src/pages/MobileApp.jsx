@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   ArrowUp,
   ArrowDown,
+  Clock,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -261,6 +262,16 @@ export default function MobileApp() {
   };
 
   // Auto-resume session on load
+  // Hydrate the local `running` flag from server-side ea_session whenever eaData changes.
+  // This means: if the user pressed START and closes the app, when they re-open it
+  // the screen continues to show START as active until they hit STOP.
+  useEffect(() => {
+    if (!eaData) return;
+    const isRunning = (eaData?.ea_session?.status === "running");
+    setRunning(isRunning);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eaData?.ea_session?.status]);
+
   const tryResume = useCallback(async () => {
     const savedEmail = localStorage.getItem(LS_EMAIL);
     const savedLicense = localStorage.getItem(LS_LICENSE);
@@ -1057,6 +1068,18 @@ export default function MobileApp() {
               className="px-5 py-4 flex flex-col gap-4"
               data-testid="mobile-broker-form"
             >
+              {/* Server-side approval notice — sets expectation up-front */}
+              <div
+                className="flex items-start gap-2 px-3 py-2.5"
+                style={{ border: `1.5px solid ${accent}55`, backgroundColor: theme.soft }}
+                data-testid="mobile-broker-wait-notice"
+              >
+                <Clock className="w-4 h-4 mt-0.5 shrink-0" style={{ color: accent }} />
+                <div className="text-xs text-white/85 leading-relaxed">
+                  <span className="font-bold" style={{ color: accent }}>Linking can take 10 minutes or more</span> — our server has to securely verify your broker credentials before any trade can execute on your account. Hang tight.
+                </div>
+              </div>
+
               {/* Platform selector */}
               <div>
                 <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block">Trading platform</label>

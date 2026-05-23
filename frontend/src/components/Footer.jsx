@@ -24,6 +24,7 @@ export const Footer = () => {
           <ul className="space-y-2 text-sm text-white/80">
             <li><a href="/signup" className="hover:text-[#1E90FF]">Become a mentor</a></li>
             <li><a href="/login" className="hover:text-[#1E90FF]">Mentor login</a></li>
+            <li><a href="/terms" className="hover:text-[#1E90FF]" data-testid="footer-terms-link">Terms & Conditions</a></li>
             <li><span className="text-white/40">support@ea-central.com</span></li>
           </ul>
         </div>

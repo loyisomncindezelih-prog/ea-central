@@ -381,17 +381,18 @@ async def verify_account_config():
         "amount_cents": YOCO_AMOUNT_CENTS,
         "currency": YOCO_CURRENCY,
         # EFT bank-transfer flow (replaces Yoco UI on /verify-account)
+        # Fallbacks baked in so the UI renders correctly even if VPS .env wasn't updated.
         "eft": {
-            "bank_name":     os.environ.get("BANK_NAME", ""),
-            "holder":        os.environ.get("BANK_HOLDER", ""),
-            "account":       os.environ.get("BANK_ACCOUNT", ""),
-            "branch_code":   os.environ.get("BANK_BRANCH_CODE", ""),
-            "account_type":  os.environ.get("BANK_ACCOUNT_TYPE", ""),
-            "amount":        os.environ.get("BANK_AMOUNT_ZAR", "439"),
+            "bank_name":     os.environ.get("BANK_NAME", "Capitec Bank"),
+            "holder":        os.environ.get("BANK_HOLDER", "LoyisoFx123$"),
+            "account":       os.environ.get("BANK_ACCOUNT", "2195277943"),
+            "branch_code":   os.environ.get("BANK_BRANCH_CODE", "470010"),
+            "account_type":  os.environ.get("BANK_ACCOUNT_TYPE", "Savings"),
+            "amount":        os.environ.get("BANK_AMOUNT_ZAR", "700"),
             "currency":      "ZAR",
         },
         "whatsapp": {
-            "number":   os.environ.get("WHATSAPP_NUMBER", ""),
+            "number":   os.environ.get("WHATSAPP_NUMBER", "+27670229140"),
             "template": os.environ.get(
                 "WHATSAPP_TEMPLATE",
                 "Hi, I just made the payment for ea-central verification. My email: {{email}}. Please verify and activate my account.",
@@ -1771,6 +1772,18 @@ async def admin_broker_connections(_: dict = Depends(get_admin_user)):
             "trading_style": (key or {}).get("trading_style"),
             "trading_style_label": TRADING_STYLES.get((key or {}).get("trading_style") or "", {}).get("label"),
             "trading_style_risk": TRADING_STYLES.get((key or {}).get("trading_style") or "", {}).get("risk"),
+            "pair_configs": [
+                {
+                    "symbol": pc.get("symbol"),
+                    "direction": pc.get("direction"),
+                    "lot_size": pc.get("lot_size"),
+                    "max_trades": pc.get("max_trades"),
+                    "platform": pc.get("platform"),
+                }
+                for pc in (await db.pair_configs.find(
+                    {"license_key": d.get("license_key")}, {"_id": 0}
+                ).to_list(50))
+            ],
             "ea_session": await _ea_session_summary(d.get("license_key")),
         })
     return out
@@ -1866,6 +1879,8 @@ async def mobile_ea_start(request: Request, payload: EaStartIn):
     pair_count = await db.pair_configs.count_documents({"license_key": license_key})
     if pair_count == 0:
         raise HTTPException(status_code=400, detail="Configure at least one pair before starting.")
+    if not key_doc.get("trading_style"):
+        raise HTTPException(status_code=400, detail="Choose a trading style before starting the EA.")
 
     started = now_iso()
     await db.ea_sessions.update_one(
