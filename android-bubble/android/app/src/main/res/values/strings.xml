@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">EA-CENTRAL</string>
-    <string name="title_activity_main">EA-CENTRAL</string>
-    <string name="package_name">com.eacentral.bubble</string>
-    <string name="custom_url_scheme">com.eacentral.bubble</string>
-</resources>

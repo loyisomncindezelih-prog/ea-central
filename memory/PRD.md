@@ -224,24 +224,8 @@
 - **Audit fields** on every admin-pushed signal: `pushed_by`, `admin_user_id`, `lot_override`, `note`.
 - **Tested (iter20)**: `testing_agent_v3_fork` — 0 defects. Regression file: `/app/backend/tests/test_iteration20_admin_push.py`.
 
-## What's been implemented (2026-02 — Iteration 24 — Android Floating Bubble APK)
-- **New Capacitor 6 Android wrapper** at `/app/android-bubble/` that compiles to a native APK wrapping the existing PWA. Zero web code rewrite — the WebView loads the live `/app` URL configured in `capacitor.config.ts`.
-- **Floating overlay (`SYSTEM_ALERT_WINDOW`)** via foreground service `BubbleService.java`:
-  - Round draggable bubble shows live status (BUY=green / SELL=red / EXEC=amber / FAIL=red / IDLE=grey).
-  - Tap-to-expand panel: Status, Symbol, Side, P&L, Balance, last 3 signals, **Stop EA** quick-action button, Open App.
-  - Polls `/api/mobile/trade-signals` every 6s (same endpoint the PWA EA Status panel uses → bubble stays in sync with both bot bridge and admin push-signal).
-  - Vibrates on a fresh executed BUY / SELL.
-  - Persists creds (email/license/apiBase) via SharedPreferences so it survives crashes/reboots.
-  - Foreground notification with branded icon — survives screen-off and app switches.
-- **Capacitor JS plugin** `Bubble` (`BubblePlugin.java`) exposes `canDrawOverlays / requestOverlayPermission / start / stop / update` to the web layer.
-- **Frontend wiring**: new `/app/frontend/src/lib/bubble.js` (safe no-op in browser) + new toggle button in `MobileApp.jsx ▸ Settings drawer ▸ Floating Bubble` with browser-aware copy + neon glow when active.
-- **Build artifacts shipped**: `AndroidManifest.xml` (with `specialUse` FGS subtype + POST_NOTIFICATIONS for Android 13+), gradle files (project + app + variables), neon cyberpunk drawables for bubble/panel/buttons, launch theme, strings.
-- **README at `/app/android-bubble/README.md`** with full Android Studio build steps (debug `.apk` sideload + signed `.aab` for Play Store), keystore generation, permission flow, file map, troubleshooting matrix.
-- iOS deliberately skipped (no overlay support on iOS) — iOS users keep using PWA "Add to Home Screen".
-
 ## Next Action Items
-- **Build the APK**: on VPS/local, `cd /app/android-bubble && yarn install && npx cap sync android && npx cap open android` → Android Studio → Build APK. Distribute via sideload or Play Store. (P1)
-- **Update `capacitor.config.ts ▸ server.url`** to the production domain before final build.
+- **Android Floating Overlay (Bubble)** — *cancelled by user (2026-02).* Capacitor scaffold was built and then removed at user's request; PWA + admin push-signal flow remain the primary delivery channel.
 - **Webhook / Audit log section on `/admin/dashboard`** — show last 20 admin push-signal + EFT verification events. (P2)
 - **Mentor profile image on Landing testimonials + License receipt** pages. (P2)
 - **Refactor monoliths**: split `server.py` (>2100 lines) into routers (`auth.py`, `mentor.py`, `mobile.py`, `admin.py`, `bridge.py`) and break `MobileApp.jsx` (>1900 lines) into per-stage components. (P2)
