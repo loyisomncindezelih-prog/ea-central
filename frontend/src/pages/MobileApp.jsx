@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, formatApiErrorDetail } from "@/lib/api";
+import { isNative, canDrawOverlays, requestOverlayPermission, startBubble, stopBubble } from "@/lib/bubble";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ import {
   ArrowUp,
   ArrowDown,
   Clock,
+  Layers,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -130,6 +132,9 @@ export default function MobileApp() {
   const [styleOpen, setStyleOpen] = useState(false);
   const [styleBusy, setStyleBusy] = useState(false);
   const [signals, setSignals] = useState([]); // Last 3 trade signals (EA status panel)
+  // Floating bubble (native Android APK only — no-op in browser).
+  const [bubbleOn, setBubbleOn] = useState(false);
+  const [bubbleBusy, setBubbleBusy] = useState(false);
   // Welcome popup — fires once per browser session when the user lands on the app stage.
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [themeKey, setThemeKey] = useState(localStorage.getItem(LS_THEME) || "blue");
@@ -431,14 +436,49 @@ export default function MobileApp() {
   };
 
   const fullLogout = () => {
+    try { stopBubble(); } catch {}
     localStorage.removeItem(LS_LICENSE);
     localStorage.removeItem(LS_EMAIL);
     setLicense("");
     setEmail("");
     setEaData(null);
     setRunning(false);
+    setBubbleOn(false);
     setMenuOpen(false);
     setStage("email");
+  };
+
+  // ============ FLOATING BUBBLE (Native APK only) ============
+  const toggleBubble = async () => {
+    if (!isNative()) {
+      toast.error("Floating bubble only works in the EA-CENTRAL Android app. Download the APK to enable.");
+      return;
+    }
+    setBubbleBusy(true);
+    try {
+      if (bubbleOn) {
+        await stopBubble();
+        setBubbleOn(false);
+        toast.success("Floating bubble stopped");
+        return;
+      }
+      const { granted } = await canDrawOverlays();
+      if (!granted) {
+        await requestOverlayPermission();
+        toast.message("Grant 'Display over other apps', then tap again.");
+        return;
+      }
+      const apiBase = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
+      const res = await startBubble({ email, licenseKey: license, apiBase });
+      if (res?.ok) {
+        setBubbleOn(true);
+        toast.success("Floating bubble active — drag it anywhere");
+      } else {
+        toast.error("Bubble failed: " + (res?.reason || "unknown"));
+      }
+    } finally {
+      setBubbleBusy(false);
+    }
   };
 
   // ============ RENDER ============
@@ -981,6 +1021,30 @@ export default function MobileApp() {
                       )}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="border-t border-white/5 pt-5">
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3">Floating Bubble</div>
+                <button
+                  onClick={toggleBubble}
+                  disabled={bubbleBusy}
+                  className="w-full py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{
+                    border: `1px solid ${bubbleOn ? "#22C55E" : accent}`,
+                    color: bubbleOn ? "#22C55E" : accent,
+                    backgroundColor: bubbleOn ? "rgba(34,197,94,0.08)" : theme.soft,
+                    boxShadow: bubbleOn ? "0 0 18px rgba(34,197,94,0.45)" : `0 0 12px ${accent}33`,
+                  }}
+                  data-testid="mobile-settings-bubble-toggle"
+                >
+                  <Layers className="w-4 h-4" />
+                  {bubbleBusy ? "…" : bubbleOn ? "Stop Floating Bubble" : "Enable Floating Bubble"}
+                </button>
+                <div className="mt-2 text-[10px] leading-relaxed text-white/45">
+                  {isNative()
+                    ? "Shows live EA Status / Buy / Sell over WhatsApp, YouTube and other apps. Drag anywhere, tap to expand."
+                    : "Available only in the EA-CENTRAL Android APK. Visit /downloads on the website to install."}
                 </div>
               </div>
 

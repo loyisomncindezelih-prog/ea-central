@@ -1,0 +1,18 @@
+{
+  "name": "ea-central-bubble",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ea-central Android wrapper with floating overlay bubble (SYSTEM_ALERT_WINDOW)",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open": "npx cap open android",
+    "run": "npx cap run android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/preferences": "^6.0.3",
+    "@capacitor/push-notifications": "^6.0.3"
+  }
+}
