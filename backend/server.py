@@ -1456,7 +1456,28 @@ async def mobile_scanner_upload(request: Request, payload: ScannerUploadIn):
     try:
         raw = await chat.send_message(UserMessage(text=user_text, file_contents=[image_content]))
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Scanner error: {str(e)[:120]}")
+        err_str = str(e)
+        logger.error(f"Scanner LLM call failed for {email}: {err_str[:400]}")
+        low = err_str.lower()
+        if "budget" in low or "insufficient" in low or "quota" in low or "402" in low:
+            raise HTTPException(
+                status_code=503,
+                detail="Scanner temporarily offline — the AI service balance is empty. The admin has been notified to top up. Please try again in a few minutes.",
+            )
+        if "rate" in low or "429" in low:
+            raise HTTPException(
+                status_code=429,
+                detail="Scanner is busy right now. Please try again in 10 seconds.",
+            )
+        if "image" in low or "size" in low or "format" in low:
+            raise HTTPException(
+                status_code=400,
+                detail="Couldn't read that image. Try a clearer screenshot (JPG/PNG, under 4 MB).",
+            )
+        raise HTTPException(
+            status_code=502,
+            detail="Scanner couldn't analyse the chart right now. Please try again.",
+        )
 
     # Parse JSON (model is strict — but be defensive)
     import json as _json
