@@ -23,6 +23,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
+from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from cryptography.fernet import Fernet
 import base64
 import hashlib
@@ -1230,7 +1231,6 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
         "notice": "Broker linking to server… server-side verification in progress.",
     }
 
-
 @api_router.post("/mobile/disconnect-broker")
 @limiter.limit("30/minute")
 async def mobile_disconnect_broker(request: Request, payload: MobileActivateIn):
@@ -1332,6 +1332,273 @@ async def mobile_trading_style(request: Request, payload: TradingStyleIn):
         }},
     )
     return {"ok": True, "style": style, "label": TRADING_STYLES[style]["label"], "risk": TRADING_STYLES[style]["risk"]}
+
+
+# =========================================================================================
+#                         FOREX CHART SCANNER (GPT-5.2 vision)
+# -----------------------------------------------------------------------------------------
+# Client uploads a chart screenshot (image data URL). We hand it to GPT-5.2 vision with a
+# strict JSON schema prompt. The model returns direction (BUY/SELL/NEUTRAL), confidence
+# (0-100), reasoning, and optionally a suggested entry/stop/target.
+#
+# Token economy:
+#   • 100-scans pack = R350.00   → users.scans_balance gets +100
+#   • Unlimited pack = R730.00   → users.scans_plan = "unlimited" (balance ignored)
+#   • Admin can top up via POST /api/admin/users/{email}/scan-topup
+# =========================================================================================
+
+SCAN_PLANS = {
+    "100":       {"label": "100 Scans",       "price_zar": 350, "scans": 100},
+    "unlimited": {"label": "Unlimited Scans", "price_zar": 730, "scans": -1},  # -1 sentinel
+}
+
+
+def _normalise_user_scan_doc(u: dict) -> dict:
+    """Hydrate missing scan fields onto an existing user doc (back-compat)."""
+    return {
+        "scans_balance": int(u.get("scans_balance") or 0),
+        "scans_plan":    u.get("scans_plan"),  # None / "100" / "unlimited"
+        "scans_topup_at": u.get("scans_topup_at"),
+    }
+
+
+class ScannerUploadIn(BaseModel):
+    email: EmailStr
+    license_key: str = Field(min_length=4, max_length=64)
+    image_data_url: str = Field(min_length=20, max_length=8 * 1024 * 1024)  # ~8MB base64 cap
+    chart_context: str | None = Field(default=None, max_length=200)        # e.g. "EURUSD H1"
+
+
+@api_router.post("/mobile/scanner/upload")
+@limiter.limit("12/minute")
+async def mobile_scanner_upload(request: Request, payload: ScannerUploadIn):
+    """Run a vision analysis over the uploaded chart and return a trade suggestion.
+
+    Charges 1 scan from the user's balance unless they're on the unlimited plan.
+    Stores the scan in db.scans for admin review (and admin "execute to client" flow).
+    """
+    email = payload.email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Licence ownership + bound guard (same model as trade-signals)
+    key_doc = await db.license_keys.find_one(
+        {"key": payload.license_key.strip().upper()},
+        {"_id": 0, "bound_to_email": 1},
+    )
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Invalid licence key")
+    if not key_doc.get("bound_to_email") or key_doc["bound_to_email"] != email:
+        raise HTTPException(status_code=403, detail="Not authorised for this licence")
+
+    if not payload.image_data_url.startswith("data:image/"):
+        raise HTTPException(status_code=400, detail="Upload a JPG / PNG / WEBP chart screenshot.")
+
+    # Balance check
+    sd = _normalise_user_scan_doc(user)
+    is_unlimited = sd["scans_plan"] == "unlimited"
+    if not is_unlimited and sd["scans_balance"] <= 0:
+        raise HTTPException(
+            status_code=402,
+            detail="You're out of scan tokens. Top up 100 scans (R350) or go unlimited (R730).",
+        )
+
+    # Extract base64 body from data URL
+    try:
+        _, b64 = payload.image_data_url.split(",", 1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid image upload")
+
+    # Vision analysis via GPT-5.2 (Emergent universal key)
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Scanner unavailable (LLM key missing)")
+
+    sys_prompt = (
+        "You are a senior forex price-action analyst. The user shows you a chart screenshot.\n"
+        "Respond with ONE LINE of strict JSON (no markdown, no prose) using this schema:\n"
+        '{"direction":"BUY"|"SELL"|"NEUTRAL","confidence":0-100,"symbol":"<best guess or empty>",'
+        '"timeframe":"<m1/m5/m15/h1/h4/d1/empty>","reasoning":"<≤180 chars>",'
+        '"entry":"<price or empty>","stop_loss":"<price or empty>","take_profit":"<price or empty>",'
+        '"key_levels":["<level1>","<level2>"]}\n'
+        "Rules:\n"
+        " • Base direction on candle structure, swing highs/lows, momentum, obvious S/R.\n"
+        " • Confidence reflects clarity. If chart is ambiguous, output NEUTRAL with low confidence.\n"
+        " • Never guess prices — leave empty if you can't read them.\n"
+        " • This is NOT financial advice. The user has been warned.\n"
+    )
+    user_text = f"Analyse this forex chart. Context hint: {payload.chart_context or '(none)'}"
+
+    session_id = f"scan-{uuid.uuid4()}"
+    chat = LlmChat(api_key=api_key, session_id=session_id, system_message=sys_prompt).with_model("openai", "gpt-5.2")
+    image_content = ImageContent(image_base64=b64)
+    raw = ""
+    try:
+        raw = await chat.send_message(UserMessage(text=user_text, file_contents=[image_content]))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Scanner error: {str(e)[:120]}")
+
+    # Parse JSON (model is strict — but be defensive)
+    import json as _json
+    parsed = None
+    try:
+        parsed = _json.loads(raw.strip().strip("```").strip("json").strip())
+    except Exception:
+        m = re.search(r"\{.*\}", raw, flags=re.S)
+        if m:
+            try:
+                parsed = _json.loads(m.group(0))
+            except Exception:
+                parsed = None
+    if not parsed or not isinstance(parsed, dict):
+        raise HTTPException(status_code=502, detail="Scanner couldn't read the chart — try a clearer screenshot.")
+
+    direction = (parsed.get("direction") or "NEUTRAL").upper()
+    if direction not in ("BUY", "SELL", "NEUTRAL"):
+        direction = "NEUTRAL"
+    try:
+        confidence = max(0, min(100, int(parsed.get("confidence") or 0)))
+    except (TypeError, ValueError):
+        confidence = 0
+
+    scan_doc = {
+        "id": str(uuid.uuid4()),
+        "license_key": payload.license_key.strip().upper(),
+        "email": email,
+        "username": user.get("username"),
+        "created_at": now_iso(),
+        "direction": direction,
+        "confidence": confidence,
+        "symbol": (parsed.get("symbol") or "").upper() or None,
+        "timeframe": parsed.get("timeframe") or None,
+        "reasoning": (parsed.get("reasoning") or "")[:240],
+        "entry": parsed.get("entry") or None,
+        "stop_loss": parsed.get("stop_loss") or None,
+        "take_profit": parsed.get("take_profit") or None,
+        "key_levels": parsed.get("key_levels") or [],
+        # Save thumbnail data URL (truncated) for admin preview
+        "image_data_url": payload.image_data_url[:4_000_000],  # raw; admin can view
+        "context_hint": payload.chart_context,
+        "executed_at": None,           # set by admin when they push it as a trade
+        "executed_signal_id": None,
+        "ai_raw": raw[:1000],
+    }
+    await db.scans.insert_one(scan_doc)
+
+    # Deduct 1 scan (skip for unlimited)
+    if not is_unlimited:
+        await db.users.update_one({"email": email}, {"$inc": {"scans_balance": -1}})
+
+    return {
+        "ok": True,
+        "id": scan_doc["id"],
+        "direction": direction,
+        "confidence": confidence,
+        "symbol": scan_doc["symbol"],
+        "timeframe": scan_doc["timeframe"],
+        "reasoning": scan_doc["reasoning"],
+        "entry": scan_doc["entry"],
+        "stop_loss": scan_doc["stop_loss"],
+        "take_profit": scan_doc["take_profit"],
+        "key_levels": scan_doc["key_levels"],
+        "scans_balance": -1 if is_unlimited else max(0, int(user.get("scans_balance") or 0) - 1),
+        "scans_plan": sd["scans_plan"],
+    }
+
+
+@api_router.post("/mobile/scanner/balance")
+@limiter.limit("60/minute")
+async def mobile_scanner_balance(request: Request, payload: TradingStyleIn):
+    """Lightweight balance lookup so the Scanner tab can show how many scans remain.
+    Reuses TradingStyleIn schema (email + license_key) — `style` is ignored here.
+    """
+    email = payload.email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+    key_doc = await db.license_keys.find_one(
+        {"key": payload.license_key.strip().upper()}, {"_id": 0, "bound_to_email": 1}
+    )
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Invalid licence key")
+    if not key_doc.get("bound_to_email") or key_doc["bound_to_email"] != email:
+        raise HTTPException(status_code=403, detail="Not authorised for this licence")
+    sd = _normalise_user_scan_doc(user)
+    return {
+        "scans_balance": -1 if sd["scans_plan"] == "unlimited" else sd["scans_balance"],
+        "scans_plan": sd["scans_plan"],
+        "plans": [
+            {"id": k, **v} for k, v in SCAN_PLANS.items()
+        ],
+    }
+
+
+# ---------- Admin: top up a user's scan balance ----------
+class ScanTopupIn(BaseModel):
+    plan: str = Field(min_length=2, max_length=20)  # "100" or "unlimited" or "custom"
+    custom_scans: int | None = Field(default=None, ge=1, le=10000)
+
+
+@api_router.post("/admin/users/{email}/scan-topup")
+async def admin_scan_topup(email: str, payload: ScanTopupIn, admin: dict = Depends(get_admin_user)):
+    email = email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.plan == "unlimited":
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"scans_plan": "unlimited", "scans_topup_at": now_iso(), "scans_topup_by": admin.get("email")}},
+        )
+        return {"ok": True, "scans_plan": "unlimited", "scans_balance": -1}
+
+    if payload.plan == "100":
+        add = 100
+    elif payload.plan == "custom" and payload.custom_scans:
+        add = int(payload.custom_scans)
+    else:
+        raise HTTPException(status_code=400, detail="Unknown top-up plan")
+
+    new_doc = await db.users.find_one_and_update(
+        {"email": email},
+        {"$inc": {"scans_balance": add},
+         "$set": {"scans_topup_at": now_iso(), "scans_topup_by": admin.get("email")}},
+        return_document=True,
+        projection={"_id": 0, "scans_balance": 1, "scans_plan": 1},
+    )
+    return {"ok": True, "added": add, **(new_doc or {})}
+
+
+# ---------- Admin: list scans (so they can see results & forward as trades) ----------
+@api_router.get("/admin/scans")
+async def admin_scans(limit: int = 50, admin: dict = Depends(get_admin_user)):
+    cur = db.scans.find({}, {"_id": 0}).sort("created_at", -1).limit(int(min(limit, 200)))
+    rows = []
+    async for s in cur:
+        rows.append({
+            "id": s.get("id"),
+            "license_key": s.get("license_key"),
+            "email": s.get("email"),
+            "username": s.get("username"),
+            "created_at": s.get("created_at"),
+            "direction": s.get("direction"),
+            "confidence": s.get("confidence"),
+            "symbol": s.get("symbol"),
+            "timeframe": s.get("timeframe"),
+            "reasoning": s.get("reasoning"),
+            "entry": s.get("entry"),
+            "stop_loss": s.get("stop_loss"),
+            "take_profit": s.get("take_profit"),
+            "key_levels": s.get("key_levels"),
+            "executed_at": s.get("executed_at"),
+            "executed_signal_id": s.get("executed_signal_id"),
+            "image_data_url": s.get("image_data_url"),  # for thumbnail
+        })
+    return {"scans": rows}
+
+
 
 
 # ----------------------- Per-pair trade configuration (client picks pairs to trade) -----------------------
