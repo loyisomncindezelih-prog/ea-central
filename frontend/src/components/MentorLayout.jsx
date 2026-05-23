@@ -9,7 +9,6 @@ import {
   Cpu,
   TrendingUp,
   LogOut,
-  Cable,
   User,
 } from "lucide-react";
 
