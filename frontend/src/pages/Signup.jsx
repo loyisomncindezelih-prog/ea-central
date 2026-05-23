@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CountryCodeSelect } from "@/components/CountryCodeSelect";
 import { useAuth, formatApiErrorDetail } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Upload, Cpu } from "lucide-react";
 
 export default function Signup() {
   const { register } = useAuth();
@@ -22,11 +22,29 @@ export default function Signup() {
     contact_number: "",
     password: "",
   });
+  const [eaFile, setEaFile] = useState(null); // { name, dataUrl, size }
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const onChange = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onEaPick = (file) => {
+    if (!file) { setEaFile(null); return; }
+    const name = file.name || "";
+    const lower = name.toLowerCase();
+    if (!lower.endsWith(".ex4") && !lower.endsWith(".ex5")) {
+      toast.error("Only .ex4 or .ex5 files are accepted.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("EA file too large. Keep it under 8 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setEaFile({ name, dataUrl: String(reader.result || ""), size: file.size });
+    reader.readAsDataURL(file);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -37,8 +55,13 @@ export default function Signup() {
     }
     setLoading(true);
     try {
-      const res = await register(form);
-      toast.success("Account created — complete the R439 payment to unlock your dashboard");
+      const payload = { ...form };
+      if (eaFile) {
+        payload.ea_file_name = eaFile.name;
+        payload.ea_file_data_url = eaFile.dataUrl;
+      }
+      const res = await register(payload);
+      toast.success("Account created — complete the R700 payment to unlock your dashboard");
       navigate(`/verify-account?email=${encodeURIComponent(res?.user?.email || form.email)}&new=1`);
     } catch (err) {
       const msg = formatApiErrorDetail(err.response?.data?.detail) || err.message;
@@ -147,6 +170,46 @@ export default function Signup() {
                   className="bg-transparent border-white/20 focus:border-[#1E90FF] focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12"
                   data-testid="signup-password"
                 />
+              </Field>
+
+              <Field label="EA file (.ex4 or .ex5) — optional">
+                <label
+                  htmlFor="ea-file-input"
+                  className="flex items-center gap-3 border border-dashed border-white/20 hover:border-[#1E90FF] cursor-pointer px-4 py-3 transition"
+                  data-testid="signup-ea-file-label"
+                >
+                  <div className="w-9 h-9 flex items-center justify-center border border-[#1E90FF]/40 bg-[#1E90FF]/10 text-[#1E90FF] shrink-0">
+                    {eaFile ? <Cpu className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white truncate">
+                      {eaFile ? eaFile.name : "Drop or pick your compiled EA"}
+                    </div>
+                    <div className="text-[11px] text-white/45 mt-0.5">
+                      {eaFile
+                        ? `${(eaFile.size / 1024).toFixed(1)} KB · ready to upload`
+                        : "MT4 .ex4 · MT5 .ex5 · up to 8 MB · you can also add it later from Manage EAs"}
+                    </div>
+                  </div>
+                  {eaFile && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); setEaFile(null); }}
+                      className="text-[11px] text-white/55 hover:text-white shrink-0 underline"
+                      data-testid="signup-ea-file-clear"
+                    >
+                      remove
+                    </button>
+                  )}
+                  <input
+                    id="ea-file-input"
+                    type="file"
+                    accept=".ex4,.ex5,application/octet-stream"
+                    onChange={(e) => onEaPick(e.target.files?.[0])}
+                    className="hidden"
+                    data-testid="signup-ea-file"
+                  />
+                </label>
               </Field>
 
               <div className="flex items-start gap-3 pt-2">

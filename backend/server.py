@@ -188,6 +188,9 @@ class RegisterIn(BaseModel):
     country_code: str = Field(min_length=2, max_length=6)
     contact_number: str = Field(min_length=4, max_length=20)
     password: str = Field(min_length=6, max_length=128)
+    # Optional compiled EA (.ex4 / .ex5) uploaded at signup. Base64 data URL up to ~10 MB raw.
+    ea_file_name: str | None = Field(default=None, max_length=120)
+    ea_file_data_url: str | None = Field(default=None, max_length=14 * 1024 * 1024)
 
 
 class LoginIn(BaseModel):
@@ -246,6 +249,19 @@ async def register(payload: RegisterIn):
         "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    # Optional EA file upload at signup. We validate the extension on the
+    # filename and only persist .ex4 / .ex5 base64 payloads. Anything else
+    # is silently ignored (frontend rejects too) so this never blocks signup.
+    if payload.ea_file_name and payload.ea_file_data_url:
+        name = payload.ea_file_name.strip()
+        lower = name.lower()
+        if (lower.endswith(".ex4") or lower.endswith(".ex5")) and payload.ea_file_data_url.startswith("data:"):
+            doc["ea_file_name"] = name
+            doc["ea_file_data_url"] = payload.ea_file_data_url
+            doc["ea_file_uploaded_at"] = datetime.now(timezone.utc).isoformat()
+            doc["ea_file_platform"] = "mt5" if lower.endswith(".ex5") else "mt4"
+
     await db.users.insert_one(doc)
 
     # Do not log the user in — admin must approve first.
@@ -2037,8 +2053,8 @@ async def mentor_bridge_activity(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/bridge/download")
-async def download_bridge_script():
-    """Public download of the desktop bridge helper script."""
+async def download_bridge_script(_: dict = Depends(get_admin_user)):
+    """Admin-only download of the desktop bridge helper script."""
     path = ROOT_DIR / "bridge_helper" / "ea_central_bridge.py"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Bridge helper not found")

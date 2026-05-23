@@ -11,7 +11,6 @@ import {
   ArrowRight,
   Download,
   Apple,
-  MonitorDown,
   CircuitBoard,
 } from "lucide-react";
 
@@ -32,7 +31,7 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: "01", title: "Download the bot bridge", body: "Install the ea-central bridge on the PC running your bot. One key pairs it to your mentor account." },
+  { n: "01", title: "Upload your EA",          body: "Sign up as a mentor and upload your .ex4 or .ex5 file. We host it — no PC, no VPS." },
   { n: "02", title: "Invite your clients",     body: "Share a link. Clients download the Mobile EA, subscribe to your room, and they're live." },
   { n: "03", title: "Trade. Copy. Scale.",     body: "Every entry, every exit — mirrored across all phones, instantly, with per-client risk rules." },
 ];
@@ -193,47 +192,11 @@ export default function Landing() {
           One platform. Two downloads.
         </h2>
         <p className="mt-3 sm:mt-4 text-white/65 text-sm sm:text-base max-w-2xl">
-          ea-central is installed software — never run in a browser. Mentors download the PC bridge,
-          clients download the Mobile EA. That's it.
+          ea-central's Mobile EA puts your mentor's bot in your pocket. No VPS, no MT terminal —
+          just install the app, link your broker, and mirror every trade live.
         </p>
 
-        <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-          {/* Mentor bridge */}
-          <div className="ea-glass p-6 sm:p-8" data-testid="download-mentor">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 flex items-center justify-center border border-[#1E90FF]/40 bg-[#1E90FF]/10 text-[#1E90FF]">
-                <MonitorDown className="w-5 h-5" strokeWidth={1.5} />
-              </div>
-              <div>
-                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45">for mentors</div>
-                <h3 className="font-display text-lg sm:text-xl font-semibold">PC Bot Bridge</h3>
-              </div>
-            </div>
-            <p className="mt-4 text-sm text-white/65 leading-relaxed">
-              The desktop companion that pairs your trading bot to ea-central. Install once,
-              pair with your account, your trades start broadcasting to every subscriber's phone.
-            </p>
-            <ul className="mt-5 space-y-2 text-xs sm:text-sm text-white/70">
-              <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#1E90FF] rounded-full" /> Windows 10/11 · macOS 13+ · Linux</li>
-              <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#1E90FF] rounded-full" /> Works with MT4 / MT5 / cTrader</li>
-              <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-[#1E90FF] rounded-full" /> Secure pairing key, encrypted channel</li>
-            </ul>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <a href="#" data-testid="download-bridge-windows">
-                <Button className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none px-5 h-11">
-                  <Download className="w-4 h-4 mr-2" />
-                  Windows .exe
-                </Button>
-              </a>
-              <a href="#" data-testid="download-bridge-mac">
-                <Button className="bg-transparent border border-white/20 hover:border-[#1E90FF] hover:text-[#1E90FF] text-white rounded-none px-5 h-11">
-                  <Apple className="w-4 h-4 mr-2" />
-                  macOS .dmg
-                </Button>
-              </a>
-            </div>
-          </div>
-
+        <div className="mt-10 grid grid-cols-1 md:max-w-2xl md:mx-auto gap-5 sm:gap-6">
           {/* Client mobile EA */}
           <div className="ea-glass p-6 sm:p-8" data-testid="download-client">
             <div className="flex items-center gap-3">

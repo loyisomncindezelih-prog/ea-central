@@ -18,7 +18,6 @@ const NAV = [
   { to: "/dashboard/generate-key",   end: false, icon: KeyRound,        label: "Generate Key" },
   { to: "/dashboard/manage-eas",     end: false, icon: Cpu,             label: "Manage EAs" },
   { to: "/dashboard/key-stats",      end: true,  icon: TrendingUp,      label: "Key Stats" },
-  { to: "/dashboard/bridge",         end: true,  icon: Cable,           label: "Bridge" },
   { to: "/dashboard/profile",        end: true,  icon: User,            label: "Profile" },
 ];
 

@@ -55,7 +55,6 @@ function App() {
             <Route path="/dashboard/manage-eas" element={<Protected><ManageEAs /></Protected>} />
             <Route path="/dashboard/manage-eas/:id" element={<Protected><EADetail /></Protected>} />
             <Route path="/dashboard/key-stats" element={<Protected><KeyStats /></Protected>} />
-            <Route path="/dashboard/bridge" element={<Protected><BridgePage /></Protected>} />
             <Route path="/dashboard/profile" element={<Protected><Profile /></Protected>} />
 
             <Route path="/admin" element={<AdminLogin />} />
@@ -74,6 +73,10 @@ function App() {
             <Route
               path="/admin/scans"
               element={<AdminRoute><AdminScans /></AdminRoute>}
+            />
+            <Route
+              path="/admin/bridge"
+              element={<AdminRoute><BridgePage /></AdminRoute>}
             />
           </Routes>
           <Toaster

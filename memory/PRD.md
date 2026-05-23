@@ -224,6 +224,26 @@
 - **Audit fields** on every admin-pushed signal: `pushed_by`, `admin_user_id`, `lot_override`, `note`.
 - **Tested (iter20)**: `testing_agent_v3_fork` — 0 defects. Regression file: `/app/backend/tests/test_iteration20_admin_push.py`.
 
+## What's been implemented (2026-02 — Iteration 27 — Bridge admin-only + EA file at signup + Terminal polish)
+### Removed PC Bot Bridge from public/mentor surfaces (admin-only now)
+- **Landing page** — entire "PC Bot Bridge" mentor download card removed; Mobile EA card centered. Hero-section step "01. Download the bot bridge" → "**Upload your EA**".
+- **Mentor sidebar** (`MentorLayout.jsx`) — "Bridge" nav item removed. `/dashboard/bridge` route dropped from `App.js`.
+- **Admin** — `/admin/bridge` route added (BridgePage now protected by AdminRoute). New "Bridge" button on `/admin/dashboard` next to Brokers/Scanner.
+- **Backend** — `GET /api/bridge/download` (desktop helper script) now requires admin auth (was public). Other bridge endpoints (`/bridge/jobs`, `/bridge/mentor-push`, `/bridge/pair`) untouched because they're authed by `bridge_token` and used by the running desktop bridge.
+
+### Optional EA file upload at signup
+- **Signup page** — new "EA file (.ex4 or .ex5) — optional" field with bordered drop-zone, file picker, accepted ext list, size/name preview, "remove" button. Frontend validates extension client-side and rejects >8 MB.
+- **Backend** — `RegisterIn` schema now accepts optional `ea_file_name` + `ea_file_data_url` (up to ~14 MB base64). On register: if filename ends `.ex4` or `.ex5` and data URL starts with `data:`, the file is persisted to `users.{ea_file_name, ea_file_data_url, ea_file_uploaded_at, ea_file_platform}` (auto-derived `mt4` vs `mt5`). Otherwise silently dropped (never blocks signup).
+
+### EA Status terminal polish
+- Brightened empty state to a real bash-prompt with green `[ok] connected · polling every 8s`, blinking cursor `▊`, yellow `[hint] press START above to begin receiving live trades`.
+- Removed `whitespace-nowrap` from signal rows — long lines now wrap.
+- New `.ea-term-cursor` blink keyframe in `index.css`.
+
+### Tested
+- Backend smoke (curl): `/api/auth/register` with `.ex5` file → 200, `users` doc shows `ea_file_name: "MyBot.ex5"`, `ea_file_platform: "mt5"`, `ea_file_uploaded_at` set.
+- Frontend smoke: Landing page no longer contains "PC Bot Bridge" or `download-bridge-*` testids; Signup page exposes `signup-ea-file` input. Lint clean.
+
 ## What's been implemented (2026-02 — Iteration 25 — Terminal EA Status + Chart Scanner module)
 ### `/app` Mobile client
 - **EA Status terminal**: replaced bulky 3-row signal cards with an **MT4-Journal-style monospace log** (fixed-height 160px, scrolls internally) inside a glass card with mac-window title bar. Shows up to 20 lines, one signal per line: `[HH:MM:SS] TAG SYMBOL ACTION lot · note`. Tags: `OK`(executed) / `CLS`(closed) / `ERR` / `BAL`(low margin) / `SKP` / `RUN`(executing) / `PEN`(pending) — colour-coded.
