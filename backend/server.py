@@ -13,6 +13,7 @@ import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Literal
+import re
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
 from starlette.middleware.cors import CORSMiddleware
@@ -1673,16 +1674,28 @@ async def bridge_ack_job(request: Request, job_id: str, payload: BridgeAckIn):
         return {"ok": True, "already_acked": True, "status": job["status"]}
 
     # Detect low-balance / insufficient-margin errors from MT5 and surface them as a
-    # discrete status so the client app can show a friendly "low account balance" card
-    # rather than a generic red failure. Common MT5 retcodes: 10019 (no money), 10018
-    # (market closed). We match on text since bridges may pass either a code or a string.
-    err_str = (payload.error or "") + " " + (str(payload.raw or {}))
-    err_low = err_str.lower()
+    # discrete status. Match MT5 retcode int first (most reliable — TRADE_RETCODE_NO_MONEY=10019,
+    # TRADE_RETCODE_NOT_ENOUGH_MONEY=10019 alias), then fall back to whole-word string
+    # matching against the error/raw payload. Avoid greedy substrings like "margin" alone
+    # so an "invalid stop-loss within margin" error isn't mis-classified.
     final_status = payload.status
-    if payload.status == "failed" and any(t in err_low for t in (
-        "no money", "no_money", "10019", "not enough money", "insufficient", "margin",
-    )):
-        final_status = "low_balance"
+    if payload.status == "failed":
+        raw_d = payload.raw if isinstance(payload.raw, dict) else {}
+        retcode = raw_d.get("retcode")
+        try:
+            retcode_int = int(retcode) if retcode is not None else None
+        except (TypeError, ValueError):
+            retcode_int = None
+        err_str = ((payload.error or "") + " " + (str(raw_d))).lower()
+        is_low_balance = (
+            retcode_int in (10019,)
+            or re.search(r"\bno money\b", err_str)
+            or re.search(r"\bnot enough money\b", err_str)
+            or re.search(r"\binsufficient (funds|margin|balance)\b", err_str)
+            or re.search(r"\bfree margin\b", err_str)
+        )
+        if is_low_balance:
+            final_status = "low_balance"
 
     await db.trade_signals.update_one(
         {"id": job_id},
