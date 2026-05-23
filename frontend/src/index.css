@@ -136,6 +136,16 @@ h6,
     animation: ea-pulse 1.6s ease-in-out infinite;
 }
 
+@keyframes ea-term-blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+.ea-term-cursor {
+    display: inline-block;
+    animation: ea-term-blink 1s steps(1) infinite;
+    margin-left: 2px;
+}
+
 @keyframes ea-fade-up {
     from {
         opacity: 0;

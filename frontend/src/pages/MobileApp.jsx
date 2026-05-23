@@ -1010,15 +1010,29 @@ export default function MobileApp() {
 
             {/* Terminal body — fixed height, scrolls internally */}
             <div
-              className="font-mono text-[11px] leading-snug px-3 py-2 overflow-y-auto"
-              style={{ height: 160, color: "rgba(255,255,255,0.85)" }}
+              className="font-mono text-[11px] leading-snug px-3 py-2 overflow-auto"
+              style={{ height: 160, color: "rgba(255,255,255,0.92)" }}
               data-testid="mobile-ea-terminal-body"
             >
               {signals.length === 0 ? (
-                <div className="text-white/45">
-                  <span style={{ color: accent }}>$</span> ea-central --watch<br />
-                  <span className="text-white/30">[--]</span> waiting for the mentor's bot…<br />
-                  <span className="text-white/30">[--]</span> rolling 5-minute log · polls every {running ? "3s" : "8s"}
+                <div>
+                  <div style={{ color: "#22C55E" }}>
+                    <span style={{ color: accent }}>$</span> ea-central --watch <span className="ea-term-cursor">▊</span>
+                  </div>
+                  <div style={{ color: "#22C55E", opacity: 0.85 }}>
+                    [ok] connected · polling every {running ? "3s" : "8s"}
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.65)" }}>
+                    [--] waiting for the mentor's bot to fire a signal…
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.45)" }}>
+                    [--] this log auto-clears every 5 minutes
+                  </div>
+                  {!running && (
+                    <div style={{ color: "#F5C150" }}>
+                      [hint] press <span style={{ color: accent, fontWeight: 700 }}>START</span> above to begin receiving live trades
+                    </div>
+                  )}
                 </div>
               ) : (
                 signals.map((s) => <TerminalLine key={s.id} s={s} accent={accent} />)
@@ -2177,13 +2191,13 @@ const TerminalLine = ({ s, accent }) => {
     status === "executing"   ? "placing order…" :
                                 "queued by server";
   return (
-    <div className="whitespace-nowrap" data-testid={`mobile-term-line-${s.id}`}>
-      <span className="text-white/40">[{t}]</span>{" "}
-      <span style={{ color, fontWeight: 700 }}>{tag}</span>{" "}
+    <div className="leading-snug" data-testid={`mobile-term-line-${s.id}`} style={{ wordBreak: "break-word" }}>
+      <span className="text-white/55">[{t}]</span>{" "}
+      <span style={{ color, fontWeight: 800 }}>{tag}</span>{" "}
       <span style={{ color: accent, fontWeight: 700 }}>{s.symbol || "—"}</span>{" "}
-      <span className="text-white/85">{action}</span>{" "}
-      <span className="text-white/55">{lotStr} lot</span>{" "}
-      <span className="text-white/45">· {extra}</span>
+      <span className="text-white" style={{ fontWeight: 600 }}>{action}</span>{" "}
+      <span className="text-white/70">{lotStr} lot</span>{" "}
+      <span className="text-white/55">· {extra}</span>
     </div>
   );
 };
