@@ -12,7 +12,7 @@ import json
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
 from starlette.middleware.cors import CORSMiddleware
@@ -1614,17 +1614,22 @@ async def bridge_get_jobs(request: Request):
     jobs = await db.trade_signals.find(
         {
             "license_key": bridge["license_key"],
-            "status": "pending",
+            "status": {"$in": ["pending", "executing"]},
             "$or": [{"delivered_at": None}, {"delivered_at": {"$lt": cutoff}}],
         },
         {"_id": 0},
     ).sort("created_at", 1).to_list(50)
 
     if jobs:
+        # Mark as `executing` (was: delivered_at only) so the client app shows a live
+        # "executing…" pill the moment the bridge has the job. The bridge then flips
+        # it to executed/failed via /ack within ~3s typically.
         await db.trade_signals.update_many(
             {"id": {"$in": [j["id"] for j in jobs]}},
-            {"$set": {"delivered_at": now_iso()}},
+            {"$set": {"delivered_at": now_iso(), "status": "executing"}},
         )
+        for j in jobs:
+            j["status"] = "executing"
 
     broker = await db.broker_connections.find_one({"license_key": bridge["license_key"]}, {"_id": 0})
     broker_creds = None
@@ -1664,12 +1669,25 @@ async def bridge_ack_job(request: Request, job_id: str, payload: BridgeAckIn):
     # Idempotency: once a job has reached a terminal state, return the existing record
     # instead of overwriting it. This protects against the helper retrying an ack after
     # a partial network failure.
-    if job.get("status") in ("executed", "failed", "skipped"):
+    if job.get("status") in ("executed", "failed", "skipped", "low_balance"):
         return {"ok": True, "already_acked": True, "status": job["status"]}
+
+    # Detect low-balance / insufficient-margin errors from MT5 and surface them as a
+    # discrete status so the client app can show a friendly "low account balance" card
+    # rather than a generic red failure. Common MT5 retcodes: 10019 (no money), 10018
+    # (market closed). We match on text since bridges may pass either a code or a string.
+    err_str = (payload.error or "") + " " + (str(payload.raw or {}))
+    err_low = err_str.lower()
+    final_status = payload.status
+    if payload.status == "failed" and any(t in err_low for t in (
+        "no money", "no_money", "10019", "not enough money", "insufficient", "margin",
+    )):
+        final_status = "low_balance"
+
     await db.trade_signals.update_one(
         {"id": job_id},
         {"$set": {
-            "status": payload.status,
+            "status": final_status,
             "ack_at": now_iso(),
             "result": {
                 "mt_order_id": payload.mt_order_id,
@@ -1852,6 +1870,98 @@ async def admin_decline_broker(license_key: str, payload: BrokerDecideIn, admin:
         {"$set": {"status": "stopped", "stopped_at": now_iso(), "stopped_reason": "broker_declined"}},
     )
     return {"ok": True, "status": "declined"}
+
+
+# ---------- Admin: push a trade signal to a specific client's bridge ----------
+# Admin opens /admin/brokers, picks a licence + a symbol the client has configured,
+# fires BUY/SELL/CLOSE. The signal hits the same trade_signals pipeline the mentor
+# uses, so the client's desktop bridge picks it up and executes on their MT5.
+# Status surfaces on /app EA Status panel as "pending → executing → executed / failed".
+class AdminTradeSignalIn(BaseModel):
+    symbol: str = Field(min_length=2, max_length=24)
+    action: Literal["BUY", "SELL", "CLOSE"]
+    lot: float | None = Field(default=None, ge=0.01, le=100)
+    comment: str | None = Field(default=None, max_length=200)
+
+
+@api_router.post("/admin/broker-connections/{license_key}/signal")
+async def admin_push_trade_signal(
+    license_key: str,
+    payload: AdminTradeSignalIn,
+    admin: dict = Depends(get_admin_user),
+):
+    license_key = license_key.strip().upper()
+    symbol = payload.symbol.strip().upper()
+    action = payload.action.upper()
+
+    # Validate licence + broker is approved
+    key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0})
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="Licence not found")
+    broker = await db.broker_connections.find_one({"license_key": license_key}, {"_id": 0})
+    if not broker:
+        raise HTTPException(status_code=400, detail="Client has not linked a broker yet.")
+    if broker.get("status") != "approved":
+        raise HTTPException(status_code=400, detail=f"Broker is {broker.get('status') or 'unknown'}, not approved.")
+
+    # Admin must pick a symbol the client has configured (the only ones the bridge will trade).
+    pc = await db.pair_configs.find_one(
+        {"license_key": license_key, "symbol": symbol}, {"_id": 0}
+    )
+    if not pc:
+        raise HTTPException(status_code=400, detail=f"{symbol} is not in the client's selected pairs.")
+
+    # Apply trading-style multipliers (same logic as mentor-push).
+    style_key = (key_doc.get("trading_style") or "day_trading")
+    rules = TRADING_STYLE_RULES.get(style_key, TRADING_STYLE_RULES["day_trading"])
+    base_lot = float(payload.lot if payload.lot is not None else pc.get("lot_size", 0.01))
+    base_max = int(pc.get("max_trades", 1))
+    eff_lot = base_lot * float(rules["lot_mult"])
+    eff_max = max(1, int(round(base_max * float(rules["max_trades_mult"]))))
+    if rules["martingale"] and action in ("BUY", "SELL"):
+        streak = min(int(key_doc.get("martingale_streak") or 0), MARTINGALE_STREAK_CAP)
+        eff_lot *= (2 ** streak)
+    eff_lot = round(eff_lot, 2)
+
+    job_id = str(uuid.uuid4())
+    doc = {
+        "id": job_id,
+        "license_key": license_key,
+        "ea_id": key_doc.get("ea_id"),
+        "symbol": symbol,
+        "action": action,
+        "lot": eff_lot,
+        "max_trades": eff_max,
+        "platform": pc.get("platform", "mt5"),
+        "stop_loss": None,
+        "take_profit": None,
+        "comment": payload.comment or f"server-{action.lower()}",
+        # The bridge will flip this to "executing" the moment it picks the job up,
+        # and to "executed" or "failed" on ack. Client app polls and renders each phase.
+        "status": "pending",
+        "created_at": now_iso(),
+        "delivered_at": None,
+        "ack_at": None,
+        "result": None,
+        "trading_style": style_key,
+        "lot_base": base_lot,
+        "lot_mult": float(rules["lot_mult"]),
+        "martingale_streak": int(key_doc.get("martingale_streak") or 0) if rules["martingale"] else 0,
+        # Audit
+        "issued_by": "server",   # client app shows "by server" never "by admin"
+        "issued_by_email": admin.get("email"),
+    }
+    await db.trade_signals.insert_one(doc)
+    return {
+        "ok": True,
+        "id": job_id,
+        "symbol": symbol,
+        "action": action,
+        "lot": eff_lot,
+        "status": "pending",
+        "trading_style": style_key,
+    }
+
 
 
 # ---------- Client: start / stop EA session ----------

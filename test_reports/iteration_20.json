@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 20 — Admin push trade signal + executing/low_balance status. Backend 17/17 pytest pass at /app/backend/tests/test_iteration20_admin_push.py covering: POST /api/admin/broker-connections/{license_key}/signal (401 no auth, 403 mentor JWT, 404 unknown licence, 400 no broker, 400 broker.status!=approved, 400 symbol not in pair_configs, 200 happy path with status=pending + issued_by=server + issued_by_email=admin); /bridge/jobs flips delivered jobs status pending→executing AND re-delivers within 30s cutoff; /bridge/jobs/{id}/ack maps 5 MT5 error variants (10019, 'Not enough money', 'insufficient funds', 'no money', 'free margin') to status=low_balance, other failures stay 'failed', and is idempotent on second ack (already_acked=true). /mobile/trade-signals passes through all 6 status values. Frontend (mobile 390×844): with ea_sessions.status='running' the data-testid='mobile-ea-live-pill' renders text 'Live · monitoring markets' in green rgb(34,197,94). SignalRow for status='executing' shows 'executing… server is placing the order' in BLUE rgb(30,144,255)=#1E90FF with animate-ping ring; flip to 'low_balance' → ORANGE rgb(255,138,31)=#FF8A1F + 'low account balance — top up your broker'; flip to 'executed' → '#77777 · filled by server' (never 'by admin'). Admin /admin/brokers (1920×1080): broker-push-trade-0 panel rendered; broker-push-buy-0-0, broker-push-sell-0-0, broker-push-close-0-0 all present; clicking BUY fires the admin endpoint and toast 'BUY EURUSD · 0.1 lot — queued for EAC-2F9D-E69F-6F75-CEB3' appears. Regression: /terms loads; /app email form (mobile-email-form) renders for unbound user.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration20_admin_push.py",
+    "/app/test_reports/pytest/iteration20.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/backend/server.py is now 2195 lines, ~3.1× the 700-line guideline. The /admin/broker-connections endpoint family (list + approve + decline + signal) is a clean extraction candidate into routers/admin_brokers.py.",
+    "/app/frontend/src/pages/MobileApp.jsx is 1988 lines; SignalRow (with its 6 status colors + ping ring) is now a meaningful component — extract to /app/frontend/src/pages/mobile/SignalRow.jsx.",
+    "/app/frontend/src/pages/AdminBrokers.jsx pushSignal handler at L53 catches errors but only surfaces err.detail || err.message. If the backend ever returns {error: '...'} (non-FastAPI default) the toast will read 'undefined' — consider falling back to a generic 'Failed to push trade' string.",
+    "POST /api/admin/broker-connections/{license_key}/signal does not record audit-log linkage to the admin user beyond issued_by_email — consider also persisting an admin_user_id on the trade_signal so a future revocation flow can target signals by admin.",
+    "Low-balance detection uses substring matching against payload.error + str(payload.raw). The substrings 'margin' and 'insufficient' are broad — an MT5 error like 'invalid stop-loss within margin' could be mis-classified. Tighten to whole-word matches or MT5 retcode int comparison if the bridge sends raw['retcode'].",
+    "/bridge/jobs poll matches status in ['pending','executing'] with delivered_at null OR older than 30s. If a bridge crashes mid-execute and the client re-pairs from a different machine, the same job may execute twice on the broker. Consider adding a single-delivery lock keyed by mt_order_id-pending or a max-redelivery counter."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration20_admin_push.py (new)"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% (all flows verified)"},
+  "test_credentials": "Mentor TEST_it6_ui_1778753851@test.com / Passw0rd!, licence EAC-2F9D-E69F-6F75-CEB3 (unbound at teardown). Admin admin@ea-central.com / Admin@123. Auth response key is access_token.",
+  "seed_data_creation": "test_iteration20_admin_push.py upserts broker_connections (status=approved) + pair_configs (EURUSD BOTH 0.1 lot) for LICENSE_KEY at module setup; sets trading_style=day_trading; cleans trade_signals at setup and teardown. Frontend test temporarily bound the licence to mentor email, set ea_sessions.status='running', inserted sig-iter20-exec trade_signal (executing → low_balance → executed). Final cleanup script: trade_signals cleared, licence unbound (bound_to_email=null, bound_device_id=null), ea_sessions.status=stopped. broker_connections + pair_configs left in place (status=approved, EURUSD pair) for next iteration's reuse.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 17 backend regression tests at /app/backend/tests/test_iteration20_admin_push.py. New status enum values now backed by tests: 'executing' (interim) and 'low_balance' (terminal failure subtype). Frontend testids verified: mobile-ea-live-pill (running only), broker-push-trade-{i}, broker-push-buy/sell/close-{i}-{idx}. Existing testids preserved: mobile-signal-{id}, mobile-signal-status-{id}, mobile-signal-time-{id}. broker_connections + pair_configs are seeded approved for EAC-2F9D-E69F-6F75-CEB3 with EURUSD BOTH 0.1 lot — this row will appear in /admin/brokers; if a future iteration needs the broker absent, delete first. Licence is fully unbound and trade_signals collection is empty for the licence. Console shows 401s on /api/auth/me — unrelated, from global Layout/Nav probes.",
+  "rca of the issue": "N/A — no defects. 17/17 backend assertions and 100% of frontend flows (admin endpoint guard rails, bridge executing transition, low_balance error detection on 5 MT5 message variants, ack idempotency, mobile passthrough; live pill rendering, SignalRow color/copy for executing/low_balance/executed, admin push trade panel + toast) pass. SignalRow correctly says 'filled by server' / 'queued by server' / 'executing… server is placing the order' — never 'by admin' — matching the product spec."
+}

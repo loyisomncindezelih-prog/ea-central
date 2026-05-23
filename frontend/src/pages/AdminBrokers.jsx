@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, EyeOff, Copy, Server, Search, RefreshCcw, CheckCircle2, XCircle, Play, Pause } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Copy, Server, Search, RefreshCcw, CheckCircle2, XCircle, Play, Pause, ArrowUp, ArrowDown, X as XIcon, Send } from "lucide-react";
 
 export default function AdminBrokers() {
   const navigate = useNavigate();
@@ -45,6 +45,17 @@ export default function AdminBrokers() {
       await api.post(`/admin/broker-connections/${license_key}/${action}`, { reason });
       toast.success(action === "approve" ? "Broker approved" : "Broker declined — client will see the reason");
       load();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    }
+  };
+
+  const pushSignal = async (license_key, symbol, action) => {
+    try {
+      const { data } = await api.post(`/admin/broker-connections/${license_key}/signal`, {
+        symbol, action,
+      });
+      toast.success(`${action} ${symbol} · ${data.lot} lot — queued for ${license_key}`);
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
     }
@@ -249,6 +260,43 @@ export default function AdminBrokers() {
                     )}
                   </div>
                 </div>
+
+                {/* Push trade signal — only when broker is approved + client has pairs */}
+                {r.status === "approved" && r.pair_configs && r.pair_configs.length > 0 && (
+                  <div className="mt-4 border-t border-white/10 pt-3" data-testid={`broker-push-trade-${i}`}>
+                    <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-2 flex items-center gap-2">
+                      <Send className="w-3 h-3 text-[#1E90FF]" /> Push trade (server side · shows live on client /app)
+                    </div>
+                    <div className="space-y-1.5">
+                      {r.pair_configs.map((p, idx) => (
+                        <div key={idx} className="grid grid-cols-12 gap-2 items-center text-xs border border-white/8 px-2.5 py-1.5">
+                          <div className="col-span-3 font-mono text-white font-bold tracking-wide">{p.symbol}</div>
+                          <div className="col-span-3 text-[10px] tracking-[0.18em] uppercase text-white/55">
+                            {p.direction} · {Number(p.lot_size || 0).toFixed(2)} lot
+                          </div>
+                          <div className="col-span-6 flex gap-1.5 justify-end">
+                            {(p.direction === "BUY" || p.direction === "BOTH") && (
+                              <Button onClick={() => pushSignal(r.license_key, p.symbol, "BUY")} className="bg-[#22C55E]/15 hover:bg-[#22C55E]/30 border border-[#22C55E]/60 text-[#22C55E] rounded-none h-8 px-2.5 text-[10px] tracking-[0.18em] uppercase font-bold" data-testid={`broker-push-buy-${i}-${idx}`}>
+                                <ArrowUp className="w-3 h-3 mr-1" />BUY
+                              </Button>
+                            )}
+                            {(p.direction === "SELL" || p.direction === "BOTH") && (
+                              <Button onClick={() => pushSignal(r.license_key, p.symbol, "SELL")} className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-8 px-2.5 text-[10px] tracking-[0.18em] uppercase font-bold" data-testid={`broker-push-sell-${i}-${idx}`}>
+                                <ArrowDown className="w-3 h-3 mr-1" />SELL
+                              </Button>
+                            )}
+                            <Button onClick={() => pushSignal(r.license_key, p.symbol, "CLOSE")} className="bg-white/5 hover:bg-white/15 border border-white/30 text-white/85 rounded-none h-8 px-2.5 text-[10px] tracking-[0.18em] uppercase font-bold" data-testid={`broker-push-close-${i}-${idx}`}>
+                              <XIcon className="w-3 h-3 mr-1" />CLOSE
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-white/40 mt-2 leading-relaxed">
+                      Hits the desktop bridge in 2-5s · client sees status as <span className="text-[#F5C150]">queued</span> → <span className="text-[#1E90FF]">executing</span> → <span className="text-[#22C55E]">filled</span>.
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })}

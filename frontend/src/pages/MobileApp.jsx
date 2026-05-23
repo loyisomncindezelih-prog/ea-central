@@ -372,7 +372,7 @@ export default function MobileApp() {
     return () => clearTimeout(t);
   }, [stage]);
 
-  // Last-3 trade signals (EA status panel) — polls every 6s while in app stage.
+  // Last-3 trade signals (EA status panel) — polls every 3s while running, 8s otherwise.
   useEffect(() => {
     if (stage !== "app" || !email || !license) return;
     let cancelled = false;
@@ -383,9 +383,9 @@ export default function MobileApp() {
       } catch { /* swallow */ }
     };
     tick(); // immediate fetch on mount
-    const iv = setInterval(tick, 6000);
+    const iv = setInterval(tick, running ? 3000 : 8000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [stage, email, license]);
+  }, [stage, email, license, running]);
 
   const submitEmail = async (e) => {
     e.preventDefault();
@@ -855,8 +855,25 @@ export default function MobileApp() {
         {/* EA Status panel — last 3 trade signals from the bridge */}
         <div className="relative z-10 mx-4 mt-3" data-testid="mobile-ea-status">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-white text-sm font-bold tracking-[0.2em] uppercase" style={{ textShadow: `0 0 8px ${accent}66` }}>
-              EA Status
+            <div className="flex items-center gap-2">
+              <div className="text-white text-sm font-bold tracking-[0.2em] uppercase" style={{ textShadow: `0 0 4px ${accent}44` }}>
+                EA Status
+              </div>
+              {running && (
+                <div
+                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] tracking-[0.22em] uppercase font-bold"
+                  style={{
+                    color: "#22C55E",
+                    border: "1px solid rgba(34,197,94,0.6)",
+                    backgroundColor: "rgba(34,197,94,0.10)",
+                    boxShadow: "0 0 8px rgba(34,197,94,0.35)",
+                  }}
+                  data-testid="mobile-ea-live-pill"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] ea-pulse-dot" />
+                  Live · monitoring markets
+                </div>
+              )}
             </div>
             <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: signals.length ? accent : "rgba(255,255,255,0.4)" }} data-testid="mobile-ea-status-count">
               {signals.length === 0 ? "no signals yet" : `last ${signals.length}`}
@@ -1227,18 +1244,27 @@ export default function MobileApp() {
 // ============ small components ============
 
 // SignalRow — one row in the EA Status panel.
-// Status palette: pending/delivered = amber (in flight), executed = green, failed = red, skipped = grey.
+// Status palette:
+//   pending    = amber (queued)
+//   executing  = blue (live execution in progress — pulses)
+//   executed   = green (filled)
+//   failed     = red
+//   low_balance= orange (insufficient margin — distinct from failed)
+//   skipped    = grey (bridge offline)
 const SignalRow = ({ s, accent, theme }) => {
   const status = s.status || "pending";
   const isUp = s.action === "BUY";
   const isClose = s.action === "CLOSE";
   const statusColor =
-    status === "executed" ? "#22C55E" :
-    status === "failed"   ? "#FF3B3B" :
-    status === "skipped"  ? "rgba(255,255,255,0.5)" :
-    "#F5C150"; // pending / delivered
+    status === "executed"    ? "#22C55E" :
+    status === "failed"      ? "#FF3B3B" :
+    status === "low_balance" ? "#FF8A1F" :
+    status === "skipped"     ? "rgba(255,255,255,0.5)" :
+    status === "executing"   ? "#1E90FF" :
+    "#F5C150"; // pending
   const ts = s.created_at ? new Date(s.created_at) : null;
   const timeLabel = ts ? ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "—";
+  const isLive = status === "executing" || status === "pending";
   return (
     <div
       className="rounded-xl p-3 flex items-center gap-3"
@@ -1250,7 +1276,7 @@ const SignalRow = ({ s, accent, theme }) => {
       data-testid={`mobile-signal-${s.id}`}
     >
       <div
-        className="w-9 h-9 flex items-center justify-center shrink-0 rounded"
+        className={`relative w-9 h-9 flex items-center justify-center shrink-0 rounded ${isLive ? "ea-pulse-dot" : ""}`}
         style={{
           border: `1.5px solid ${statusColor}`,
           color: statusColor,
@@ -1258,6 +1284,13 @@ const SignalRow = ({ s, accent, theme }) => {
         }}
       >
         {isClose ? <X className="w-4 h-4" /> : isUp ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+        {/* Live "ping" ring while pending/executing */}
+        {isLive && (
+          <span
+            className="absolute inset-0 rounded animate-ping pointer-events-none"
+            style={{ boxShadow: `0 0 0 2px ${statusColor}55` }}
+          />
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
@@ -1266,11 +1299,13 @@ const SignalRow = ({ s, accent, theme }) => {
           <span className="text-[10px] text-white/45 font-mono">{Number(s.lot || 0).toFixed(2)} lot</span>
         </div>
         <div className="text-[10px] mt-0.5 truncate font-mono" style={{ color: statusColor }} data-testid={`mobile-signal-status-${s.id}`}>
-          {status === "executed" && s.mt_order_id ? `#${s.mt_order_id} · filled` :
-           status === "executed" ? "filled" :
-           status === "failed" ? (s.error || "rejected") :
-           status === "skipped" ? "skipped — bridge offline" :
-           "in flight…"}
+          {status === "executed" && s.mt_order_id ? `#${s.mt_order_id} · filled by server` :
+           status === "executed"   ? "filled by server" :
+           status === "executing"  ? "executing… server is placing the order" :
+           status === "low_balance" ? "low account balance — top up your broker" :
+           status === "failed"     ? (s.error || "rejected by broker") :
+           status === "skipped"    ? "skipped — bridge offline" :
+           "queued by server…"}
         </div>
       </div>
       <div className="text-[10px] font-mono text-white/40 shrink-0" data-testid={`mobile-signal-time-${s.id}`}>{timeLabel}</div>
