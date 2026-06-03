@@ -31,15 +31,30 @@ import {
 } from "lucide-react";
 
 const TABS = [
-  { key: "pending",  label: "Pending",  icon: Clock },
-  { key: "approved", label: "Approved", icon: CheckCircle2 },
-  { key: "rejected", label: "Rejected", icon: XCircle },
-  { key: "all",      label: "All",      icon: Users },
+  { key: "pending",        label: "Pending",        icon: Clock },
+  { key: "proof_uploaded", label: "Proof uploaded", icon: Receipt },
+  { key: "approved",       label: "Approved",       icon: CheckCircle2 },
+  { key: "rejected",       label: "Rejected",       icon: XCircle },
+  { key: "all",            label: "All",            icon: Users },
 ];
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Hard 2-hour admin session timeout. JWT exp is checked too via the api interceptor,
+  // but this client-side timer guarantees the dashboard closes even if the admin tab
+  // sits idle and no requests are made.
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    const HARD_LIMIT_MS = 2 * 60 * 60 * 1000;
+    const id = setTimeout(async () => {
+      toast.message("Admin session expired — auto-logout after 2 hours.");
+      try { await logout(); } catch { /* ignore */ }
+      navigate("/admin", { replace: true });
+    }, HARD_LIMIT_MS);
+    return () => clearTimeout(id);
+  }, [user?.role, logout, navigate]);
   const [tab, setTab] = useState("pending");
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState(null);
@@ -142,12 +157,19 @@ export default function AdminDashboard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = tab === "all" ? {} : { status: tab };
+      // "proof_uploaded" is a virtual tab — backend doesn't have it as a status,
+      // it's pending users who already uploaded their proof of payment.
+      const backendStatus = tab === "proof_uploaded" ? "pending" : tab;
+      const params = backendStatus === "all" ? {} : { status: backendStatus };
       const [u, s] = await Promise.all([
         api.get("/admin/users", { params }),
         api.get("/admin/stats"),
       ]);
-      setUsers(u.data);
+      let rows = u.data;
+      if (tab === "proof_uploaded") {
+        rows = rows.filter((row) => row.has_payment_proof && row.role !== "admin");
+      }
+      setUsers(rows);
       setStats(s.data);
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
@@ -282,11 +304,12 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mt-8 sm:mt-10">
-          <StatCard icon={Clock}        label="Pending"  value={stats?.pending  ?? "—"} accent testId="stat-pending" />
-          <StatCard icon={CheckCircle2} label="Approved" value={stats?.approved ?? "—"} testId="stat-approved" />
-          <StatCard icon={XCircle}      label="Rejected" value={stats?.rejected ?? "—"} testId="stat-rejected" />
-          <StatCard icon={Users}        label="Total"    value={stats?.total    ?? "—"} testId="stat-total" />
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5 mt-8 sm:mt-10">
+          <StatCard icon={Clock}        label="Pending"        value={stats?.pending  ?? "—"} accent testId="stat-pending" />
+          <StatCard icon={Receipt}      label="Proof uploaded" value={stats?.proof_uploaded ?? "—"} testId="stat-proof-uploaded" />
+          <StatCard icon={CheckCircle2} label="Approved"       value={stats?.approved ?? "—"} testId="stat-approved" />
+          <StatCard icon={XCircle}      label="Rejected"       value={stats?.rejected ?? "—"} testId="stat-rejected" />
+          <StatCard icon={Users}        label="Total"          value={stats?.total    ?? "—"} testId="stat-total" />
         </div>
 
         {/* Client EA status — 3 buckets */}

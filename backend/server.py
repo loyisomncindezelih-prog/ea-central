@@ -81,6 +81,7 @@ def decrypt_secret(token: str) -> str:
 # ----------------------- Auth helpers -----------------------
 JWT_ALGORITHM = "HS256"
 ACCESS_TTL_MIN = 15
+ADMIN_ACCESS_TTL_MIN = 120  # Admins get 2 hours then auto-logout
 REFRESH_TTL_DAYS = 7
 MAX_FAILED = 5
 LOCKOUT_MIN = 15
@@ -101,11 +102,15 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(user_id: str, email: str, role: str = "mentor") -> str:
+    # Admins get a hard 2-hour token (no silent refresh) so the dashboard
+    # auto-logs out after 2 hours of inactivity.
+    ttl = ADMIN_ACCESS_TTL_MIN if role == "admin" else ACCESS_TTL_MIN
     payload = {
         "sub": user_id,
         "email": email,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TTL_MIN),
+        "role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ttl),
         "type": "access",
     }
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
@@ -322,7 +327,7 @@ async def login(payload: LoginIn, request: Request, response: Response):
         raise HTTPException(status_code=403, detail="Your account has been rejected. Please contact support.")
 
     await clear_failures(identifier)
-    access = create_access_token(user["id"], email)
+    access = create_access_token(user["id"], email, user.get("role", "mentor"))
     refresh = create_refresh_token(user["id"])
     set_auth_cookies(response, access, refresh)
     return {"user": public_user(user), "access_token": access}
@@ -2842,7 +2847,18 @@ async def admin_stats(_: dict = Depends(get_admin_user)):
     approved = await db.users.count_documents({"status": "approved"})
     rejected = await db.users.count_documents({"status": "rejected"})
     total = await db.users.count_documents({})
-    return {"pending": pending, "approved": approved, "rejected": rejected, "total": total}
+    proof_uploaded = await db.users.count_documents({
+        "status": "pending",
+        "role": "mentor",
+        "payment_proof_data_url": {"$exists": True, "$ne": ""},
+    })
+    return {
+        "pending": pending,
+        "proof_uploaded": proof_uploaded,
+        "approved": approved,
+        "rejected": rejected,
+        "total": total,
+    }
 
 
 @api_router.get("/admin/users")
