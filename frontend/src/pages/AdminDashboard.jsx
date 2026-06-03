@@ -23,6 +23,11 @@ import {
   Square,
   Unplug,
   Link2,
+  Eye,
+  EyeOff,
+  Copy,
+  KeyRound,
+  Server as ServerIcon,
 } from "lucide-react";
 
 const TABS = [
@@ -45,6 +50,26 @@ export default function AdminDashboard() {
   const [proofView, setProofView] = useState(null); // { src, filename, email } or null
   const [clientsStatus, setClientsStatus] = useState({ running: [], stopped: [], pending_broker: [], counts: { running: 0, stopped: 0, pending_broker: 0 } });
   const [clientsBusy, setClientsBusy] = useState(false);
+  const [clientDetails, setClientDetails] = useState(null);   // license_key currently opened in floating modal
+  const [clientDetailsData, setClientDetailsData] = useState(null);
+  const [clientDetailsBusy, setClientDetailsBusy] = useState(false);
+  const [showBrokerPwd, setShowBrokerPwd] = useState(false);
+
+  const openClient = useCallback(async (license_key) => {
+    setClientDetails(license_key);
+    setClientDetailsData(null);
+    setShowBrokerPwd(false);
+    setClientDetailsBusy(true);
+    try {
+      const { data } = await api.get(`/admin/clients/${license_key}`);
+      setClientDetailsData(data);
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+      setClientDetails(null);
+    } finally {
+      setClientDetailsBusy(false);
+    }
+  }, []);
 
   const loadClients = useCallback(async () => {
     try {
@@ -232,9 +257,10 @@ export default function AdminDashboard() {
             items={clientsStatus.running}
             empty="No clients are running the EA right now."
             testidPrefix="admin-running"
+            onSelect={openClient}
             actions={(row) => (
               <Button
-                onClick={() => unlinkBroker(row.license_key, row.email)}
+                onClick={(e) => { e.stopPropagation(); unlinkBroker(row.license_key, row.email); }}
                 disabled={clientsBusy || !row.broker_status}
                 className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold disabled:opacity-40"
                 title={row.broker_status ? "Unlink broker (force-stops EA)" : "No broker on file"}
@@ -252,10 +278,11 @@ export default function AdminDashboard() {
             items={clientsStatus.stopped}
             empty="No clients have stopped the EA."
             testidPrefix="admin-stopped"
+            onSelect={openClient}
             actions={(row) => (
               row.broker_status === "approved" ? (
                 <Button
-                  onClick={() => unlinkBroker(row.license_key, row.email)}
+                  onClick={(e) => { e.stopPropagation(); unlinkBroker(row.license_key, row.email); }}
                   disabled={clientsBusy}
                   className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold"
                   data-testid={`admin-unlink-stopped-${row.license_key}`}
@@ -273,8 +300,9 @@ export default function AdminDashboard() {
             items={clientsStatus.pending_broker}
             empty="No brokers waiting for review."
             testidPrefix="admin-pending-broker"
+            onSelect={openClient}
             actions={(row) => (
-              <div className="flex gap-1">
+              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                 <Button
                   onClick={() => decideBroker(row.license_key, "approve")}
                   disabled={clientsBusy}
@@ -520,6 +548,19 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* Floating client details modal */}
+      {clientDetails && (
+        <ClientDetailsModal
+          license_key={clientDetails}
+          data={clientDetailsData}
+          busy={clientDetailsBusy}
+          showPwd={showBrokerPwd}
+          onTogglePwd={() => setShowBrokerPwd((v) => !v)}
+          onClose={() => { setClientDetails(null); setClientDetailsData(null); setShowBrokerPwd(false); }}
+          onUnlink={() => { unlinkBroker(clientDetailsData?.broker?.platform ? clientDetails : clientDetails, clientDetailsData?.client?.email); setClientDetails(null); }}
+        />
+      )}
+
       <Footer />
     </div>
   );
@@ -561,7 +602,7 @@ const TONE_MAP = {
   blue:  { ring: "#1E90FF", glow: "rgba(30,144,255,0.22)", soft: "rgba(30,144,255,0.06)" },
 };
 
-const ClientBucket = ({ tone = "blue", icon: Icon, label, count, items, empty, testidPrefix, actions }) => {
+const ClientBucket = ({ tone = "blue", icon: Icon, label, count, items, empty, testidPrefix, actions, onSelect }) => {
   const t = TONE_MAP[tone];
   return (
     <div
@@ -592,7 +633,11 @@ const ClientBucket = ({ tone = "blue", icon: Icon, label, count, items, empty, t
         ) : items.map((row) => (
           <div
             key={`${row.license_key}-${row.email}`}
-            className="border border-white/8 hover:border-white/20 transition px-2.5 py-2 text-xs"
+            onClick={() => onSelect && onSelect(row.license_key)}
+            className="border border-white/8 hover:border-white/30 transition px-2.5 py-2 text-xs cursor-pointer hover:bg-white/[0.03]"
+            style={{ borderColor: `${t.ring}22` }}
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = `${t.ring}66`}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = `${t.ring}22`}
             data-testid={`${testidPrefix}-row-${row.license_key}`}
           >
             <div className="flex items-center justify-between gap-2">
@@ -634,3 +679,224 @@ function timeAgo(iso) {
   } catch { return ""; }
 }
 
+
+
+// ============ Floating Client Details Modal ============
+const ClientDetailsModal = ({ license_key, data, busy, showPwd, onTogglePwd, onClose, onUnlink }) => {
+  const copy = async (text, label) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto"
+      data-testid="admin-client-modal"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-3xl ea-glass relative my-6"
+        style={{
+          borderColor: "#1E90FF55",
+          boxShadow: "0 0 30px rgba(30,144,255,0.25), inset 0 0 16px rgba(30,144,255,0.06)",
+          backgroundColor: "rgba(2, 6, 20, 0.95)",
+        }}
+      >
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-white/10">
+          <div className="min-w-0">
+            <div className="text-[10px] tracking-[0.3em] uppercase text-[#1E90FF]">Client</div>
+            <div className="font-display text-lg sm:text-xl text-white truncate" data-testid="admin-client-modal-email">
+              {data?.client?.username ? `${data.client.username} · ` : ""}
+              {data?.client?.email || "—"}
+            </div>
+            <div className="text-[10px] font-mono text-white/45 truncate">{license_key}</div>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center text-white/55 hover:text-white" data-testid="admin-client-modal-close">
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 sm:p-5 space-y-5">
+          {busy && !data && (
+            <div className="text-center text-xs text-white/55 py-10">Loading client details…</div>
+          )}
+
+          {data && (
+            <>
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                <Chip label="License" value={data.license_status} tone={data.license_status === "active" ? "green" : "amber"} />
+                <Chip label="EA session" value={data.ea_session?.status || "—"} tone={data.ea_session?.status === "running" ? "green" : "white"} />
+                <Chip label="Trading style" value={data.trading_style_label || data.trading_style || "—"} tone="blue" />
+                <Chip label="Broker" value={data.broker?.status || "—"} tone={data.broker?.status === "approved" ? "green" : data.broker?.status === "declined" ? "red" : "amber"} />
+              </div>
+
+              <Section icon={ServerIcon} label="Broker credentials">
+                {!data.broker ? (
+                  <div className="text-[12px] text-white/45">No broker linked yet.</div>
+                ) : (
+                  <div className="space-y-1.5 font-mono text-[12px]">
+                    <KV k="Platform" v={(data.broker.platform || "—").toUpperCase()} />
+                    <KV k="Server" v={data.broker.server || "—"} onCopy={() => copy(data.broker.server, "Server")} />
+                    <KV k="Account" v={data.broker.account || "—"} onCopy={() => copy(data.broker.account, "Account")} accent />
+                    <div className="flex items-center justify-between gap-2 border-b border-white/5 py-1.5">
+                      <span className="text-[11px] text-white/55 tracking-wide">Password</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-white/90 truncate" data-testid="admin-client-modal-broker-password">
+                          {data.broker.password ? (showPwd ? data.broker.password : "•".repeat(Math.min(data.broker.password.length, 14))) : "—"}
+                        </span>
+                        {data.broker.password && (
+                          <>
+                            <button onClick={onTogglePwd} className="text-white/55 hover:text-[#1E90FF]" title={showPwd ? "Hide" : "Show"} data-testid="admin-client-modal-broker-password-toggle">
+                              {showPwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                            <button onClick={() => copy(data.broker.password, "Password")} className="text-white/55 hover:text-[#1E90FF]" title="Copy">
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {data.broker.decision_reason && (
+                      <div className="text-[11px] text-[#FF8A1F] pt-1">Decline reason: {data.broker.decision_reason}</div>
+                    )}
+                  </div>
+                )}
+              </Section>
+
+              <Section icon={KeyRound} label={`Pairs configured (${data.pair_configs?.length || 0})`}>
+                {(data.pair_configs || []).length === 0 ? (
+                  <div className="text-[12px] text-white/45">No pairs configured yet.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {data.pair_configs.map((p, idx) => {
+                      const dirColor = p.direction === "BUY" ? "#22C55E" : p.direction === "SELL" ? "#FF3B3B" : "#9CA3AF";
+                      return (
+                        <div key={idx} className="grid grid-cols-12 gap-2 items-center border border-white/8 px-2.5 py-1.5 text-xs">
+                          <div className="col-span-4 font-mono text-white font-bold tracking-wide" data-testid={`admin-client-modal-pair-${idx}`}>{p.symbol}</div>
+                          <div className="col-span-3 font-mono text-[11px]" style={{ color: dirColor }}>{p.direction || "BOTH"}</div>
+                          <div className="col-span-3 font-mono text-white/65 text-[11px]">{p.lot_size} lot</div>
+                          <div className="col-span-2 font-mono text-white/45 text-[11px]">×{p.max_trades || 1}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Section>
+
+              <Section icon={Receipt} label={`Recent trade signals (${data.recent_signals?.length || 0})`}>
+                {(data.recent_signals || []).length === 0 ? (
+                  <div className="text-[12px] text-white/45">No signals yet.</div>
+                ) : (
+                  <div className="space-y-1 font-mono text-[11px] max-h-44 overflow-y-auto">
+                    {data.recent_signals.map((s) => (
+                      <div key={s.id} className="flex items-center gap-2 truncate">
+                        <span className="text-white/45">[{new Date(s.created_at).toLocaleTimeString([], { hour12: false })}]</span>
+                        <SignalTag status={s.status} />
+                        <span className="text-[#1E90FF] font-bold">{s.symbol}</span>
+                        <span className="text-white">{s.action}</span>
+                        <span className="text-white/60">{Number(s.lot || 0).toFixed(2)} lot</span>
+                        {s.error && <span className="text-[#FF3B3B] truncate">· {s.error}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              {data.ea_session?.status && (
+                <Section icon={Play} label="EA session">
+                  <div className="space-y-1 font-mono text-[12px]">
+                    <KV k="Status" v={data.ea_session.status} />
+                    <KV k="Trading style" v={data.ea_session.trading_style || "—"} />
+                    <KV k="Started" v={data.ea_session.started_at ? new Date(data.ea_session.started_at).toLocaleString() : "—"} />
+                    {data.ea_session.stopped_at && <KV k="Stopped" v={new Date(data.ea_session.stopped_at).toLocaleString()} />}
+                    {data.ea_session.stopped_reason && <KV k="Reason" v={data.ea_session.stopped_reason.replace(/_/g, " ")} />}
+                  </div>
+                </Section>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10">
+                {data.broker?.status === "approved" && (
+                  <Button
+                    onClick={onUnlink}
+                    className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-10 px-4 text-xs tracking-[0.18em] uppercase font-bold"
+                    data-testid="admin-client-modal-unlink"
+                  >
+                    <Unplug className="w-4 h-4 mr-2" /> Unlink broker
+                  </Button>
+                )}
+                <Button
+                  onClick={onClose}
+                  className="ml-auto bg-transparent border border-white/20 hover:border-white/40 text-white/85 rounded-none h-10 px-4 text-xs tracking-[0.18em] uppercase"
+                >
+                  Close
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Section = ({ icon: Icon, label, children }) => (
+  <div>
+    <div className="flex items-center gap-2 mb-2">
+      <Icon className="w-3.5 h-3.5 text-[#1E90FF]" />
+      <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">{label}</div>
+    </div>
+    {children}
+  </div>
+);
+
+const KV = ({ k, v, accent, onCopy }) => (
+  <div className="flex items-center justify-between gap-2 border-b border-white/5 py-1.5">
+    <span className="text-[11px] text-white/55 tracking-wide">{k}</span>
+    <div className="flex items-center gap-2 min-w-0">
+      <span className={`text-[12px] truncate ${accent ? "text-[#1E90FF] font-bold" : "text-white/90"}`}>{v}</span>
+      {onCopy && (
+        <button onClick={onCopy} className="text-white/55 hover:text-[#1E90FF]" title="Copy">
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+const CHIP_TONES = {
+  green: { ring: "#22C55E55", bg: "rgba(34,197,94,0.10)", fg: "#22C55E" },
+  amber: { ring: "#F5C15055", bg: "rgba(245,193,80,0.10)", fg: "#F5C150" },
+  red:   { ring: "#FF3B3B55", bg: "rgba(255,59,59,0.10)",  fg: "#FF3B3B" },
+  blue:  { ring: "#1E90FF55", bg: "rgba(30,144,255,0.10)", fg: "#1E90FF" },
+  white: { ring: "rgba(255,255,255,0.15)", bg: "rgba(255,255,255,0.04)", fg: "rgba(255,255,255,0.85)" },
+};
+const Chip = ({ label, value, tone = "white" }) => {
+  const t = CHIP_TONES[tone] || CHIP_TONES.white;
+  return (
+    <div className="px-2 py-1 text-[10px] tracking-[0.18em] uppercase font-bold" style={{ border: `1px solid ${t.ring}`, color: t.fg, backgroundColor: t.bg }}>
+      <span className="text-white/45 font-normal mr-1">{label}</span>
+      {String(value || "—")}
+    </div>
+  );
+};
+
+const SIGNAL_TAGS = {
+  executed:   { tag: "OK",  color: "#22C55E" },
+  closed:     { tag: "CLS", color: "#9CA3AF" },
+  failed:     { tag: "ERR", color: "#FF3B3B" },
+  low_balance:{ tag: "BAL", color: "#FF8A1F" },
+  skipped:    { tag: "SKP", color: "rgba(255,255,255,0.45)" },
+  executing:  { tag: "RUN", color: "#1E90FF" },
+  pending:    { tag: "PEN", color: "#F5C150" },
+};
+const SignalTag = ({ status }) => {
+  const s = (status || "pending").toLowerCase();
+  const t = SIGNAL_TAGS[s] || { tag: s.toUpperCase().slice(0, 3), color: "white" };
+  return <span style={{ color: t.color, fontWeight: 800 }}>{t.tag}</span>;
+};

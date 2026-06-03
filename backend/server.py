@@ -2320,6 +2320,102 @@ async def admin_clients_status(admin: dict = Depends(get_admin_user)):
     }
 
 
+@api_router.get("/admin/clients/{license_key}")
+async def admin_client_details(license_key: str, _: dict = Depends(get_admin_user)):
+    """Full floating-modal details for one client license key:
+    broker creds (decrypted password), pair configs, EA session, mentor info, scan stats."""
+    license_key = license_key.strip().upper()
+    key_doc = await db.license_keys.find_one({"key": license_key}, {"_id": 0})
+    if not key_doc:
+        raise HTTPException(status_code=404, detail="License key not found")
+
+    broker = await db.broker_connections.find_one({"license_key": license_key}, {"_id": 0})
+    password_plain = None
+    if broker and broker.get("password_enc"):
+        try:
+            password_plain = decrypt_secret(broker["password_enc"])
+        except Exception:
+            password_plain = None
+
+    pair_configs = await db.pair_configs.find(
+        {"license_key": license_key}, {"_id": 0}
+    ).to_list(50)
+
+    sess = await db.ea_sessions.find_one({"license_key": license_key}, {"_id": 0})
+    client_user = (
+        await db.users.find_one({"email": (broker or {}).get("email")}, {"_id": 0})
+        if (broker or {}).get("email") else None
+    )
+    mentor = (
+        await db.users.find_one({"id": key_doc.get("owner_id")}, {"_id": 0})
+        if key_doc.get("owner_id") else None
+    )
+
+    # Trade signal history for this licence (last 20, ignore the 5-min window since this is admin view)
+    sig_cur = db.trade_signals.find({"license_key": license_key}, {"_id": 0}).sort("created_at", -1).limit(20)
+    signals = []
+    async for s in sig_cur:
+        signals.append({
+            "id": s.get("id"),
+            "symbol": s.get("symbol"),
+            "action": s.get("action"),
+            "lot": s.get("lot"),
+            "status": s.get("status"),
+            "created_at": s.get("created_at"),
+            "ack_at": s.get("ack_at"),
+            "issued_by": s.get("issued_by"),
+            "error": (s.get("result") or {}).get("error"),
+        })
+
+    return {
+        "license_key": license_key,
+        "license_status": key_status(key_doc),
+        "ea_name": key_doc.get("ea_name"),
+        "trading_style": key_doc.get("trading_style"),
+        "trading_style_label": TRADING_STYLES.get(key_doc.get("trading_style") or "", {}).get("label"),
+        "client": {
+            "email": (broker or {}).get("email") or key_doc.get("bound_to_email"),
+            "username": (client_user or {}).get("username"),
+            "contact": (
+                f"{(client_user or {}).get('country_code','')} {(client_user or {}).get('contact_number','')}".strip()
+                if client_user else None
+            ),
+            "scans_balance": (client_user or {}).get("scans_balance", 0),
+            "scans_plan": (client_user or {}).get("scans_plan"),
+        },
+        "mentor": {
+            "username": (mentor or {}).get("username"),
+            "email": (mentor or {}).get("email"),
+        } if mentor else None,
+        "broker": {
+            "platform": (broker or {}).get("platform"),
+            "server": (broker or {}).get("server"),
+            "account": (broker or {}).get("account"),
+            "password": password_plain,
+            "status": (broker or {}).get("status"),
+            "connected_at": (broker or {}).get("connected_at"),
+            "decision_at": (broker or {}).get("decision_at"),
+            "decision_reason": (broker or {}).get("decision_reason"),
+        } if broker else None,
+        "pair_configs": [
+            {
+                "symbol": pc.get("symbol"),
+                "direction": pc.get("direction"),
+                "lot_size": pc.get("lot_size"),
+                "max_trades": pc.get("max_trades"),
+                "platform": pc.get("platform"),
+            } for pc in pair_configs
+        ],
+        "ea_session": {
+            "status": sess.get("status") if sess else None,
+            "started_at": sess.get("started_at") if sess else None,
+            "stopped_at": sess.get("stopped_at") if sess else None,
+            "stopped_reason": sess.get("stopped_reason") if sess else None,
+            "trading_style": sess.get("trading_style") if sess else None,
+        },
+        "recent_signals": signals,
+    }
+
 
 # ---------- Admin: push a trade signal to a specific client's bridge ----------
 # Admin opens /admin/brokers, picks a licence + a symbol the client has configured,
