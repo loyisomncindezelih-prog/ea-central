@@ -577,15 +577,15 @@ export default function MobileApp() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12 text-center"
-              style={{ borderColor: `${accent}66` }}
+              className="bg-[#121214] border border-white/8 focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-2xl h-14 text-center text-base ea-mobile"
+              style={{ borderColor: "rgba(255,255,255,0.08)" }}
               data-testid="mobile-email-input"
             />
             <Button
               type="submit"
               disabled={busy}
-              className="w-full text-black font-bold rounded-none h-12 tracking-wide"
-              style={{ backgroundColor: accent }}
+              className="w-full text-black font-bold rounded-2xl h-14 tracking-wide ea-tap text-base"
+              style={{ backgroundColor: accent, boxShadow: `0 6px 20px ${accent}55` }}
               data-testid="mobile-email-submit"
             >
               {busy ? "Checking…" : (<>Continue <ArrowRight className="w-4 h-4 ml-2" /></>)}
@@ -612,15 +612,15 @@ export default function MobileApp() {
               value={license}
               onChange={(e) => setLicense(e.target.value)}
               placeholder="EAC-XXXX-XXXX-XXXX-XXXX"
-              className="bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12 text-center font-mono tracking-[0.15em] uppercase"
-              style={{ borderColor: `${accent}66` }}
+              className="bg-[#121214] border border-white/8 focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-2xl h-14 text-center ea-license-input text-sm"
+              style={{ borderColor: "rgba(255,255,255,0.08)" }}
               data-testid="mobile-license-input"
             />
             <Button
               type="submit"
               disabled={busy}
-              className="w-full text-black font-bold rounded-none h-12 tracking-wide"
-              style={{ backgroundColor: accent }}
+              className="w-full text-black font-bold rounded-2xl h-14 tracking-wide ea-tap text-base"
+              style={{ backgroundColor: accent, boxShadow: `0 6px 20px ${accent}55` }}
               data-testid="mobile-license-submit"
             >
               {busy ? "Activating…" : (<>Activate <ArrowRight className="w-4 h-4 ml-2" /></>)}
@@ -628,7 +628,7 @@ export default function MobileApp() {
             <button
               type="button"
               onClick={() => { localStorage.removeItem(LS_EMAIL); setEmail(""); setStage("email"); }}
-              className="w-full text-xs tracking-[0.22em] uppercase text-white/45 hover:text-white pt-2"
+              className="w-full text-xs tracking-[0.25em] uppercase text-white/40 hover:text-white pt-2 ea-tap"
               data-testid="mobile-license-change-email"
             >
               Use a different email
@@ -681,113 +681,109 @@ export default function MobileApp() {
 
   return (
     <PhoneFrame standalone={isStandalone} accent={accent}>
-      <div className="flex-1 flex flex-col overflow-y-auto bg-black relative" data-testid="mobile-app-screen">
-        {/* === STATIC PREMIUM BACKGROUND (4K vibe — no moving chart) === */}
+      <div className="flex-1 flex flex-col overflow-y-auto relative ea-mobile" data-testid="mobile-app-screen" style={{ "--ea-accent": accent }}>
+        {/* === LUXURY MESH BACKGROUND (no neon halos) === */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {/* Deep navy base */}
-          <div className="absolute inset-0" style={{ background: "radial-gradient(120% 80% at 50% 35%, #001a36 0%, #000814 45%, #000208 100%)" }} />
-          {/* Big central electric-blue halo behind the robot */}
           <div
-            className="absolute left-1/2 top-[32%] -translate-x-1/2 -translate-y-1/2 w-[140%] aspect-square rounded-full"
+            className="absolute inset-0"
             style={{
-              background: `radial-gradient(circle, ${accent}33 0%, ${accent}14 22%, transparent 60%)`,
-              filter: "blur(28px)",
+              background: `
+                radial-gradient(ellipse 80% 60% at 50% 0%, ${accent}1A 0%, transparent 55%),
+                radial-gradient(ellipse 60% 50% at 10% 100%, ${accent}10 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 90% 100%, rgba(245,193,80,0.06) 0%, transparent 60%),
+                #09090B
+              `,
             }}
           />
-          {/* Secondary halo bottom-right for depth */}
           <div
-            className="absolute -bottom-24 -right-24 w-[70%] aspect-square rounded-full opacity-40"
+            className="absolute inset-0 opacity-30"
             style={{
-              background: `radial-gradient(circle, ${accent}1F 0%, transparent 65%)`,
-              filter: "blur(24px)",
+              backgroundImage: "radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
             }}
           />
-          {/* Subtle dot grid texture (4K crisp) */}
-          <div
-            className="absolute inset-0 opacity-[0.10]"
-            style={{
-              backgroundImage: `radial-gradient(${accent}80 1px, transparent 1px)`,
-              backgroundSize: "22px 22px",
-            }}
-          />
-          {/* Diagonal sheen highlight (premium tilt) */}
-          <div
-            className="absolute inset-0 opacity-[0.05]"
-            style={{
-              background: `linear-gradient(135deg, transparent 0%, transparent 40%, ${accent} 50%, transparent 60%, transparent 100%)`,
-            }}
-          />
-          {/* Vignette top + bottom so foreground stays readable */}
-          <div className="absolute inset-x-0 top-0 h-32" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%)" }} />
-          <div className="absolute inset-x-0 bottom-0 h-32" style={{ background: "linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%)" }} />
+          <div className="absolute inset-x-0 top-0 h-24" style={{ background: "linear-gradient(180deg, rgba(9,9,11,0.95) 0%, transparent 100%)" }} />
+          <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(0deg, rgba(9,9,11,0.95) 0%, transparent 100%)" }} />
         </div>
 
         {/* === FOREGROUND CONTENT === */}
 
-        {/* Top bar */}
+        {/* Top bar — minimal luxury */}
         <div className="relative z-10 flex items-center justify-between px-4 pt-3 pb-2">
-          <button onClick={() => setMenuOpen(true)} className="w-10 h-10 flex items-center justify-center" style={{ borderColor: `${accent}66`, borderWidth: 1, color: accent }} data-testid="mobile-menu-btn">
-            <MenuIcon className="w-5 h-5" />
+          <button onClick={() => setMenuOpen(true)} className="w-10 h-10 rounded-xl flex items-center justify-center ea-tap ea-card text-white/85" data-testid="mobile-menu-btn">
+            <MenuIcon className="w-4 h-4" strokeWidth={1.8} />
           </button>
-          <h1 className="font-display text-base font-bold tracking-[0.22em] uppercase text-white truncate max-w-[55%] text-center" data-testid="mobile-app-title">
-            {eaName}
-          </h1>
-          <button className="w-10 h-10 flex items-center justify-center relative" style={{ borderColor: `${accent}66`, borderWidth: 1, color: accent }} data-testid="mobile-bell-btn">
-            <Bell className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: accent }}>
-              {running ? "1" : "0"}
-            </span>
+          <div className="flex items-center gap-2">
+            {running && (
+              <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ backgroundColor: "#10B981", boxShadow: "0 0 6px #10B981" }} data-testid="mobile-running-pulse" />
+            )}
+            <h1 className="ea-mobile-display text-base tracking-tight text-white truncate max-w-[55%] text-center" data-testid="mobile-app-title">
+              {eaName}
+            </h1>
+          </div>
+          <button className="w-10 h-10 rounded-xl flex items-center justify-center ea-tap ea-card text-white/85 relative" data-testid="mobile-bell-btn">
+            <Bell className="w-4 h-4" strokeWidth={1.8} />
+            {running && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ backgroundColor: accent }} />
+            )}
           </button>
         </div>
 
-        {/* Robot in neon ring */}
+        {/* Robot avatar */}
         {tab === "home" && (<>
-        <div className="relative z-10 flex justify-center py-4 sm:py-6">
-          <div
-            className="relative rounded-full overflow-hidden"
-            style={{
-              width: "min(64vw, 230px)",
-              height: "min(64vw, 230px)",
-              border: `2px solid ${accent}`,
-              boxShadow: `0 0 28px ${accent}66, 0 0 60px ${theme.glow}, inset 0 0 22px ${theme.soft}`,
-            }}
-          >
-            {eaData?.mentor_profile_image ? (
-              <img src={eaData.mentor_profile_image} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 50%" }} data-testid="mobile-ea-avatar" />
-            ) : (
-              <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 20%", transform: "scale(2.0)", transformOrigin: "50% 20%" }} data-testid="mobile-ea-avatar-default" />
+        <div className="relative z-10 flex justify-center pt-3 sm:pt-5 ea-card-enter">
+          <div className="relative" style={{ width: "min(58vw, 200px)", height: "min(58vw, 200px)" }}>
+            {/* Outer soft ring */}
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: `conic-gradient(from 0deg, ${accent}66, transparent 40%, ${accent}33, transparent 80%, ${accent}66)`,
+                filter: "blur(2px)",
+                opacity: running ? 0.9 : 0.5,
+              }}
+            />
+            {/* Inner avatar */}
+            <div
+              className="absolute inset-[6px] rounded-full overflow-hidden"
+              style={{ border: `1px solid rgba(255,255,255,0.10)`, backgroundColor: "#09090B" }}
+            >
+              {eaData?.mentor_profile_image ? (
+                <img src={eaData.mentor_profile_image} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 50%" }} data-testid="mobile-ea-avatar" />
+              ) : (
+                <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 20%", transform: "scale(2.0)", transformOrigin: "50% 20%" }} data-testid="mobile-ea-avatar-default" />
+              )}
+            </div>
+            {/* Running pulse ring */}
+            {running && (
+              <div
+                className="absolute inset-0 rounded-full pointer-events-none ea-pulse-ring"
+                style={{ border: `2px solid ${accent}88` }}
+              />
             )}
           </div>
         </div>
 
-        {/* EA name plate */}
+        {/* EA name plate — minimalist luxury */}
         <div
-          className="relative z-10 mx-4 mt-1 rounded-2xl px-4 py-4 text-center"
-          style={{
-            border: `2px solid ${accent}`,
-            backgroundColor: "rgba(0,8,18,0.65)",
-            boxShadow: `0 0 20px ${theme.glow}, inset 0 0 16px ${theme.soft}`,
-          }}
+          className="relative z-10 mx-5 mt-5 rounded-2xl px-4 py-4 text-center ea-card ea-card-enter"
           data-testid="mobile-ea-nameplate"
+          style={{ animationDelay: "0.05s" }}
         >
-          <div className="font-display text-3xl sm:text-4xl font-black tracking-tight break-words" style={{ color: accent, textShadow: `0 0 8px ${accent}99, 0 0 16px ${accent}55` }}>
+          <div className="text-[10px] tracking-[0.32em] uppercase text-white/40 mb-1">Robot</div>
+          <div className="ea-mobile-display text-2xl sm:text-3xl text-white break-words leading-tight">
             {eaName}
           </div>
-          <div className="text-white text-sm sm:text-base mt-1 tracking-wider font-semibold" style={{ textShadow: `0 0 4px ${accent}44` }}>Fully automated EA</div>
+          <div className="text-white/50 text-xs mt-1.5 tracking-wide">Fully automated trading EA</div>
         </div>
 
-        {/* Action row — PAIRS · START · INFO */}
+        {/* Action row — Dynamic Island segmented pill */}
         <div
-          className="relative z-10 mx-4 mt-3 rounded-2xl grid grid-cols-3 overflow-hidden"
-          style={{
-            border: `2px solid ${accent}99`,
-            backgroundColor: "rgba(0,8,18,0.55)",
-            boxShadow: `0 0 14px ${theme.glow}, inset 0 0 12px ${theme.soft}`,
-          }}
+          className="relative z-10 mx-5 mt-4 p-1 rounded-full flex items-center gap-1 ea-segmented ea-card-enter"
+          style={{ animationDelay: "0.1s", "--ea-accent": accent }}
         >
-          <ActionBtn icon={TrendingUp} label="PAIRS" accent={accent} testid="mobile-action-pairs"
+          <ActionBtn icon={TrendingUp} label="Pairs" accent={accent} testid="mobile-action-pairs"
             onClick={() => setPairsOpen(true)} />
-          <ActionBtn icon={Play} label={running ? "STOP" : "START"} accent={accent} testid="mobile-action-start"
+          <ActionBtn icon={running ? Power : Play} label={running ? "Stop" : "Start"} accent={accent} testid="mobile-action-start"
             onClick={async () => {
               if (running) {
                 try { await api.post("/mobile/ea/stop", { email, license_key: license }); } catch { /* ignore */ }
@@ -805,17 +801,17 @@ export default function MobileApp() {
                 toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
               }
             }} highlight={running} themeSoft={theme.soft} />
-          <ActionBtn icon={Info} label="INFO" accent={accent} testid="mobile-action-info"
+          <ActionBtn icon={Info} label="Info" accent={accent} testid="mobile-action-info"
             onClick={() => toast.info(`Mentor: ${eaData?.mentor_username || "—"} · Plan: ${eaData?.plan_label}`)} />
         </div>
 
-        {/* Powered by EA-CENTRAL */}
+        {/* Powered by — minimal chip */}
         <div
-          className="relative z-10 mx-4 mt-3 py-2.5 px-5 flex items-center justify-center gap-3 rounded-full"
-          style={{ border: `1.5px solid ${accent}99`, backgroundColor: "rgba(0,8,18,0.65)", boxShadow: `0 0 12px ${theme.glow}, inset 0 0 8px ${theme.soft}` }}
+          className="relative z-10 mx-5 mt-3 py-2 px-4 flex items-center justify-center gap-2 rounded-full ea-card ea-card-enter"
+          style={{ animationDelay: "0.15s" }}
         >
-          <span className="text-white text-xs sm:text-sm tracking-wider font-semibold">Powered by</span>
-          <span className="font-display font-black tracking-[0.18em] text-sm sm:text-base" style={{ color: accent, textShadow: `0 0 8px ${accent}99, 0 0 14px ${accent}55` }} data-testid="mobile-powered-by">EA-CENTRAL</span>
+          <span className="text-white/50 text-[11px] tracking-wide">Powered by</span>
+          <span className="ea-mobile-display tracking-[0.16em] text-[12px]" style={{ color: accent }} data-testid="mobile-powered-by">EA-CENTRAL</span>
         </div>
 
         {/* Trading Style — risk profile picker */}
@@ -823,40 +819,34 @@ export default function MobileApp() {
           const currentStyle = TRADING_STYLES.find((s) => s.key === eaData?.trading_style);
           const isHighRisk = currentStyle?.risk === "high";
           const isBest = currentStyle?.risk === "best";
-          const styleColor = isHighRisk ? "#FF3B3B" : isBest ? "#22C55E" : accent;
-          const styleSoft = isHighRisk ? "rgba(255,59,59,0.10)" : isBest ? "rgba(34,197,94,0.10)" : theme.soft;
+          const styleColor = isHighRisk ? "#EF4444" : isBest ? "#10B981" : accent;
           return (
             <button
               type="button"
               onClick={() => setStyleOpen(true)}
-              className="relative z-10 w-full mx-4 mt-3 rounded-2xl p-3 flex items-center gap-3 text-left"
-              style={{
-                width: "calc(100% - 2rem)",
-                border: `2px solid ${currentStyle ? styleColor : "rgba(255,255,255,0.1)"}`,
-                backgroundColor: styleSoft,
-                boxShadow: currentStyle ? `0 0 16px ${styleColor}55` : undefined,
-              }}
+              className="relative z-10 mx-5 mt-3 rounded-2xl p-3.5 flex items-center gap-3 text-left ea-card ea-tap-soft ea-card-enter"
+              style={{ animationDelay: "0.2s", borderColor: currentStyle ? `${styleColor}44` : undefined }}
               data-testid="mobile-trading-style-card"
             >
               <div
-                className="w-9 h-9 flex items-center justify-center shrink-0 rounded"
-                style={{ border: `1px solid ${styleColor}`, color: styleColor, boxShadow: `0 0 10px ${styleColor}55` }}
+                className="w-10 h-10 flex items-center justify-center shrink-0 rounded-xl"
+                style={{ backgroundColor: `${styleColor}1A`, color: styleColor }}
               >
                 {isHighRisk ? <AlertTriangle className="w-4 h-4" /> : <Crosshair className="w-4 h-4" />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Trading style</div>
-                <div className="text-sm font-bold truncate" style={{ color: currentStyle ? styleColor : "rgba(255,255,255,0.85)" }} data-testid="mobile-trading-style-value">
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/40">Trading style</div>
+                <div className="text-sm font-semibold truncate text-white" data-testid="mobile-trading-style-value">
                   {currentStyle ? currentStyle.label : "Tap to choose"}
                 </div>
               </div>
               {isBest && (
-                <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 font-bold" style={{ color: "#22C55E", border: `1px solid #22C55E`, backgroundColor: "rgba(34,197,94,0.08)" }} data-testid="mobile-trading-style-best">
+                <div className="text-[9px] tracking-[0.22em] uppercase px-2 py-1 font-bold rounded-md" style={{ color: "#10B981", backgroundColor: "rgba(16,185,129,0.10)" }} data-testid="mobile-trading-style-best">
                   BEST
                 </div>
               )}
               {isHighRisk && (
-                <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 font-bold" style={{ color: "#FF3B3B", border: `1px solid #FF3B3B`, backgroundColor: "rgba(255,59,59,0.08)" }} data-testid="mobile-trading-style-high">
+                <div className="text-[9px] tracking-[0.22em] uppercase px-2 py-1 font-bold rounded-md" style={{ color: "#EF4444", backgroundColor: "rgba(239,68,68,0.10)" }} data-testid="mobile-trading-style-high">
                   HIGH RISK
                 </div>
               )}
@@ -865,14 +855,10 @@ export default function MobileApp() {
         })()}
 
         {/* Robot List */}
-        <div className="relative z-10 mx-4 mt-4">
-          <div className="text-white text-sm font-bold mb-2 tracking-[0.2em] uppercase" style={{ textShadow: `0 0 4px ${accent}44` }}>Robot List</div>
-          <div
-            className="rounded-2xl p-3 flex items-center gap-3"
-            style={{ border: `1.5px solid ${accent}99`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: `0 0 14px ${theme.glow}, inset 0 0 12px ${theme.soft}` }}
-            data-testid="mobile-robot-card"
-          >
-            <div className="w-12 h-12 rounded-full overflow-hidden shrink-0" style={{ border: `1.5px solid ${accent}`, boxShadow: `0 0 10px ${accent}66` }}>
+        <div className="relative z-10 mx-5 mt-4 ea-card-enter" style={{ animationDelay: "0.25s" }}>
+          <div className="text-[10px] tracking-[0.3em] uppercase text-white/40 mb-2 px-1">Robot list</div>
+          <div className="rounded-2xl p-3 flex items-center gap-3 ea-card" data-testid="mobile-robot-card">
+            <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0" style={{ border: `1px solid ${accent}33`, backgroundColor: "#09090B" }}>
               {eaData?.mentor_profile_image ? (
                 <img src={eaData.mentor_profile_image} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -880,52 +866,67 @@ export default function MobileApp() {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-white text-sm truncate" data-testid="mobile-robot-name" style={{ textShadow: `0 0 4px ${accent}33` }}>{eaName}</div>
-              <div className="text-xs font-semibold" style={{ color: accent, textShadow: `0 0 4px ${accent}44` }}>Adaptive AI Trading</div>
+              <div className="font-semibold text-white text-sm truncate" data-testid="mobile-robot-name">{eaName}</div>
+              <div className="text-xs text-white/45 mt-0.5">Adaptive AI Trading</div>
             </div>
-            <button onClick={handleExpire} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition" style={{ border: `1.5px solid ${accent}`, color: accent, boxShadow: `0 0 6px ${accent}44` }} data-testid="mobile-robot-disconnect" title="Disconnect this EA">
+            <button onClick={handleExpire} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/5 transition ea-tap text-white/60 hover:text-white" data-testid="mobile-robot-disconnect" title="Disconnect this EA">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Broker bridge status (kept — admin approval visibility) */}
-        <div className="relative z-10 mx-4 mt-3">
+        <div className="relative z-10 mx-5 mt-3 ea-card-enter" style={{ animationDelay: "0.3s" }}>
           <button
             type="button"
             onClick={() => setConnectOpen(true)}
-            className="w-full rounded-2xl p-3 flex items-center gap-3 text-left transition hover:bg-white/[0.04]"
-            style={{ border: `1.5px solid ${eaData?.broker?.status === "declined" ? "#FF3B3B" : (eaData?.broker ? `${accent}99` : "rgba(255,255,255,0.18)")}`, backgroundColor: "rgba(0,8,18,0.55)", boxShadow: eaData?.broker?.status === "declined" ? `0 0 12px rgba(255,59,59,0.55)` : (eaData?.broker ? `0 0 10px ${theme.glow}` : undefined) }}
+            className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left ea-card ea-tap-soft"
+            style={{
+              borderColor: eaData?.broker?.status === "declined"
+                ? "rgba(239,68,68,0.40)"
+                : (eaData?.broker?.status === "approved" ? `${accent}33` : undefined),
+            }}
             data-testid="mobile-broker-status"
           >
-            <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `1.5px solid ${eaData?.broker?.status === "declined" ? "#FF3B3B" : accent}`, color: eaData?.broker?.status === "declined" ? "#FF3B3B" : accent, boxShadow: `0 0 6px ${eaData?.broker?.status === "declined" ? "rgba(255,59,59,0.55)" : `${accent}55`}` }}>
-              <Server className="w-4 h-4" />
+            <div
+              className="w-10 h-10 flex items-center justify-center shrink-0 rounded-xl"
+              style={{
+                backgroundColor: eaData?.broker?.status === "declined" ? "rgba(239,68,68,0.10)" : `${accent}1A`,
+                color: eaData?.broker?.status === "declined" ? "#EF4444" : accent,
+              }}
+            >
+              <Server className="w-4 h-4" strokeWidth={1.8} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Broker bridge</div>
+              <div className="text-[10px] tracking-[0.25em] uppercase text-white/40">Broker bridge</div>
               {eaData?.broker ? (
-                <div className="text-sm text-white truncate" data-testid="mobile-broker-summary">
+                <div className="text-sm text-white truncate font-medium" data-testid="mobile-broker-summary">
                   {eaData.broker.platform?.toUpperCase()} · {eaData.broker.server} · #{eaData.broker.account}
                 </div>
               ) : (
-                <div className="text-sm text-white/55">Not configured — tap to link MT4 / MT5</div>
+                <div className="text-sm text-white/50">Not configured — tap to link MT4 / MT5</div>
               )}
             </div>
             {(() => {
               const s = eaData?.broker?.status;
               const label =
                 !eaData?.broker ? "setup" :
-                s === "pending_approval" ? "linking…" :
+                s === "pending_approval" ? "linking" :
                 s === "approved" ? "approved" :
                 s === "declined" ? "declined" : "configured";
               const color =
-                !eaData?.broker ? "rgba(255,255,255,0.4)" :
-                s === "declined" ? "#FF3B3B" :
-                s === "pending_approval" ? "rgba(255,200,80,0.95)" :
-                accent;
+                !eaData?.broker ? "rgba(255,255,255,0.35)" :
+                s === "declined" ? "#EF4444" :
+                s === "pending_approval" ? "#EAB308" :
+                s === "approved" ? "#10B981" : accent;
+              const bg =
+                !eaData?.broker ? "rgba(255,255,255,0.04)" :
+                s === "declined" ? "rgba(239,68,68,0.10)" :
+                s === "pending_approval" ? "rgba(234,179,8,0.10)" :
+                s === "approved" ? "rgba(16,185,129,0.10)" : `${accent}1A`;
               return (
-                <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1"
-                  style={{ color, border: `1px solid ${color === "rgba(255,255,255,0.4)" ? "rgba(255,255,255,0.15)" : color}` }}
+                <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 rounded-md font-bold"
+                  style={{ color, backgroundColor: bg }}
                   data-testid="mobile-broker-status-badge">
                   {label}
                 </div>
@@ -937,20 +938,20 @@ export default function MobileApp() {
           {eaData?.broker?.status === "declined" && (
             <div
               className="mt-2 rounded-xl p-3 flex items-start gap-2.5"
-              style={{ border: "1.5px solid #FF3B3B", backgroundColor: "rgba(255,59,59,0.10)", boxShadow: "0 0 14px rgba(255,59,59,0.35), inset 0 0 12px rgba(255,59,59,0.10)" }}
+              style={{ border: "1px solid rgba(239,68,68,0.40)", backgroundColor: "rgba(239,68,68,0.08)" }}
               data-testid="mobile-broker-decline-banner"
             >
-              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#FF3B3B" }} />
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#EF4444" }} />
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] tracking-[0.22em] uppercase font-bold" style={{ color: "#FF3B3B" }}>Linking declined</div>
-                <div className="text-xs text-white/90 mt-0.5 leading-relaxed" data-testid="mobile-broker-decline-reason">
+                <div className="text-[10px] tracking-[0.22em] uppercase font-bold" style={{ color: "#EF4444" }}>Linking declined</div>
+                <div className="text-xs text-white/85 mt-0.5 leading-relaxed" data-testid="mobile-broker-decline-reason">
                   {eaData.broker.decision_reason || "Server couldn't authenticate with those credentials."}
                 </div>
                 <button
                   type="button"
                   onClick={() => setConnectOpen(true)}
-                  className="mt-2 text-[10px] tracking-[0.22em] uppercase font-bold px-2.5 py-1 rounded"
-                  style={{ color: "#FF3B3B", border: "1px solid #FF3B3B", backgroundColor: "rgba(255,59,59,0.06)" }}
+                  className="mt-2 text-[10px] tracking-[0.22em] uppercase font-bold px-2.5 py-1 rounded-md ea-tap"
+                  style={{ color: "#EF4444", backgroundColor: "rgba(239,68,68,0.10)" }}
                   data-testid="mobile-broker-decline-relink"
                 >
                   Re-link broker
@@ -961,75 +962,66 @@ export default function MobileApp() {
         </div>
 
         {/* EA Status — terminal-style rolling log (last 5 minutes, max 20 lines) */}
-        <div className="relative z-10 mx-4 mt-3" data-testid="mobile-ea-status">
-          <div className="flex items-center justify-between mb-2">
+        <div className="relative z-10 mx-5 mt-4 ea-card-enter" data-testid="mobile-ea-status" style={{ animationDelay: "0.35s" }}>
+          <div className="flex items-center justify-between mb-2 px-1">
             <div className="flex items-center gap-2">
-              <div className="text-white text-sm font-bold tracking-[0.2em] uppercase" style={{ textShadow: `0 0 4px ${accent}44` }}>
-                EA Status
-              </div>
+              <div className="text-[10px] tracking-[0.3em] uppercase text-white/40">EA Status</div>
               {running && (
                 <div
                   className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] tracking-[0.22em] uppercase font-bold"
                   style={{
-                    color: "#22C55E",
-                    border: "1px solid rgba(34,197,94,0.6)",
-                    backgroundColor: "rgba(34,197,94,0.10)",
-                    boxShadow: "0 0 8px rgba(34,197,94,0.35)",
+                    color: "#10B981",
+                    backgroundColor: "rgba(16,185,129,0.10)",
                   }}
                   data-testid="mobile-ea-live-pill"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] ea-pulse-dot" />
-                  Live · monitoring markets
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] ea-pulse-dot" />
+                  Live
                 </div>
               )}
             </div>
-            <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: signals.length ? accent : "rgba(255,255,255,0.4)" }} data-testid="mobile-ea-status-count">
+            <div className="text-[10px] tracking-[0.22em] uppercase ea-mono" style={{ color: signals.length ? accent : "rgba(255,255,255,0.30)" }} data-testid="mobile-ea-status-count">
               {signals.length === 0 ? "idle" : `${signals.length} · last 5m`}
             </div>
           </div>
 
           <div
-            className="rounded-lg overflow-hidden"
-            style={{
-              border: `1px solid ${accent}55`,
-              backgroundColor: "rgba(0,4,10,0.85)",
-              boxShadow: `inset 0 0 18px ${accent}11, 0 0 12px ${accent}22`,
-            }}
+            className="rounded-2xl overflow-hidden ea-card"
             data-testid="mobile-ea-terminal"
           >
             {/* Terminal title bar */}
-            <div className="flex items-center justify-between px-3 py-1.5 border-b" style={{ borderColor: `${accent}33`, backgroundColor: "rgba(0,8,18,0.65)" }}>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.04]">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#FF5F57]" />
-                <span className="w-2 h-2 rounded-full bg-[#FEBC2E]" />
-                <span className="w-2 h-2 rounded-full bg-[#28C840]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
               </div>
-              <div className="font-mono text-[9px] tracking-[0.22em] uppercase text-white/40">terminal · ea-central</div>
-              <div className="font-mono text-[9px] text-white/30">5m window</div>
+              <div className="ea-mono text-[9px] tracking-[0.22em] uppercase text-white/35">ea-central · log</div>
+              <div className="ea-mono text-[9px] text-white/25">5m</div>
             </div>
 
             {/* Terminal body — fixed height, scrolls internally */}
             <div
-              className="font-mono text-[11px] leading-snug px-3 py-2 overflow-auto"
-              style={{ height: 160, color: "rgba(255,255,255,0.92)" }}
+              className="ea-mono text-[10px] leading-relaxed px-3 py-2.5 overflow-auto ea-scrollbar-hide ea-term-fade"
+              style={{ height: 160, color: "rgba(255,255,255,0.85)" }}
               data-testid="mobile-ea-terminal-body"
             >
               {signals.length === 0 ? (
-                <div>
-                  <div style={{ color: "#22C55E" }}>
+                <div className="space-y-0.5">
+                  <div style={{ color: "#10B981" }}>
                     <span style={{ color: accent }}>$</span> ea-central --watch <span className="ea-term-cursor">▊</span>
                   </div>
-                  <div style={{ color: "#22C55E", opacity: 0.85 }}>
+                  <div style={{ color: "#10B981", opacity: 0.75 }}>
                     [ok] connected · polling every {running ? "3s" : "8s"}
                   </div>
-                  <div style={{ color: "rgba(255,255,255,0.65)" }}>
+                  <div style={{ color: "rgba(255,255,255,0.55)" }}>
                     [--] waiting for the mentor's bot to fire a signal…
                   </div>
-                  <div style={{ color: "rgba(255,255,255,0.45)" }}>
+                  <div style={{ color: "rgba(255,255,255,0.35)" }}>
                     [--] this log auto-clears every 5 minutes
                   </div>
                   {!running && (
-                    <div style={{ color: "#F5C150" }}>
+                    <div style={{ color: "#EAB308" }}>
                       [hint] press <span style={{ color: accent, fontWeight: 700 }}>START</span> above to begin receiving live trades
                     </div>
                   )}
@@ -1056,16 +1048,12 @@ export default function MobileApp() {
           />
         )}
 
-        <div className="flex-1" />
+        <div className="flex-1 min-h-[80px]" />
 
-        {/* Bottom nav — Home · Connect · Scanner */}
+        {/* Floating dock — Home · Connect · Scanner */}
         <div
-          className="relative z-10 mx-3 mb-3 mt-4 rounded-2xl grid grid-cols-3 overflow-hidden"
-          style={{
-            border: `2px solid ${accent}99`,
-            backgroundColor: "rgba(0,8,18,0.55)",
-            boxShadow: `0 0 14px ${theme.glow}, inset 0 0 12px ${theme.soft}`,
-          }}
+          className="relative z-10 mx-4 mb-4 mt-2 rounded-2xl p-1.5 flex items-center gap-1 ea-dock"
+          data-testid="mobile-bottom-nav"
         >
           <NavBtn icon={Home} label="Home" active={tab === "home"} accent={accent} themeSoft={theme.soft} testid="mobile-nav-home"
             onClick={() => setTab("home")} />
@@ -1585,55 +1573,47 @@ const WelcomePopup = ({ username, eaName, accent, theme, onDismiss }) => {
   const handle = (username || "trader").split(/[@\s]/)[0];
   return (
     <div
-      className="absolute inset-0 z-40 bg-black/72 backdrop-blur-sm flex items-center justify-center px-5 animate-in fade-in duration-300"
+      className="absolute inset-0 z-40 flex items-center justify-center px-5 ea-backdrop-enter ea-mobile"
       onClick={onDismiss}
+      style={{ backgroundColor: "rgba(9,9,11,0.75)", backdropFilter: "blur(8px)" }}
       data-testid="mobile-welcome-popup"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[340px] rounded-2xl p-6 text-center animate-in zoom-in-95 duration-300"
-        style={{
-          border: `2px solid ${accent}`,
-          backgroundColor: "rgba(0,8,18,0.95)",
-          boxShadow: `0 0 32px ${theme.glow}, inset 0 0 18px ${theme.soft}`,
-        }}
+        className="w-full max-w-[340px] rounded-3xl p-7 text-center ea-card-elevated ea-drawer-enter"
       >
-        {/* Money emoji icon ring */}
+        {/* Icon */}
         <div
-          className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
-          style={{
-            border: `2px solid ${accent}`,
-            backgroundColor: theme.soft,
-            boxShadow: `0 0 18px ${theme.glow}`,
-          }}
+          className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
+          style={{ backgroundColor: `${accent}1A`, color: accent }}
         >
-          <TrendingUp className="w-8 h-8" style={{ color: accent, filter: `drop-shadow(0 0 6px ${accent})` }} strokeWidth={2.4} />
+          <TrendingUp className="w-6 h-6" strokeWidth={2} />
         </div>
 
-        <div className="text-[10px] tracking-[0.32em] uppercase mb-1" style={{ color: accent, textShadow: `0 0 6px ${accent}99` }}>
+        <div className="text-[10px] tracking-[0.3em] uppercase mb-1.5 text-white/40">
           {greeting}
         </div>
-        <div className="font-display text-2xl font-black text-white tracking-tight" data-testid="mobile-welcome-headline">
+        <div className="ea-mobile-display text-2xl text-white" data-testid="mobile-welcome-headline">
           {handle},
         </div>
-        <div className="font-display text-2xl font-black tracking-tight mt-0.5" style={{ color: accent, textShadow: `0 0 10px ${accent}99, 0 0 18px ${accent}55` }}>
+        <div className="ea-mobile-display text-2xl mt-0.5" style={{ color: accent }}>
           let's make money.
         </div>
 
-        <div className="text-sm text-white/85 leading-relaxed mt-4" data-testid="mobile-welcome-quote">
+        <div className="text-sm text-white/70 leading-relaxed mt-4" data-testid="mobile-welcome-quote">
           {line}
         </div>
-        <div className="text-[10px] tracking-[0.22em] uppercase text-white/45 mt-2 font-mono">
+        <div className="text-[10px] tracking-[0.25em] uppercase text-white/35 mt-3 ea-mono">
           / {eaName} · ready
         </div>
 
         <button
           type="button"
           onClick={onDismiss}
-          className="mt-6 w-full text-black font-extrabold text-xs tracking-[0.22em] uppercase py-3 rounded transition active:scale-[0.97] hover:brightness-110"
+          className="mt-6 w-full text-black font-bold text-sm tracking-wide py-3.5 rounded-2xl ea-tap"
           style={{
             backgroundColor: accent,
-            boxShadow: `0 0 18px ${theme.glow}, 0 0 32px ${accent}55`,
+            boxShadow: `0 6px 20px ${accent}55`,
           }}
           data-testid="mobile-welcome-dismiss"
         >
@@ -1664,36 +1644,36 @@ const PhoneFrame = ({ children, standalone = false, accent = "#1E90FF" }) => {
   if (standalone) {
     // Installed as PWA / Add-to-Home — go full screen, no phone bezel
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col" data-testid="mobile-app-page" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="min-h-screen text-white flex flex-col ea-mobile ea-mesh-bg" data-testid="mobile-app-page" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         {children}
       </div>
     );
   }
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-3 sm:p-6 md:p-10 relative overflow-hidden" data-testid="mobile-app-page">
-      {/* Desktop / tablet backdrop — neon-grid + dual halo */}
-      <div className="absolute inset-0 ea-grid-anim opacity-25 pointer-events-none hidden md:block" />
-      <div className="absolute -top-32 -left-32 w-[480px] h-[480px] rounded-full blur-3xl pointer-events-none hidden md:block" style={{ backgroundColor: `${accent}22` }} />
-      <div className="absolute -bottom-32 -right-32 w-[520px] h-[520px] rounded-full blur-3xl pointer-events-none hidden md:block" style={{ backgroundColor: `${accent}1A` }} />
+    <div className="min-h-screen text-white flex items-center justify-center p-3 sm:p-6 md:p-10 relative overflow-hidden ea-mobile ea-mesh-bg ea-dot-grid" data-testid="mobile-app-page" style={{ "--ea-accent": accent }}>
+      {/* Desktop ambient halos — subtle, no flashing */}
+      <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full blur-3xl pointer-events-none hidden md:block opacity-30" style={{ backgroundColor: `${accent}1F` }} />
+      <div className="absolute -bottom-32 -right-32 w-[520px] h-[520px] rounded-full blur-3xl pointer-events-none hidden md:block opacity-20" style={{ backgroundColor: `${accent}14` }} />
       {/* Vertical "ticker" hint copy on big screens */}
       <div className="absolute left-6 top-1/2 -translate-y-1/2 hidden lg:flex flex-col gap-1 pointer-events-none">
-        <div className="text-[10px] tracking-[0.4em] uppercase font-mono" style={{ color: accent, writingMode: "vertical-rl", textOrientation: "mixed" }}>EA-CENTRAL · MOBILE EA</div>
+        <div className="text-[10px] tracking-[0.42em] uppercase ea-mono text-white/30" style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>EA-CENTRAL · MOBILE EA</div>
       </div>
       <div className="absolute right-6 top-1/2 -translate-y-1/2 hidden lg:flex flex-col gap-1 pointer-events-none">
-        <div className="text-[10px] tracking-[0.4em] uppercase font-mono text-white/30" style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>LIVE · TRADING · BRIDGE</div>
+        <div className="text-[10px] tracking-[0.42em] uppercase ea-mono text-white/20" style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>LIVE · TRADING · BRIDGE</div>
       </div>
 
       <div
-        className="relative w-full max-w-[400px] rounded-[44px] border border-white/15 bg-[#050505] p-2 sm:p-3"
+        className="relative w-full max-w-[400px] rounded-[40px] border border-white/10 p-2 sm:p-2.5"
         style={{
-          height: "min(92vh, 820px)",
-          boxShadow: `0 0 80px ${accent}40, 0 25px 80px rgba(0,0,0,0.8)`,
+          height: "min(92vh, 850px)",
+          background: "linear-gradient(180deg, #18181B 0%, #09090B 100%)",
+          boxShadow: `0 0 0 1px rgba(255,255,255,0.04), 0 30px 60px rgba(0,0,0,0.6), 0 0 100px ${accent}1A`,
         }}
       >
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-b-2xl z-20" />
-        <div className="w-full h-full rounded-[36px] bg-black overflow-hidden flex flex-col">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-5 bg-black rounded-b-2xl z-20" />
+        <div className="w-full h-full rounded-[34px] bg-[#09090B] overflow-hidden flex flex-col">
           {/* Status bar */}
-          <div className="flex items-center justify-between px-6 pt-3 pb-1 text-[10px] text-white/70 font-mono shrink-0">
+          <div className="flex items-center justify-between px-6 pt-3 pb-1 text-[10px] text-white/55 ea-mono shrink-0">
             <span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
             <div className="flex items-center gap-1.5">
               <Signal className="w-3 h-3" />
@@ -1709,16 +1689,22 @@ const PhoneFrame = ({ children, standalone = false, accent = "#1E90FF" }) => {
 };
 
 const AuthScreen = ({ icon: Icon, title, subtitle, children, testid, accent = "#1E90FF" }) => (
-  <div className="flex-1 flex flex-col items-center justify-center px-6 relative" data-testid={testid}>
-    <div className="absolute inset-0 ea-grid opacity-25 pointer-events-none" />
-    <div className="relative w-16 h-16 rounded-full flex items-center justify-center" style={{ border: `2px solid ${accent}`, color: accent, boxShadow: `0 0 30px ${accent}73` }}>
-      <Icon className="w-7 h-7" strokeWidth={1.5} />
+  <div className="flex-1 flex flex-col items-center justify-center px-7 relative ea-mobile" data-testid={testid}>
+    <div
+      className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[120%] aspect-square rounded-full pointer-events-none opacity-50"
+      style={{ background: `radial-gradient(circle, ${accent}1F 0%, transparent 55%)`, filter: "blur(40px)" }}
+    />
+    <div
+      className="relative w-14 h-14 rounded-2xl flex items-center justify-center ea-card-elevated"
+      style={{ color: accent }}
+    >
+      <Icon className="w-6 h-6" strokeWidth={1.6} />
     </div>
-    <h2 className="relative font-display text-2xl font-bold tracking-tight mt-6 text-center">{title}</h2>
-    <p className="relative text-white/55 text-xs text-center mt-2 max-w-xs">{subtitle}</p>
-    <div className="relative w-full mt-7">{children}</div>
-    <div className="relative mt-auto pb-2 pt-8 text-[10px] tracking-[0.25em] uppercase text-white/30 flex items-center gap-2">
-      <Power className="w-3 h-3" style={{ color: accent }} />
+    <h2 className="relative ea-mobile-display text-3xl mt-7 text-center" style={{ color: "#F8FAFC" }}>{title}</h2>
+    <p className="relative text-white/55 text-sm text-center mt-2.5 max-w-xs leading-relaxed">{subtitle}</p>
+    <div className="relative w-full mt-8">{children}</div>
+    <div className="relative mt-auto pb-3 pt-8 text-[10px] tracking-[0.3em] uppercase text-white/25 flex items-center gap-2">
+      <span className="w-1 h-1 rounded-full" style={{ backgroundColor: accent }} />
       ea-central · mobile EA
     </div>
   </div>
@@ -1727,25 +1713,29 @@ const AuthScreen = ({ icon: Icon, title, subtitle, children, testid, accent = "#
 const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false, accent = "#1E90FF", themeSoft }) => (
   <button
     onClick={onClick}
-    className="py-5 sm:py-6 flex flex-col items-center gap-2 transition-all duration-200 border-r last:border-r-0 active:scale-95 hover:bg-white/[0.06] relative group"
+    className="relative flex-1 h-14 rounded-full flex items-center justify-center gap-2 ea-tap transition-colors duration-200 group"
     style={{
-      borderColor: `${accent}44`,
-      backgroundColor: highlight ? (themeSoft || `${accent}22`) : "rgba(0,8,18,0.35)",
-      boxShadow: highlight ? `inset 0 0 18px ${accent}55, 0 0 10px ${accent}55` : `inset 0 0 10px ${accent}11`,
+      background: highlight
+        ? `linear-gradient(180deg, ${accent} 0%, ${accent}DD 100%)`
+        : "transparent",
+      boxShadow: highlight ? `0 6px 18px ${accent}55, inset 0 1px 0 rgba(255,255,255,0.25)` : undefined,
     }}
     data-testid={testid}
   >
+    {highlight && (
+      <span
+        className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ea-pulse-dot"
+        style={{ backgroundColor: "#fff", boxShadow: `0 0 8px #fff` }}
+      />
+    )}
     <Icon
-      className="w-8 h-8 sm:w-9 sm:h-9 transition-all duration-200 group-hover:scale-110"
-      style={{
-        color: accent,
-        filter: `drop-shadow(0 0 6px ${accent}77) drop-shadow(0 0 12px ${accent}33)`,
-      }}
+      className="w-4 h-4 transition-transform duration-200"
+      style={{ color: highlight ? "#fff" : "rgba(255,255,255,0.85)" }}
       strokeWidth={2.2}
     />
     <span
-      className="text-white text-xs sm:text-sm tracking-[0.22em] font-extrabold"
-      style={{ textShadow: `0 0 6px ${accent}66` }}
+      className="text-[11px] tracking-[0.22em] font-bold uppercase"
+      style={{ color: highlight ? "#fff" : "rgba(255,255,255,0.85)" }}
     >
       {label}
     </span>
@@ -1755,30 +1745,20 @@ const ActionBtn = ({ icon: Icon, label, onClick, testid, highlight = false, acce
 const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "#1E90FF", themeSoft }) => (
   <button
     onClick={onClick}
-    className="py-4 sm:py-5 flex flex-col items-center gap-1.5 border-r last:border-r-0 active:scale-95 transition-all duration-200 hover:bg-white/[0.06] relative group"
+    className="relative flex-1 h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 ea-tap transition-colors duration-200"
     style={{
-      borderColor: `${accent}44`,
-      backgroundColor: active ? (themeSoft || `${accent}1F`) : "rgba(0,8,18,0.35)",
-      boxShadow: active ? `inset 0 0 16px ${accent}44, 0 0 8px ${accent}55` : "none",
+      backgroundColor: active ? `${accent}1A` : "transparent",
     }}
     data-testid={testid}
   >
     <Icon
-      className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-200 group-hover:scale-110"
-      style={{
-        color: active ? accent : "rgba(255,255,255,0.9)",
-        filter: active
-          ? `drop-shadow(0 0 6px ${accent}77) drop-shadow(0 0 12px ${accent}33)`
-          : `drop-shadow(0 0 3px rgba(255,255,255,0.3))`,
-      }}
-      strokeWidth={2.2}
+      className="w-5 h-5 transition-transform duration-200"
+      style={{ color: active ? accent : "rgba(255,255,255,0.55)" }}
+      strokeWidth={2}
     />
     <span
-      className="text-xs sm:text-sm tracking-wider font-bold"
-      style={{
-        color: active ? accent : "rgba(255,255,255,0.95)",
-        textShadow: active ? `0 0 6px ${accent}66` : "none",
-      }}
+      className="text-[9px] tracking-[0.2em] font-bold uppercase"
+      style={{ color: active ? accent : "rgba(255,255,255,0.55)" }}
     >
       {label}
     </span>
