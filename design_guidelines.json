@@ -1,131 +1,114 @@
 {
-  "theme": "dark",
-  "archetype": "Archetype 7 (Electric & Neon) modified to strict Black & Blue constraint",
+  "theme": "DARK",
+  "archetype": "Archetype 5 (Luxury) mixed with Archetype 2 (Performance Pro)",
+  "global_rules": {
+    "philosophy": "Institutional Algorithmic Trading Terminal. Premium, deep, mysterious, but highly functional. Moving away from cheap 'neon cyberpunk' to 'high-end luxury tech'.",
+    "animations": "CSS-only for performance. Rely on `active:scale-95 transition-transform duration-200 ease-out` for all interactive elements to simulate haptic feedback without JS bloat.",
+    "performance": "Minimize heavy DOM nodes. Use CSS gradients instead of large images. Use `content-visibility: auto` on off-screen drawers.",
+    "accessibility": "Maintain minimum 4.5:1 contrast for all text. Use `data-testid` on all interactive elements."
+  },
   "typography": {
-    "fonts": {
-      "heading": "Outfit",
-      "body": "IBM Plex Mono",
-      "install_command": "npx @fontsource/outfit && npx @fontsource/ibm-plex-mono"
+    "headings": {
+      "family": "Cabinet Grotesk",
+      "weights": ["500", "700", "900"],
+      "usage": "H1/H2, EA Name, Welcome Popups, Key Metrics. Never use Inter."
     },
-    "scales": {
-      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black",
-      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
-      "h3": "text-xl sm:text-2xl font-semibold",
-      "h4": "text-lg sm:text-xl font-medium",
-      "body": "text-base leading-relaxed font-light",
-      "labels": "text-xs tracking-[0.2em] uppercase font-medium"
+    "body": {
+      "family": "Manrope",
+      "weights": ["400", "500"],
+      "usage": "Paragraphs, labels, descriptions."
+    },
+    "monospace": {
+      "family": "JetBrains Mono",
+      "weights": ["400", "500", "600"],
+      "usage": "EA Status Terminal, live numbers, balances, PnL."
+    },
+    "scale": {
+      "h1": "text-4xl tracking-tight",
+      "h2": "text-2xl tracking-tight",
+      "h3": "text-xl",
+      "body": "text-sm",
+      "label": "text-[10px] tracking-widest uppercase",
+      "terminal": "text-[10px] leading-tight"
     }
   },
   "colors": {
-    "background": {
-      "primary": "#000000",
-      "secondary": "#050505",
-      "tertiary": "#0A0A0A"
-    },
-    "brand": {
-      "primary": "#1E90FF",
-      "accent": "#2A8BFF",
-      "glow": "rgba(30, 144, 255, 0.4)"
+    "base": {
+      "background": "#09090B",
+      "surface": "#121214",
+      "surface_elevated": "#1C1C1F"
     },
     "text": {
-      "primary": "#FFFFFF",
-      "secondary": "#A1A1AA",
-      "muted": "#71717A"
+      "primary": "#F8FAFC",
+      "secondary": "#94A3B8",
+      "muted": "#475569"
     },
-    "border": {
-      "primary": "rgba(30, 144, 255, 0.2)",
-      "secondary": "rgba(255, 255, 255, 0.1)"
+    "borders": {
+      "default": "rgba(255, 255, 255, 0.08)",
+      "highlight": "rgba(255, 255, 255, 0.15)"
     },
-    "forbidden_colors": ["purple", "green", "orange", "#9D4CDD", "#1B93A4"]
-  },
-  "spacing_and_layout": {
-    "philosophy": "Technical Grid & Asymmetry",
-    "container_padding": "p-6 md:p-12",
-    "section_gap": "gap-16 md:gap-32",
-    "bento_grid": {
-      "marketing": "grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-8",
-      "dashboard": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
+    "themes": {
+      "gold": { "primary": "#EAB308", "bg": "rgba(234, 179, 8, 0.1)" },
+      "blue": { "primary": "#3B82F6", "bg": "rgba(59, 130, 246, 0.1)" },
+      "green": { "primary": "#10B981", "bg": "rgba(16, 185, 129, 0.1)" },
+      "red": { "primary": "#EF4444", "bg": "rgba(239, 68, 68, 0.1)" }
+    },
+    "status": {
+      "ok": "#10B981",
+      "cls": "#8B5CF6",
+      "err": "#EF4444",
+      "bal": "#EAB308",
+      "skp": "#64748B",
+      "took": "#3B82F6",
+      "pen": "#F97316"
     }
   },
-  "surfaces": {
-    "cards": {
-      "style": "Glassmorphism & Grid Borders",
-      "classes": "bg-black/60 backdrop-blur-xl border border-white/10 hover:border-blue-500/40 shadow-sm hover:shadow-[0_0_20px_rgba(30,144,255,0.15)] transition-all duration-300 rounded-xl"
+  "layout_and_spacing": {
+    "app_container": "Mobile-first width constraints. Desktop view: `max-w-[400px] mx-auto h-[850px] max-h-[95vh] relative rounded-[40px] overflow-hidden border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)] bg-[#09090B]`. Desktop background framing: Deep, elegant abstract mesh gradient (CSS only).",
+    "mobile_canvas": "`w-full h-full min-h-screen md:min-h-[850px] flex flex-col overflow-x-hidden`",
+    "grid": "Control Room Grid (Dense). `gap-3` or `gap-4` for maximum data density.",
+    "cards": "Cardless or 'Crystal Glass' approach. `bg-[#121214] border border-white/5 rounded-2xl p-4`. Remove massive neon drop-shadows. Replace with 1px inner strokes and ambient glow."
+  },
+  "components": {
+    "auth_stages": {
+      "email_entry": "Minimalist luxury. Centered brand logo, large elegant input field (`border-b` only or fully rounded pill). Huge, high-contrast submit button. Smooth CSS fade-in.",
+      "license_activation": "Similar to email, but input is heavily letter-spaced (`tracking-[0.2em]`) for the key."
     },
-    "inputs": {
-      "style": "Retro-Futurism",
-      "classes": "bg-transparent border border-white/20 focus:border-[#1E90FF] focus:ring-1 focus:ring-[#1E90FF] text-white rounded-md"
+    "action_row_3_col": {
+      "keep_or_upgrade": "UPGRADE. Currently the most tapped element.",
+      "design": "Unified 'Dynamic Island' style Segmented Control. A single pill-shaped container `bg-[#1C1C1F] p-1 rounded-full flex items-center`. 3 equal segments. Active/Start button is highly vibrant (Theme color). Others are muted. CSS haptic scale `active:scale-95`."
     },
-    "buttons": {
-      "primary": "bg-[#1E90FF] hover:bg-[#2A8BFF] text-white font-semibold rounded-none tracking-wide px-8 py-4 transition-all duration-300 border border-[#1E90FF]",
-      "secondary": "bg-transparent hover:bg-white/5 border border-white/20 text-white font-medium rounded-none px-6 py-3 transition-colors"
+    "ea_status_terminal": {
+      "keep_or_upgrade": "UPGRADE. Needs institutional feel.",
+      "design": "Strict monospace log. `h-[160px] bg-black/60 backdrop-blur-md rounded-xl border border-white/5 p-3 overflow-y-auto font-mono text-[10px] relative`. Hide scrollbars `scrollbar-hide`. Fade-out mask at the top `mask-image: linear-gradient(to bottom, transparent, black 20%)`.",
+      "tags": "Status tags are tiny badges: `px-1.5 py-0.5 rounded-sm uppercase tracking-wider bg-opacity-20`."
+    },
+    "trading_style_picker": {
+      "design": "Horizontal scroll or tightly packed grid. Use subtle color gradients to indicate risk (Green for Scalping -> Red for Aggressive). Active state gets a 1px solid border of the theme color."
+    },
+    "bottom_nav": {
+      "design": "Floating 'Dock' rather than full-width bar to feel more premium. `fixed bottom-6 left-4 right-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-2 flex justify-around items-center z-50`."
+    },
+    "drawers": {
+      "design": "Slide up from bottom (`translate-y-full` to `translate-y-0`). `rounded-t-3xl bg-[#09090B] border-t border-white/10`. Header of drawer has a small gray drag handle `w-12 h-1 bg-white/20 rounded-full mx-auto mt-2`."
     }
+  },
+  "micro_features": {
+    "haptic_feedback": "Add `active:scale-[0.97]` to all buttons and cards.",
+    "status_pulse": "The START/STOP button and EA Avatar should have a tiny absolute positioned pulsing dot (`animate-ping`) when EA is active.",
+    "loaders": "Use pure CSS shimmering skeletons for initial data load `animate-pulse bg-white/5`.",
+    "scroll_behavior": "Add `scroll-smooth` to terminal. Hide scrollbars universally using custom CSS classes `[&::-webkit-scrollbar]:hidden`."
   },
   "media": {
-    "images": {
-      "logo": {
-        "url": "https://customer-assets.emergentagent.com/job_6adc55b9-79fd-4114-b9ca-50702872ede7/artifacts/lmvx6afo_ChatGPT%20Image%20May%2012%2C%202026%2C%2009_13_48%20PM.png",
-        "description": "ea-central brand mark",
-        "usage": "Header, Footer, Auth pages"
-      },
-      "hero_background": {
-        "url": "https://images.unsplash.com/photo-1764258560730-d167e5deda65?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjB0ZWNobm9sb2d5JTIwYmx1ZSUyMGxpbmVzfGVufDB8fHx8MTc3ODYxNTM0MHww&ixlib=rb-4.1.0&q=85",
-        "description": "Abstract blue and white lines on black background",
-        "usage": "Landing page hero section background (overlay with bg-black/60)"
-      },
-      "features_trading": {
-        "url": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHx0cmFkaW5nJTIwY2hhcnRzJTIwY2FuZGxlc3RpY2slMjBkYXJrJTIwYmx1ZXxlbnwwfHx8fDE3Nzg2MTUzNDB8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Abstract dark trading chart",
-        "usage": "Features section visual for PC bot representation"
-      },
-      "mobile_mockup": {
-        "url": "https://images.unsplash.com/photo-1557680784-6db47c6f56ab?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwyfHxtb2JpbGUlMjBwaG9uZSUyMGRhcmslMjBzY3JlZW4lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc3ODYxNTM0MHww&ixlib=rb-4.1.0&q=85",
-        "description": "Black smartphone",
-        "usage": "Mobile EA preview section mockup frame background"
-      }
-    },
-    "icons": {
-      "library": "lucide-react",
-      "style": "stroke-1.5, sharp and minimal"
-    }
-  },
-  "key_components": {
-    "header": {
-      "style": "Crystal Glass backdrop-blur-xl bg-black/60 border-b border-white/10 sticky top-0 z-50",
-      "cta": "Be a Mentor (Primary Button style)"
-    },
-    "hero_section": {
-      "layout": "Asymmetrical overlay over abstract background",
-      "headline": "Host Your PC Bot as Mobile EA",
-      "subheadline": "Your bot trades, clients copy from their phones. No VPS needed for clients."
-    },
-    "how_it_works": {
-      "layout": "3-step Grid with tracing beam borders",
-      "items": [
-        "Host your PC bot",
-        "Clients connect via phone",
-        "Copy trading runs automatically"
-      ]
-    },
-    "auth_pages": {
-      "layout": "Split screen. Left: dark branded abstract art. Right: strict functional forms.",
-      "signup_fields": ["Username", "Email", "Country Code + Contact Number", "Password", "T&C Checkbox"],
-      "login_fields": ["Email", "Password"]
-    },
-    "mentor_dashboard": {
-      "layout": "Control Room Grid (Dense, sharp borders)",
-      "widgets": ["Bot Status Placeholder", "Connected Clients Count", "Latest Trades Feed"]
-    },
-    "client_mobile_preview": {
-      "layout": "Center column representing mobile frame. Deep black with blue data highlights showing mock trades."
-    }
+    "hero_backgrounds": "Use CSS radial gradients. Example: `background: radial-gradient(circle at 50% 0%, rgba(var(--theme-primary), 0.15) 0%, transparent 50%)`."
   },
   "instructions_to_main_agent": [
-    "Strictly follow the color palette. Pure black backgrounds (#000000 or #050505) and #1E90FF electric blue only. No purples, greens, or oranges.",
-    "Ensure all buttons, form inputs, and interactive elements have data-testid attributes (e.g., data-testid='login-submit-button').",
-    "Use standard pure HTML + Tailwind for marketing sections for deep layout control, but use customized Shadcn UI components for complex interactions like Modals, Selects, and Forms.",
-    "Implement the font stack correctly: Outfit for Headings and IBM Plex Mono for Body to give it a 'trading terminal' vibe.",
-    "In the mentor dashboard, use recharts or Shadcn chart components customized with the #1E90FF stroke on pure black.",
-    "Ensure the hero image has a heavy black overlay (bg-black/60 or more) to ensure perfect text readability."
+    "Load `Cabinet Grotesk`, `Manrope`, and `JetBrains Mono` from Google Fonts or a reliable CDN in `index.html`.",
+    "Do NOT use heavy JavaScript animation libraries like Framer Motion for simple clicks. Rely on Tailwind's `transition-transform duration-200 active:scale-95`.",
+    "Refactor the 2500-line `MobileApp.jsx` monolith into smaller functional components where possible, or strictly organize it if keeping as monolith.",
+    "Retain all existing state logic, API calls (`/api/mobile/...`), and strict `data-testid` attributes.",
+    "Apply the 'Luxury / Performance Pro' dark theme. Remove all existing massive neon drop-shadows.",
+    "Implement the Desktop framing: wrap the entire app in a centered 400x850 container if window width > 768px. Fill the rest of the desktop body with a dark abstract background.",
+    "Build the EA Status Terminal as a highly readable, dense, command-line interface."
   ]
 }
