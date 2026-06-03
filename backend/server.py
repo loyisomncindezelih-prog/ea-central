@@ -15,7 +15,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Literal
 import re
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
@@ -1216,6 +1216,24 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
     if key_status(key_doc) == "expired":
         raise HTTPException(status_code=410, detail="Licence has expired.")
 
+    # ONE-BROKER LOCK: users can only have one broker linked at a time.
+    # Pending and approved both count as "linked" — only admin can unlink an approved one.
+    # Declined users CAN resubmit (overwrites the declined row).
+    existing = await db.broker_connections.find_one({"license_key": license_key}, {"_id": 0, "status": 1})
+    if existing:
+        ex_status = existing.get("status")
+        if ex_status == "approved":
+            raise HTTPException(
+                status_code=409,
+                detail="A broker is already linked and approved. Ask admin to unlink it before linking another.",
+            )
+        if ex_status == "pending_approval":
+            raise HTTPException(
+                status_code=409,
+                detail="A broker link is already waiting for admin approval. Please wait for the decision before submitting a new one.",
+            )
+        # declined → fall through and let the user resubmit (overwrite)
+
     doc = {
         "license_key": license_key,
         "email": email,
@@ -1247,8 +1265,19 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
 @api_router.post("/mobile/disconnect-broker")
 @limiter.limit("30/minute")
 async def mobile_disconnect_broker(request: Request, payload: MobileActivateIn):
+    """Users can only self-disconnect a broker that is still PENDING approval or DECLINED.
+    Once admin has approved a broker, only admin can unlink it (via /admin/broker-connections/{lk}/unlink)."""
     license_key = payload.license_key.strip().upper()
-    await db.broker_connections.delete_one({"license_key": license_key, "email": payload.email.lower()})
+    email = payload.email.lower()
+    existing = await db.broker_connections.find_one(
+        {"license_key": license_key, "email": email}, {"_id": 0, "status": 1}
+    )
+    if existing and existing.get("status") == "approved":
+        raise HTTPException(
+            status_code=403,
+            detail="This broker is approved by admin and locked. Contact admin to unlink it.",
+        )
+    await db.broker_connections.delete_one({"license_key": license_key, "email": email})
     return {"ok": True}
 
 
@@ -2164,7 +2193,11 @@ class BrokerDecideIn(BaseModel):
 
 
 @api_router.post("/admin/broker-connections/{license_key}/approve")
-async def admin_approve_broker(license_key: str, payload: BrokerDecideIn, admin: dict = Depends(get_admin_user)):
+async def admin_approve_broker(
+    license_key: str,
+    payload: BrokerDecideIn = Body(default_factory=BrokerDecideIn),
+    admin: dict = Depends(get_admin_user),
+):
     license_key = license_key.strip().upper()
     res = await db.broker_connections.update_one(
         {"license_key": license_key},
@@ -2200,6 +2233,92 @@ async def admin_decline_broker(license_key: str, payload: BrokerDecideIn, admin:
         {"$set": {"status": "stopped", "stopped_at": now_iso(), "stopped_reason": "broker_declined"}},
     )
     return {"ok": True, "status": "declined"}
+
+
+@api_router.post("/admin/broker-connections/{license_key}/unlink")
+async def admin_unlink_broker(license_key: str, admin: dict = Depends(get_admin_user)):
+    """Admin removes the broker linkage entirely so the user can submit a new one.
+    Also force-stops any running EA session attached to that licence."""
+    license_key = license_key.strip().upper()
+    res = await db.broker_connections.delete_one({"license_key": license_key})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Broker connection not found")
+    await db.ea_sessions.update_one(
+        {"license_key": license_key, "status": "running"},
+        {"$set": {"status": "stopped", "stopped_at": now_iso(), "stopped_reason": "admin_unlinked_broker"}},
+    )
+    return {"ok": True, "unlinked_by": admin.get("email")}
+
+
+@api_router.get("/admin/clients-status")
+async def admin_clients_status(admin: dict = Depends(get_admin_user)):
+    """Three buckets the admin actually cares about:
+      • running    — EA pressed START and is currently active
+      • stopped    — EA was started at some point but is now stopped
+      • pending_broker — user submitted broker creds (pending OR declined) but no approved broker yet
+    """
+    # 1) Pull every active EA session + broker connection in parallel-ish (two queries)
+    sessions = await db.ea_sessions.find({}, {"_id": 0}).to_list(2000)
+    brokers = await db.broker_connections.find({}, {"_id": 0, "password_enc": 0}).to_list(2000)
+
+    broker_by_lk = {b.get("license_key"): b for b in brokers if b.get("license_key")}
+
+    def base_row(sess: dict, broker: Optional[dict]):
+        return {
+            "license_key": sess.get("license_key"),
+            "email": sess.get("email") or (broker.get("email") if broker else None),
+            "started_at": sess.get("started_at"),
+            "stopped_at": sess.get("stopped_at"),
+            "stopped_reason": sess.get("stopped_reason"),
+            "trading_style": sess.get("trading_style"),
+            "platform": (broker or {}).get("platform"),
+            "server": (broker or {}).get("server"),
+            "account": (broker or {}).get("account"),
+            "broker_status": (broker or {}).get("status"),
+        }
+
+    running, stopped = [], []
+    for s in sessions:
+        lk = s.get("license_key")
+        b = broker_by_lk.get(lk)
+        row = base_row(s, b)
+        if s.get("status") == "running":
+            running.append(row)
+        elif s.get("status") == "stopped":
+            stopped.append(row)
+
+    # 2) Pending-broker bucket = brokers in pending_approval or declined, regardless of session.
+    pending_broker = []
+    for b in brokers:
+        if b.get("status") in ("pending_approval", "declined"):
+            pending_broker.append({
+                "license_key": b.get("license_key"),
+                "email": b.get("email"),
+                "platform": b.get("platform"),
+                "server": b.get("server"),
+                "account": b.get("account"),
+                "status": b.get("status"),
+                "decision_reason": b.get("decision_reason"),
+                "connected_at": b.get("connected_at"),
+                "decision_at": b.get("decision_at"),
+            })
+
+    # Sort each list newest-first by the most relevant timestamp.
+    running.sort(key=lambda r: r.get("started_at") or "", reverse=True)
+    stopped.sort(key=lambda r: r.get("stopped_at") or "", reverse=True)
+    pending_broker.sort(key=lambda r: r.get("connected_at") or "", reverse=True)
+
+    return {
+        "running": running,
+        "stopped": stopped,
+        "pending_broker": pending_broker,
+        "counts": {
+            "running": len(running),
+            "stopped": len(stopped),
+            "pending_broker": len(pending_broker),
+        },
+    }
+
 
 
 # ---------- Admin: push a trade signal to a specific client's bridge ----------

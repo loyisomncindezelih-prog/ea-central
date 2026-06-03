@@ -19,6 +19,10 @@ import {
   Webhook,
   Receipt,
   AlertCircle,
+  Play,
+  Square,
+  Unplug,
+  Link2,
 } from "lucide-react";
 
 const TABS = [
@@ -39,6 +43,15 @@ export default function AdminDashboard() {
   const [yoco, setYoco] = useState(null);
   const [yocoBusy, setYocoBusy] = useState(false);
   const [proofView, setProofView] = useState(null); // { src, filename, email } or null
+  const [clientsStatus, setClientsStatus] = useState({ running: [], stopped: [], pending_broker: [], counts: { running: 0, stopped: 0, pending_broker: 0 } });
+  const [clientsBusy, setClientsBusy] = useState(false);
+
+  const loadClients = useCallback(async () => {
+    try {
+      const { data } = await api.get("/admin/clients-status");
+      setClientsStatus(data);
+    } catch { /* ignore */ }
+  }, []);
 
   const loadYoco = useCallback(async () => {
     try {
@@ -79,7 +92,42 @@ export default function AdminDashboard() {
   useEffect(() => {
     load();
     loadYoco();
-  }, [load, loadYoco]);
+    loadClients();
+    const iv = setInterval(loadClients, 10000); // refresh client status every 10s
+    return () => clearInterval(iv);
+  }, [load, loadYoco, loadClients]);
+
+  const unlinkBroker = async (license_key, email) => {
+    if (!window.confirm(`Unlink ${email}'s broker (${license_key})? They will need to re-link a broker before trading again.`)) return;
+    setClientsBusy(true);
+    try {
+      await api.post(`/admin/broker-connections/${license_key}/unlink`);
+      toast.success(`Broker unlinked for ${email}`);
+      await loadClients();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setClientsBusy(false);
+    }
+  };
+
+  const decideBroker = async (license_key, decision) => {
+    let reason = "";
+    if (decision === "decline") {
+      reason = window.prompt("Decline reason (shown to client):", "Invalid credentials or server") || "";
+      if (!reason) return;
+    }
+    setClientsBusy(true);
+    try {
+      await api.post(`/admin/broker-connections/${license_key}/${decision}`, decision === "decline" ? { reason } : {});
+      toast.success(`Broker ${decision}d for ${license_key}`);
+      await loadClients();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setClientsBusy(false);
+    }
+  };
 
   const act = async (id, action) => {
     setActingId(id);
@@ -172,6 +220,80 @@ export default function AdminDashboard() {
           <StatCard icon={CheckCircle2} label="Approved" value={stats?.approved ?? "—"} testId="stat-approved" />
           <StatCard icon={XCircle}      label="Rejected" value={stats?.rejected ?? "—"} testId="stat-rejected" />
           <StatCard icon={Users}        label="Total"    value={stats?.total    ?? "—"} testId="stat-total" />
+        </div>
+
+        {/* Client EA status — 3 buckets */}
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4" data-testid="admin-clients-status">
+          <ClientBucket
+            tone="green"
+            icon={Play}
+            label="Running EA"
+            count={clientsStatus.counts.running}
+            items={clientsStatus.running}
+            empty="No clients are running the EA right now."
+            testidPrefix="admin-running"
+            actions={(row) => (
+              <Button
+                onClick={() => unlinkBroker(row.license_key, row.email)}
+                disabled={clientsBusy || !row.broker_status}
+                className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold disabled:opacity-40"
+                title={row.broker_status ? "Unlink broker (force-stops EA)" : "No broker on file"}
+                data-testid={`admin-unlink-running-${row.license_key}`}
+              >
+                <Unplug className="w-3 h-3 mr-1" /> Unlink
+              </Button>
+            )}
+          />
+          <ClientBucket
+            tone="amber"
+            icon={Square}
+            label="Stopped EA"
+            count={clientsStatus.counts.stopped}
+            items={clientsStatus.stopped}
+            empty="No clients have stopped the EA."
+            testidPrefix="admin-stopped"
+            actions={(row) => (
+              row.broker_status === "approved" ? (
+                <Button
+                  onClick={() => unlinkBroker(row.license_key, row.email)}
+                  disabled={clientsBusy}
+                  className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold"
+                  data-testid={`admin-unlink-stopped-${row.license_key}`}
+                >
+                  <Unplug className="w-3 h-3 mr-1" /> Unlink
+                </Button>
+              ) : null
+            )}
+          />
+          <ClientBucket
+            tone="blue"
+            icon={Link2}
+            label="Pending broker"
+            count={clientsStatus.counts.pending_broker}
+            items={clientsStatus.pending_broker}
+            empty="No brokers waiting for review."
+            testidPrefix="admin-pending-broker"
+            actions={(row) => (
+              <div className="flex gap-1">
+                <Button
+                  onClick={() => decideBroker(row.license_key, "approve")}
+                  disabled={clientsBusy}
+                  className="bg-[#22C55E]/15 hover:bg-[#22C55E]/30 border border-[#22C55E]/60 text-[#22C55E] rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold"
+                  data-testid={`admin-pb-approve-${row.license_key}`}
+                >
+                  Approve
+                </Button>
+                <Button
+                  onClick={() => decideBroker(row.license_key, "decline")}
+                  disabled={clientsBusy}
+                  className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold"
+                  data-testid={`admin-pb-decline-${row.license_key}`}
+                >
+                  Decline
+                </Button>
+              </div>
+            )}
+          />
         </div>
 
         {/* Yoco config */}
@@ -432,3 +554,83 @@ const StatusBadge = ({ status }) => {
     </span>
   );
 };
+
+const TONE_MAP = {
+  green: { ring: "#22C55E", glow: "rgba(34,197,94,0.20)", soft: "rgba(34,197,94,0.06)" },
+  amber: { ring: "#F5C150", glow: "rgba(245,193,80,0.20)", soft: "rgba(245,193,80,0.06)" },
+  blue:  { ring: "#1E90FF", glow: "rgba(30,144,255,0.22)", soft: "rgba(30,144,255,0.06)" },
+};
+
+const ClientBucket = ({ tone = "blue", icon: Icon, label, count, items, empty, testidPrefix, actions }) => {
+  const t = TONE_MAP[tone];
+  return (
+    <div
+      className="ea-glass p-4"
+      style={{ borderColor: `${t.ring}55`, backgroundColor: t.soft, boxShadow: `0 0 12px ${t.glow}` }}
+      data-testid={`${testidPrefix}-card`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-8 h-8 flex items-center justify-center"
+            style={{ border: `1px solid ${t.ring}`, color: t.ring, backgroundColor: `${t.ring}11` }}
+          >
+            <Icon className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">{label}</div>
+            <div className="font-display text-2xl font-bold" style={{ color: t.ring }} data-testid={`${testidPrefix}-count`}>{count}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+        {items.length === 0 ? (
+          <div className="text-[11px] text-white/40 border border-white/8 px-3 py-3 text-center">
+            {empty}
+          </div>
+        ) : items.map((row) => (
+          <div
+            key={`${row.license_key}-${row.email}`}
+            className="border border-white/8 hover:border-white/20 transition px-2.5 py-2 text-xs"
+            data-testid={`${testidPrefix}-row-${row.license_key}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-white/90 truncate" title={row.email}>{row.email || "—"}</div>
+                <div className="text-[10px] font-mono text-white/40 truncate">{row.license_key}</div>
+              </div>
+              {actions && actions(row)}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[10px] text-white/55 font-mono">
+              {row.platform && <span className="border border-white/10 px-1.5 py-0.5">{row.platform.toUpperCase()}</span>}
+              {row.account && <span>#{row.account}</span>}
+              {row.server  && <span className="truncate max-w-[120px]" title={row.server}>{row.server}</span>}
+              {row.trading_style && <span className="text-[#1E90FF]/80">{row.trading_style}</span>}
+              {row.status === "declined" && <span className="text-[#FF3B3B]">⚠ declined</span>}
+              {row.started_at && <span title={row.started_at}>started {timeAgo(row.started_at)}</span>}
+              {row.stopped_at && <span title={row.stopped_at}>stopped {timeAgo(row.stopped_at)}</span>}
+              {row.connected_at && !row.started_at && !row.stopped_at && <span title={row.connected_at}>submitted {timeAgo(row.connected_at)}</span>}
+            </div>
+            {row.stopped_reason && <div className="mt-1 text-[10px] text-white/45">reason: {row.stopped_reason.replace(/_/g, " ")}</div>}
+            {row.decision_reason && row.status === "declined" && <div className="mt-1 text-[10px] text-[#FF8A1F]">decline reason: {row.decision_reason}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+function timeAgo(iso) {
+  try {
+    const d = new Date(iso);
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return d.toLocaleDateString();
+  } catch { return ""; }
+}
+
