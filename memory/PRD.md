@@ -326,8 +326,29 @@
 - `/api/app/apk` returns 404 with helpful message when no APK is present (expected on preview).
 - Curl verified backend route is mounted under `/api/`.
 
-## Next Action Items
-- **Compile the APK** using PWABuilder.com (60-second flow above) and drop it on the VPS — then the Download .apk button on the live site will serve a real Android app.
+## What's been implemented (2026-02 — Iteration 30 — Maintenance Mode + Admin "Opened" indicator + Clearer low-balance copy)
+
+### 1) "Not enough balance" wording on `/app` terminal
+- When admin presses **Low Bal** on `/admin/brokers` (or the bridge auto-classifies an MT5 ack as `low_balance`), the client `/app` EA Status terminal now reads **"Not enough balance — top up your trading account"** (was "low margin" / "low account balance — top up your broker"). Both `SignalLine` (line 1492) and `SignalRow` (line 2205) updated for consistency.
+
+### 2) "Opened by admin" indicator (5-hour TTL)
+- **Backend**: `POST /api/admin/clients/{license_key}/mark-opened` (admin-only) stamps `license_keys.opened_by_admin_at` + `opened_by_admin_id` whenever the admin opens the floating client-details modal.
+- **`GET /api/admin/clients-status`** now returns `opened_by_admin_at` per row in all 3 buckets (running / stopped / pending_broker). Stale stamps (>5 hours old) are filtered server-side so the badge auto-clears.
+- **Admin Dashboard UI**: When admin clicks a client row in any bucket, the modal opens AND a background `mark-opened` call fires. Every row that has been opened within the last 5h now displays a small `👁 opened {Xs/m/h} ago` blue pill next to the email. Stops admins re-reviewing the same user twice during a busy session.
+
+### 3) Site-wide maintenance mode
+- **Backend**: `app_config` collection stores `{key:"maintenance", enabled, message, updated_at, updated_by}`. New endpoints:
+  - `GET /api/maintenance` — public, cheap, no auth. Returns `{enabled, message, updated_at}`.
+  - `POST /api/admin/maintenance` — admin-only, body `{enabled: bool, message?: str}` (message defaults to "Website is being updated — we'll be back online shortly. Thank you for your patience.").
+- **Frontend**:
+  - New `Maintenance.jsx` page — branded cyberpunk wrench animation, blue halo, custom message rendering, "page auto-refreshes every 30s" hint.
+  - New `MaintenanceGate.jsx` global wrapper in `App.js` — polls `/api/maintenance` on mount + every 30s. If `enabled === true` AND `location.pathname` is **not** `/admin/*`, renders `<Maintenance />` instead of the requested route. `/admin/*` is intentionally always reachable so the admin can flip the toggle back off.
+  - **Admin Dashboard** new "Maintenance mode" card between Stats and Buckets — Power icon, big status pill ("Site is live" green / "SITE IS OFFLINE" red with glow), inline custom-message text input (max 500 chars), big red **"TURN SITE OFF"** button (becomes green **"TURN SITE BACK ON"** when on).
+
+### Tested (iter30)
+- **Backend curl**: enable → `/api/maintenance` reflects state → mark-opened on stopped key → clients-status returns `opened_by_admin_at` populated → disable cleanly.
+- **Frontend Playwright**: enabling maintenance via API blocks Landing (`/`) with `data-testid="maintenance-page"` + custom message rendered; `/admin` remains accessible for the admin to flip off.
+- **Smoke screenshot**: admin dashboard renders new maintenance card + opened-badge on the stopped EA row.
 - Save to GitHub → pull on VPS → `cd /var/www/ea-central && git fetch origin main && git reset --hard origin/main && git clean -fd && cd backend && source venv/bin/activate && pip install -r requirements.txt && deactivate && sudo systemctl restart ea-central-backend && cd ../frontend && yarn install && yarn build && sudo systemctl reload nginx`.
 - **Webhook / Audit log section on `/admin/dashboard`** — last 20 admin push-signal + EFT verification events. (P2)
 - **Mentor profile image on Landing testimonials + License receipt** pages. (P2)
@@ -337,3 +358,8 @@
   - Rotate `JWT_SECRET` before production deployment.
   - Move base64 storage (proof-of-payment + chart screenshots) to S3/GridFS as user count grows.
   - Store `created_at` as native BSON datetime instead of ISO strings (the current 5-min filter works but is fragile to migration).
+
+
+## Next Action Items
+- **Compile the APK** using PWABuilder.com (paste your live root URL, not /app) and drop the file on the VPS at `frontend/build/downloads/ea-central.apk` OR set `APK_DOWNLOAD_URL=...` in `backend/.env`.
+- Save to GitHub → on VPS run: `cd /var/www/ea-central && git fetch origin main && git reset --hard origin/main && git clean -fd && cd backend && source venv/bin/activate && pip install -r requirements.txt && deactivate && sudo systemctl restart ea-central-backend && cd ../frontend && yarn install && yarn build && sudo systemctl reload nginx`.

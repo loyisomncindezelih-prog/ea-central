@@ -30,6 +30,7 @@ import AdminLicenses from "@/pages/AdminLicenses";
 import AdminBrokers from "@/pages/AdminBrokers";
 import AdminScans from "@/pages/AdminScans";
 import Downloads from "@/pages/Downloads";
+import MaintenanceGate from "@/components/MaintenanceGate";
 
 const Protected = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
@@ -38,7 +39,8 @@ function App() {
     <div className="App">
       <AuthProvider>
         <BrowserRouter>
-          <Routes>
+          <MaintenanceGate>
+            <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/login" element={<Login />} />
@@ -81,6 +83,7 @@ function App() {
               element={<AdminRoute><BridgePage /></AdminRoute>}
             />
           </Routes>
+          </MaintenanceGate>
           <Toaster
             theme="dark"
             position="top-right"

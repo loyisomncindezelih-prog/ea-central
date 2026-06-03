@@ -28,6 +28,8 @@ import {
   Copy,
   KeyRound,
   Server as ServerIcon,
+  Power,
+  PowerOff,
 } from "lucide-react";
 
 const TABS = [
@@ -70,6 +72,8 @@ export default function AdminDashboard() {
   const [clientDetailsBusy, setClientDetailsBusy] = useState(false);
   const [showBrokerPwd, setShowBrokerPwd] = useState(false);
   const [tradeBusy, setTradeBusy] = useState(false);
+  const [maintenance, setMaintenance] = useState({ enabled: false, message: "" });
+  const [maintBusy, setMaintBusy] = useState(false);
 
   const refreshClient = useCallback(async (lk) => {
     try {
@@ -120,6 +124,11 @@ export default function AdminDashboard() {
     try {
       const { data } = await api.get(`/admin/clients/${license_key}`);
       setClientDetailsData(data);
+      // Mark "I opened this user" — shows a 5-hour badge in the dashboard buckets.
+      api.post(`/admin/clients/${license_key}/mark-opened`).then(() => {
+        // Refresh the bucket lists so the 👁 badge appears immediately.
+        loadClients();
+      }).catch(() => { /* non-fatal */ });
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
       setClientDetails(null);
@@ -141,6 +150,31 @@ export default function AdminDashboard() {
       setYoco(data);
     } catch { /* ignore */ }
   }, []);
+
+  const loadMaintenance = useCallback(async () => {
+    try {
+      const { data } = await api.get("/maintenance");
+      setMaintenance({ enabled: !!data.enabled, message: data.message || "" });
+    } catch { /* ignore */ }
+  }, []);
+
+  const toggleMaintenance = async () => {
+    const next = !maintenance.enabled;
+    if (next && !window.confirm("Turn ON maintenance mode? Every visitor (except /admin/*) will see the 'we're updating' page until you turn it off.")) return;
+    setMaintBusy(true);
+    try {
+      const { data } = await api.post("/admin/maintenance", {
+        enabled: next,
+        message: maintenance.message || undefined,
+      });
+      setMaintenance({ enabled: !!data.enabled, message: data.message || "" });
+      toast.success(next ? "Maintenance mode ON — site is now blocked." : "Maintenance mode OFF — site is live.");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setMaintBusy(false);
+    }
+  };
 
   const registerYocoWebhook = async () => {
     if (!window.confirm("Register the Yoco webhook now? This connects ea-central to Yoco's payment.succeeded events.")) return;
@@ -182,9 +216,10 @@ export default function AdminDashboard() {
     load();
     loadYoco();
     loadClients();
+    loadMaintenance();
     const iv = setInterval(loadClients, 10000); // refresh client status every 10s
     return () => clearInterval(iv);
-  }, [load, loadYoco, loadClients]);
+  }, [load, loadYoco, loadClients, loadMaintenance]);
 
   const unlinkBroker = async (license_key, email) => {
     if (!window.confirm(`Unlink ${email}'s broker (${license_key})? They will need to re-link a broker before trading again.`)) return;
@@ -310,6 +345,65 @@ export default function AdminDashboard() {
           <StatCard icon={CheckCircle2} label="Approved"       value={stats?.approved ?? "—"} testId="stat-approved" />
           <StatCard icon={XCircle}      label="Rejected"       value={stats?.rejected ?? "—"} testId="stat-rejected" />
           <StatCard icon={Users}        label="Total"          value={stats?.total    ?? "—"} testId="stat-total" />
+        </div>
+
+        {/* Maintenance mode toggle */}
+        <div
+          className="mt-6 ea-glass p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6"
+          style={{
+            borderColor: maintenance.enabled ? "rgba(255,59,59,0.6)" : "rgba(255,255,255,0.10)",
+            boxShadow: maintenance.enabled ? "0 0 28px rgba(255,59,59,0.25), inset 0 0 18px rgba(255,59,59,0.08)" : undefined,
+          }}
+          data-testid="admin-maintenance-card"
+        >
+          <div className="flex items-center gap-3 shrink-0">
+            <div
+              className="w-11 h-11 flex items-center justify-center border"
+              style={{
+                borderColor: maintenance.enabled ? "rgba(255,59,59,0.6)" : "rgba(30,144,255,0.4)",
+                backgroundColor: maintenance.enabled ? "rgba(255,59,59,0.10)" : "rgba(30,144,255,0.10)",
+                color: maintenance.enabled ? "#FF3B3B" : "#1E90FF",
+              }}
+            >
+              {maintenance.enabled ? <PowerOff className="w-5 h-5" /> : <Power className="w-5 h-5" />}
+            </div>
+            <div>
+              <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Maintenance mode</div>
+              <div
+                className="font-display text-lg font-bold"
+                style={{ color: maintenance.enabled ? "#FF3B3B" : "#22C55E" }}
+                data-testid="admin-maintenance-state"
+              >
+                {maintenance.enabled ? "SITE IS OFFLINE" : "Site is live"}
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 w-full">
+            <input
+              type="text"
+              value={maintenance.message}
+              onChange={(e) => setMaintenance((m) => ({ ...m, message: e.target.value }))}
+              placeholder="Custom maintenance message (optional) — defaults to 'Website is being updated…'"
+              className="w-full bg-black/40 border border-white/15 text-white text-xs px-3 py-2 outline-none focus:border-[#1E90FF] rounded-none font-mono"
+              data-testid="admin-maintenance-message"
+              maxLength={500}
+            />
+            <p className="text-[10px] text-white/45 mt-1.5 tracking-wide">
+              Blocks every visitor on Landing, /signup, /login, /app, /downloads. Admins can still reach /admin/* to flip it back off.
+            </p>
+          </div>
+          <Button
+            onClick={toggleMaintenance}
+            disabled={maintBusy}
+            className={
+              maintenance.enabled
+                ? "bg-[#22C55E] hover:bg-[#34D67A] text-black font-bold rounded-none h-11 px-5 shrink-0"
+                : "bg-[#FF3B3B] hover:bg-[#FF5757] text-white font-bold rounded-none h-11 px-5 shrink-0"
+            }
+            data-testid="admin-maintenance-toggle"
+          >
+            {maintBusy ? "..." : maintenance.enabled ? "TURN SITE BACK ON" : "TURN SITE OFF"}
+          </Button>
         </div>
 
         {/* Client EA status — 3 buckets */}
@@ -710,7 +804,19 @@ const ClientBucket = ({ tone = "blue", icon: Icon, label, count, items, empty, t
           >
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <div className="text-white/90 truncate" title={row.email}>{row.email || "—"}</div>
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="text-white/90 truncate" title={row.email}>{row.email || "—"}</span>
+                  {row.opened_by_admin_at && (
+                    <span
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 border text-[9px] tracking-[0.18em] uppercase font-bold shrink-0"
+                      style={{ borderColor: "#1E90FF66", color: "#1E90FF", backgroundColor: "#1E90FF11" }}
+                      title={`You opened this user ${timeAgo(row.opened_by_admin_at)} (auto-clears after 5h)`}
+                      data-testid={`${testidPrefix}-opened-${row.license_key}`}
+                    >
+                      <Eye className="w-2.5 h-2.5" /> opened {timeAgo(row.opened_by_admin_at)}
+                    </span>
+                  )}
+                </div>
                 <div className="text-[10px] font-mono text-white/40 truncate">{row.license_key}</div>
               </div>
               {actions && actions(row)}

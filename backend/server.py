@@ -2295,12 +2295,32 @@ async def admin_clients_status(admin: dict = Depends(get_admin_user)):
     # 1) Pull every active EA session + broker connection in parallel-ish (two queries)
     sessions = await db.ea_sessions.find({}, {"_id": 0}).to_list(2000)
     brokers = await db.broker_connections.find({}, {"_id": 0, "password_enc": 0}).to_list(2000)
+    # license_keys: lookup `opened_by_admin_at` (iter29 — admin "I checked this user" indicator)
+    lk_docs = await db.license_keys.find(
+        {}, {"_id": 0, "key": 1, "opened_by_admin_at": 1}
+    ).to_list(5000)
+    opened_at_by_lk = {
+        d.get("key"): d.get("opened_by_admin_at")
+        for d in lk_docs if d.get("opened_by_admin_at")
+    }
+    # 5-hour TTL filter: hide stale "opened" badges so admins re-flag after 5h
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat()
 
     broker_by_lk = {b.get("license_key"): b for b in brokers if b.get("license_key")}
 
+    def opened_at_for(lk: str):
+        ts = opened_at_by_lk.get(lk)
+        if not ts:
+            return None
+        try:
+            return ts if ts >= cutoff else None
+        except TypeError:
+            return None
+
     def base_row(sess: dict, broker: Optional[dict]):
+        lk = sess.get("license_key")
         return {
-            "license_key": sess.get("license_key"),
+            "license_key": lk,
             "email": sess.get("email") or (broker.get("email") if broker else None),
             "started_at": sess.get("started_at"),
             "stopped_at": sess.get("stopped_at"),
@@ -2310,6 +2330,7 @@ async def admin_clients_status(admin: dict = Depends(get_admin_user)):
             "server": (broker or {}).get("server"),
             "account": (broker or {}).get("account"),
             "broker_status": (broker or {}).get("status"),
+            "opened_by_admin_at": opened_at_for(lk),
         }
 
     running, stopped = [], []
@@ -2336,6 +2357,7 @@ async def admin_clients_status(admin: dict = Depends(get_admin_user)):
                 "decision_reason": b.get("decision_reason"),
                 "connected_at": b.get("connected_at"),
                 "decision_at": b.get("decision_at"),
+                "opened_by_admin_at": opened_at_for(b.get("license_key")),
             })
 
     # Sort each list newest-first by the most relevant timestamp.
@@ -2473,7 +2495,75 @@ async def admin_client_details(license_key: str, _: dict = Depends(get_admin_use
     }
 
 
-# ---------- Admin: push a trade signal to a specific client's bridge ----------
+# ---------- Admin: mark "I opened this user's details" (iter29) ----------
+# When admin opens the floating ClientDetailsModal we stamp a server timestamp on the
+# license_keys doc. /admin/clients-status returns this within a 5-hour sliding window so the
+# admin dashboard can show a small "👁 Opened" badge — letting the admin remember which users
+# they've already reviewed today. Auto-clears after 5 hours.
+@api_router.post("/admin/clients/{license_key}/mark-opened")
+async def admin_mark_client_opened(license_key: str, admin: dict = Depends(get_admin_user)):
+    license_key = license_key.strip().upper()
+    res = await db.license_keys.update_one(
+        {"key": license_key},
+        {"$set": {
+            "opened_by_admin_at": datetime.now(timezone.utc).isoformat(),
+            "opened_by_admin_id": admin.get("id"),
+        }},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="License key not found")
+    return {"ok": True}
+
+
+# ---------- Maintenance mode (iter29) ----------
+# Admin can flip the entire site/app into a "We're updating, back soon" page.
+# - Public GET so the frontend can check on every page load (cheap, no auth).
+# - Admin-only POST flips the toggle. /admin/* routes are NOT blocked — admin can still log in
+#   and turn the maintenance flag back off.
+async def _get_maintenance_doc() -> dict:
+    doc = await db.app_config.find_one({"key": "maintenance"}, {"_id": 0})
+    if not doc:
+        return {
+            "enabled": False,
+            "message": "Website is being updated — we'll be back online shortly. Thank you for your patience.",
+            "updated_at": None,
+        }
+    return {
+        "enabled": bool(doc.get("enabled")),
+        "message": doc.get("message") or "Website is being updated — we'll be back online shortly. Thank you for your patience.",
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api_router.get("/maintenance")
+async def get_maintenance_state():
+    return await _get_maintenance_doc()
+
+
+class MaintenanceIn(BaseModel):
+    enabled: bool
+    message: str | None = Field(default=None, max_length=500)
+
+
+@api_router.post("/admin/maintenance")
+async def set_maintenance_state(payload: MaintenanceIn, admin: dict = Depends(get_admin_user)):
+    update = {
+        "key": "maintenance",
+        "enabled": bool(payload.enabled),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": admin.get("id"),
+    }
+    if payload.message and payload.message.strip():
+        update["message"] = payload.message.strip()
+    await db.app_config.update_one(
+        {"key": "maintenance"},
+        {"$set": update},
+        upsert=True,
+    )
+    return await _get_maintenance_doc()
+
+
+
 # Admin opens /admin/brokers, picks a licence + a symbol the client has configured,
 # fires BUY/SELL/CLOSE. The signal hits the same trade_signals pipeline the mentor
 # uses, so the client's desktop bridge picks it up and executes on their MT5.

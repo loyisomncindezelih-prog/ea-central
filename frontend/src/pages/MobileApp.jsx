@@ -1489,7 +1489,7 @@ const SignalRow = ({ s, accent, theme }) => {
           {status === "executed" && s.mt_order_id ? `#${s.mt_order_id} · filled by server` :
            status === "executed"   ? "filled by server" :
            status === "executing"  ? "executing… server is placing the order" :
-           status === "low_balance" ? "low account balance — top up your broker" :
+           status === "low_balance" ? "Not enough balance — top up your trading account" :
            status === "failed"     ? (s.error || "rejected by broker") :
            status === "skipped"    ? "skipped — bridge offline" :
            "queued by server…"}
@@ -2202,7 +2202,7 @@ const TerminalLine = ({ s, accent }) => {
     status === "executed"    ? `filled ${order}` :
     status === "closed"      ? "closed by server" :
     status === "failed"      ? (s.error || "rejected") :
-    status === "low_balance" ? "low margin" :
+    status === "low_balance" ? "Not enough balance — top up your trading account" :
     status === "skipped"     ? "bridge offline" :
     status === "executing"   ? "EA took a trade" :
                                 "queued by server";
