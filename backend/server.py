@@ -2367,6 +2367,26 @@ async def admin_client_details(license_key: str, _: dict = Depends(get_admin_use
             "error": (s.get("result") or {}).get("error"),
         })
 
+    # Open positions per symbol — for each pair the user configured, find the latest
+    # signal that is "executing" (= admin took a trade that hasn't been closed yet).
+    open_positions = {}
+    for pc in pair_configs:
+        sym = pc.get("symbol")
+        if not sym:
+            continue
+        latest = await db.trade_signals.find_one(
+            {"license_key": license_key, "symbol": sym},
+            {"_id": 0, "id": 1, "action": 1, "status": 1, "lot": 1, "created_at": 1},
+            sort=[("created_at", -1)],
+        )
+        if latest and latest.get("status") == "executing" and latest.get("action") in ("BUY", "SELL"):
+            open_positions[sym] = {
+                "id": latest.get("id"),
+                "action": latest.get("action"),
+                "lot": latest.get("lot"),
+                "opened_at": latest.get("created_at"),
+            }
+
     return {
         "license_key": license_key,
         "license_status": key_status(key_doc),
@@ -2406,6 +2426,7 @@ async def admin_client_details(license_key: str, _: dict = Depends(get_admin_use
                 "platform": pc.get("platform"),
             } for pc in pair_configs
         ],
+        "open_positions": open_positions,
         "ea_session": {
             "status": sess.get("status") if sess else None,
             "started_at": sess.get("started_at") if sess else None,
@@ -2514,7 +2535,7 @@ async def admin_push_trade_signal(
 class AdminInstantSignalIn(BaseModel):
     symbol: str = Field(min_length=2, max_length=24)
     action: Literal["BUY", "SELL", "CLOSE"]
-    final_status: Literal["executed", "closed", "low_balance", "failed"]
+    final_status: Literal["executing", "executed", "closed", "low_balance", "failed"]
     lot: float | None = Field(default=None, ge=0.01, le=100)
     mt_order_id: str | None = Field(default=None, max_length=40)
     note: str | None = Field(default=None, max_length=200)

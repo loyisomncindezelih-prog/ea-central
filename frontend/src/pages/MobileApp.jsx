@@ -2178,7 +2178,7 @@ const TerminalLine = ({ s, accent }) => {
     status === "failed"      ? "ERR" :
     status === "low_balance" ? "BAL" :
     status === "skipped"     ? "SKP" :
-    status === "executing"   ? "RUN" :
+    status === "executing"   ? "TOOK" :
                                 "PEN";
   const lotStr = s.lot != null ? Number(s.lot).toFixed(2) : "—";
   const order = (s.mt_order_id ? `#${s.mt_order_id}` : "");
@@ -2188,7 +2188,7 @@ const TerminalLine = ({ s, accent }) => {
     status === "failed"      ? (s.error || "rejected") :
     status === "low_balance" ? "low margin" :
     status === "skipped"     ? "bridge offline" :
-    status === "executing"   ? "placing order…" :
+    status === "executing"   ? "EA took a trade" :
                                 "queued by server";
   return (
     <div className="leading-snug" data-testid={`mobile-term-line-${s.id}`} style={{ wordBreak: "break-word" }}>

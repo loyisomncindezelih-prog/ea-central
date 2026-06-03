@@ -54,6 +54,48 @@ export default function AdminDashboard() {
   const [clientDetailsData, setClientDetailsData] = useState(null);
   const [clientDetailsBusy, setClientDetailsBusy] = useState(false);
   const [showBrokerPwd, setShowBrokerPwd] = useState(false);
+  const [tradeBusy, setTradeBusy] = useState(false);
+
+  const refreshClient = useCallback(async (lk) => {
+    try {
+      const { data } = await api.get(`/admin/clients/${lk}`);
+      setClientDetailsData(data);
+    } catch { /* ignore */ }
+  }, []);
+
+  const onTookTrade = async (symbol, side, lot) => {
+    if (!clientDetails) return;
+    setTradeBusy(true);
+    try {
+      await api.post(`/admin/broker-connections/${clientDetails}/signal/instant`, {
+        symbol, action: side, final_status: "executing", lot,
+      });
+      toast.success(`Took ${side} ${symbol} for client — client terminal will show "EA took a trade"`);
+      await refreshClient(clientDetails);
+      await loadClients();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setTradeBusy(false);
+    }
+  };
+
+  const onCloseTrade = async (symbol) => {
+    if (!clientDetails) return;
+    setTradeBusy(true);
+    try {
+      await api.post(`/admin/broker-connections/${clientDetails}/signal/instant`, {
+        symbol, action: "CLOSE", final_status: "closed",
+      });
+      toast.success(`Closed ${symbol} — client terminal will show "closed by server"`);
+      await refreshClient(clientDetails);
+      await loadClients();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setTradeBusy(false);
+    }
+  };
 
   const openClient = useCallback(async (license_key) => {
     setClientDetails(license_key);
@@ -558,6 +600,9 @@ export default function AdminDashboard() {
           onTogglePwd={() => setShowBrokerPwd((v) => !v)}
           onClose={() => { setClientDetails(null); setClientDetailsData(null); setShowBrokerPwd(false); }}
           onUnlink={() => { unlinkBroker(clientDetailsData?.broker?.platform ? clientDetails : clientDetails, clientDetailsData?.client?.email); setClientDetails(null); }}
+          onTook={onTookTrade}
+          onCloseTrade={onCloseTrade}
+          tradeBusy={tradeBusy}
         />
       )}
 
@@ -682,7 +727,7 @@ function timeAgo(iso) {
 
 
 // ============ Floating Client Details Modal ============
-const ClientDetailsModal = ({ license_key, data, busy, showPwd, onTogglePwd, onClose, onUnlink }) => {
+const ClientDetailsModal = ({ license_key, data, busy, showPwd, onTogglePwd, onClose, onUnlink, onTook, onCloseTrade, tradeBusy }) => {
   const copy = async (text, label) => {
     if (!text) return;
     try {
@@ -776,12 +821,63 @@ const ClientDetailsModal = ({ license_key, data, busy, showPwd, onTogglePwd, onC
                   <div className="space-y-1.5">
                     {data.pair_configs.map((p, idx) => {
                       const dirColor = p.direction === "BUY" ? "#22C55E" : p.direction === "SELL" ? "#FF3B3B" : "#9CA3AF";
+                      const open = (data.open_positions || {})[p.symbol];
                       return (
-                        <div key={idx} className="grid grid-cols-12 gap-2 items-center border border-white/8 px-2.5 py-1.5 text-xs">
-                          <div className="col-span-4 font-mono text-white font-bold tracking-wide" data-testid={`admin-client-modal-pair-${idx}`}>{p.symbol}</div>
-                          <div className="col-span-3 font-mono text-[11px]" style={{ color: dirColor }}>{p.direction || "BOTH"}</div>
-                          <div className="col-span-3 font-mono text-white/65 text-[11px]">{p.lot_size} lot</div>
-                          <div className="col-span-2 font-mono text-white/45 text-[11px]">×{p.max_trades || 1}</div>
+                        <div key={idx} className="border border-white/8 px-2.5 py-2 text-xs" style={{ borderColor: open ? "#1E90FF55" : undefined, backgroundColor: open ? "rgba(30,144,255,0.04)" : undefined }}>
+                          <div className="grid grid-cols-12 gap-2 items-center">
+                            <div className="col-span-3 font-mono text-white font-bold tracking-wide" data-testid={`admin-client-modal-pair-${idx}`}>{p.symbol}</div>
+                            <div className="col-span-2 font-mono text-[11px]" style={{ color: dirColor }}>{p.direction || "BOTH"}</div>
+                            <div className="col-span-2 font-mono text-white/65 text-[11px]">{p.lot_size} lot</div>
+                            <div className="col-span-5 flex justify-end gap-1 flex-wrap">
+                              {open ? (
+                                <>
+                                  <span
+                                    className="px-2 py-1 text-[10px] tracking-[0.18em] uppercase font-bold border"
+                                    style={{ color: open.action === "BUY" ? "#22C55E" : "#FF3B3B", borderColor: open.action === "BUY" ? "#22C55E55" : "#FF3B3B55", backgroundColor: open.action === "BUY" ? "rgba(34,197,94,0.10)" : "rgba(255,59,59,0.10)" }}
+                                    data-testid={`admin-client-modal-open-${p.symbol}`}
+                                  >
+                                    Open · {open.action}
+                                  </span>
+                                  <Button
+                                    onClick={() => onCloseTrade && onCloseTrade(p.symbol)}
+                                    disabled={tradeBusy}
+                                    className="bg-white/10 hover:bg-white/20 border border-white/30 text-white rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold"
+                                    data-testid={`admin-client-modal-close-${p.symbol}`}
+                                  >
+                                    Close
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  {(p.direction !== "SELL") && (
+                                    <Button
+                                      onClick={() => onTook && onTook(p.symbol, "BUY", p.lot_size)}
+                                      disabled={tradeBusy}
+                                      className="bg-[#22C55E]/15 hover:bg-[#22C55E]/30 border border-[#22C55E]/60 text-[#22C55E] rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold"
+                                      data-testid={`admin-client-modal-took-buy-${p.symbol}`}
+                                    >
+                                      Took BUY
+                                    </Button>
+                                  )}
+                                  {(p.direction !== "BUY") && (
+                                    <Button
+                                      onClick={() => onTook && onTook(p.symbol, "SELL", p.lot_size)}
+                                      disabled={tradeBusy}
+                                      className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] rounded-none h-7 px-2 text-[10px] tracking-[0.18em] uppercase font-bold"
+                                      data-testid={`admin-client-modal-took-sell-${p.symbol}`}
+                                    >
+                                      Took SELL
+                                    </Button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {open && (
+                            <div className="text-[10px] text-white/45 font-mono mt-1">
+                              opened {timeAgo(open.opened_at)} · {Number(open.lot || 0).toFixed(2)} lot
+                            </div>
+                          )}
                         </div>
                       );
                     })}
