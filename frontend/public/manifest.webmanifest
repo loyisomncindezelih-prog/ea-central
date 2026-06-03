@@ -1,36 +1,53 @@
 {
   "id": "/app?source=pwa",
-  "name": "ea-central · Mobile EA",
-  "short_name": "ea-central",
-  "description": "Host your PC bot, clients access as Mobile EA.",
+  "name": "EA-CENTRAL · Mobile EA",
+  "short_name": "EA-CENTRAL",
+  "description": "Mirror your mentor's bot on your phone. No VPS, no MT terminal.",
   "start_url": "/app?source=pwa",
-  "scope": "/app",
+  "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "lang": "en",
   "dir": "ltr",
-  "background_color": "#000000",
-  "theme_color": "#000000",
-  "categories": ["finance", "productivity"],
+  "background_color": "#000814",
+  "theme_color": "#000814",
+  "categories": ["finance", "productivity", "business"],
   "icons": [
     {
-      "src": "https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/wyquoaye_ChatGPT%20Image%20May%2012%2C%202026%2C%2009_13_48%20PM.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/wyquoaye_ChatGPT%20Image%20May%2012%2C%202026%2C%2009_13_48%20PM.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/wyquoaye_ChatGPT%20Image%20May%2012%2C%202026%2C%2009_13_48%20PM.png",
+      "src": "/icons/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "EA-CENTRAL Mobile EA"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open EA dashboard",
+      "short_name": "Dashboard",
+      "url": "/app",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
