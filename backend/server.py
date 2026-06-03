@@ -27,7 +27,7 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from cryptography.fernet import Fernet
 import base64
 import hashlib
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 import httpx
 
 
@@ -2114,6 +2114,36 @@ async def download_bridge_script(_: dict = Depends(get_admin_user)):
         path=str(path),
         media_type="text/x-python",
         filename="ea_central_bridge.py",
+    )
+
+
+@api_router.get("/app/apk")
+async def download_apk():
+    """Serve or redirect to the latest EA-CENTRAL Android APK.
+
+    Behaviour:
+      1. If APK_DOWNLOAD_URL env is set (e.g. `https://ea-central.co.za/downloads/ea-central.apk`)
+         we 302-redirect there — admin uploads the APK once to nginx and the link is stable.
+      2. Else if the file exists at `/app/frontend/build/downloads/ea-central.apk`
+         (i.e. it was built and copied into the static site), we serve it directly.
+      3. Else 404 with a helpful message.
+    """
+    apk_url = os.environ.get("APK_DOWNLOAD_URL")
+    if apk_url:
+        return RedirectResponse(apk_url, status_code=302)
+    local = Path("/app/frontend/build/downloads/ea-central.apk")
+    if local.exists():
+        return FileResponse(
+            path=str(local),
+            media_type="application/vnd.android.package-archive",
+            filename="ea-central.apk",
+        )
+    raise HTTPException(
+        status_code=404,
+        detail=(
+            "APK not available yet. Drop the file at /var/www/ea-central/frontend/build/"
+            "downloads/ea-central.apk or set APK_DOWNLOAD_URL in backend/.env."
+        ),
     )
 
 

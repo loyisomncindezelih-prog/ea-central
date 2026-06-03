@@ -1146,6 +1146,22 @@ export default function MobileApp() {
               </div>
 
               <div className="border-t border-white/5 pt-5">
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3">Native app</div>
+                <a
+                  href="/downloads"
+                  className="w-full py-3 text-xs tracking-[0.22em] uppercase border flex items-center justify-center gap-2"
+                  style={{ borderColor: `${accent}66`, color: accent, backgroundColor: theme.soft }}
+                  data-testid="mobile-settings-download-apk"
+                >
+                  <Camera className="w-4 h-4" />
+                  Get Android APK
+                </a>
+                <div className="mt-2 text-[10px] leading-relaxed text-white/45">
+                  Install the EA-CENTRAL Android app. Same login, same license, opens straight to your dashboard.
+                </div>
+              </div>
+
+              <div className="border-t border-white/5 pt-5">
                 <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3">Session</div>
                 <button onClick={fullLogout} className="w-full py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" style={{ border: `1px solid ${accent}`, color: accent, backgroundColor: theme.soft }} data-testid="mobile-settings-logout">
                   <LogOut className="w-4 h-4" /> Sign out

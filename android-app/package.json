@@ -1,0 +1,15 @@
+{
+  "name": "ea-central-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EA-CENTRAL Mobile EA Android wrapper (plain WebView, no overlay)",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  }
+}

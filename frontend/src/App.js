@@ -29,6 +29,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminLicenses from "@/pages/AdminLicenses";
 import AdminBrokers from "@/pages/AdminBrokers";
 import AdminScans from "@/pages/AdminScans";
+import Downloads from "@/pages/Downloads";
 
 const Protected = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
@@ -46,6 +47,7 @@ function App() {
             <Route path="/app" element={<MobileApp />} />
             <Route path="/verify-account" element={<VerifyAccount />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/downloads" element={<Downloads />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-cancelled" element={<PaymentCancelled />} />
 
