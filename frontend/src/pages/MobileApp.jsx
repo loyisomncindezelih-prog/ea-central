@@ -1065,138 +1065,156 @@ export default function MobileApp() {
 
         {/* Menu drawer */}
         {menuOpen && (
-          <div className="absolute inset-0 z-30 bg-black/85 backdrop-blur-sm flex flex-col" data-testid="mobile-menu-drawer">
-            <div className="flex items-center justify-between px-4 pt-3 pb-2">
-              <h2 className="font-display tracking-[0.22em] uppercase text-sm" style={{ color: accent }}>Menu</h2>
-              <button onClick={() => setMenuOpen(false)} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-menu-close">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="px-5 py-6 flex flex-col gap-2">
-              <DrawerInfo label="Account" value={email} />
-              <DrawerInfo label="EA" value={eaName} />
-              <DrawerInfo label="Licence" value={eaData?.key} mono />
-              <DrawerInfo label="Plan" value={eaData?.plan_label} />
-              <DrawerInfo label="Expires" value={expiryLabel} />
-              <button onClick={() => { setMenuOpen(false); setSettingsOpen(true); }} className="mt-2 border border-white/20 hover:border-white/40 text-white py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" data-testid="mobile-menu-settings">
-                <SettingsIcon className="w-4 h-4" /> Settings
-              </button>
-              <button onClick={() => navigate("/")} className="mt-1 border border-white/20 hover:border-white/40 text-white py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" data-testid="mobile-menu-back-site">
-                Back to ea-central.co
-              </button>
-              <button onClick={fullLogout} className="py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" style={{ border: `1px solid ${accent}`, color: accent, backgroundColor: theme.soft }} data-testid="mobile-menu-logout">
-                <LogOut className="w-4 h-4" /> Sign out
-              </button>
+          <div className="absolute inset-0 z-30 flex flex-col ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.92)", backdropFilter: "blur(20px)" }} data-testid="mobile-menu-drawer">
+            <div className="ea-drawer-enter flex-1 flex flex-col">
+              <div className="flex items-center justify-between px-5 pt-4 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accent }} />
+                  <h2 className="ea-mobile-display text-base text-white">Menu</h2>
+                </div>
+                <button onClick={() => setMenuOpen(false)} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-menu-close">
+                  <X className="w-4 h-4" strokeWidth={1.8} />
+                </button>
+              </div>
+              <div className="px-5 py-4 flex flex-col gap-2.5 overflow-y-auto">
+                <DrawerInfo label="Account" value={email} />
+                <DrawerInfo label="EA" value={eaName} />
+                <DrawerInfo label="Licence" value={eaData?.key} mono />
+                <DrawerInfo label="Plan" value={eaData?.plan_label} />
+                <DrawerInfo label="Expires" value={expiryLabel} />
+                <button onClick={() => { setMenuOpen(false); setSettingsOpen(true); }} className="mt-3 rounded-xl ea-card ea-tap text-white py-3 text-xs tracking-[0.22em] uppercase font-semibold flex items-center justify-center gap-2" data-testid="mobile-menu-settings">
+                  <SettingsIcon className="w-4 h-4" strokeWidth={1.8} /> Settings
+                </button>
+                <button onClick={() => navigate("/")} className="rounded-xl ea-card ea-tap text-white py-3 text-xs tracking-[0.22em] uppercase font-semibold flex items-center justify-center gap-2" data-testid="mobile-menu-back-site">
+                  Back to ea-central.co
+                </button>
+                <button onClick={fullLogout} className="mt-1 rounded-xl py-3 text-xs tracking-[0.22em] uppercase font-bold flex items-center justify-center gap-2 ea-tap" style={{ color: accent, backgroundColor: `${accent}1A` }} data-testid="mobile-menu-logout">
+                  <LogOut className="w-4 h-4" strokeWidth={1.8} /> Sign out
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* Settings drawer */}
         {settingsOpen && (
-          <div className="absolute inset-0 z-30 bg-black/90 backdrop-blur-sm flex flex-col" data-testid="mobile-settings-drawer">
-            <div className="flex items-center justify-between px-4 pt-3 pb-2">
-              <h2 className="font-display tracking-[0.22em] uppercase text-sm flex items-center gap-2" style={{ color: accent }}>
-                <SettingsIcon className="w-4 h-4" /> Settings
-              </h2>
-              <button onClick={() => setSettingsOpen(false)} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-settings-close">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-5 py-6 flex flex-col gap-5">
-              <div>
-                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3 flex items-center gap-2">
-                  <Palette className="w-3 h-3" /> Theme
+          <div className="absolute inset-0 z-30 flex flex-col ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.92)", backdropFilter: "blur(20px)" }} data-testid="mobile-settings-drawer">
+            <div className="ea-drawer-enter flex-1 flex flex-col overflow-y-auto">
+              <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(9,9,11,0.95)", backdropFilter: "blur(20px)" }}>
+                <div className="flex items-center gap-2">
+                  <SettingsIcon className="w-4 h-4" style={{ color: accent }} strokeWidth={1.8} />
+                  <h2 className="ea-mobile-display text-base text-white">Settings</h2>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {Object.entries(THEMES).map(([k, t]) => (
-                    <button
-                      key={k}
-                      onClick={() => { setTheme(k); toast.success(`Theme: ${t.name}`); }}
-                      className="relative py-4 flex flex-col items-center gap-2 transition rounded-md"
-                      style={{
-                        border: `2px solid ${themeKey === k ? t.hex : "rgba(255,255,255,0.1)"}`,
-                        backgroundColor: themeKey === k ? `${t.hex}22` : "transparent",
-                        boxShadow: themeKey === k ? `0 0 18px ${t.hex}66` : undefined,
-                      }}
-                      data-testid={`mobile-theme-${k}`}
-                    >
-                      <span className="w-8 h-8 rounded-full" style={{ backgroundColor: t.hex, boxShadow: `0 0 22px ${t.hex}, 0 0 36px ${t.hex}99` }} />
-                      <span className="text-[10px] tracking-[0.2em] uppercase font-bold" style={{ color: themeKey === k ? t.hex : "white", textShadow: themeKey === k ? `0 0 8px ${t.hex}99` : "none" }}>{t.name}</span>
-                      {k === "gold" && (
-                        <span className="absolute -top-1.5 -right-1.5 text-[8px] tracking-[0.18em] uppercase font-extrabold px-1.5 py-0.5" style={{ color: "#000", backgroundColor: "#F5C150", boxShadow: "0 0 10px rgba(245,193,80,0.8)" }}>
-                          NEW
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-white/5 pt-5">
-                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3">Native app</div>
-                <a
-                  href="/downloads"
-                  className="w-full py-3 text-xs tracking-[0.22em] uppercase border flex items-center justify-center gap-2"
-                  style={{ borderColor: `${accent}66`, color: accent, backgroundColor: theme.soft }}
-                  data-testid="mobile-settings-download-apk"
-                >
-                  <Camera className="w-4 h-4" />
-                  Get Android APK
-                </a>
-                <div className="mt-2 text-[10px] leading-relaxed text-white/45">
-                  Install the EA-CENTRAL Android app. Same login, same license, opens straight to your dashboard.
-                </div>
-              </div>
-
-              <div className="border-t border-white/5 pt-5">
-                <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-3">Session</div>
-                <button onClick={fullLogout} className="w-full py-3 text-xs tracking-[0.22em] uppercase flex items-center justify-center gap-2" style={{ border: `1px solid ${accent}`, color: accent, backgroundColor: theme.soft }} data-testid="mobile-settings-logout">
-                  <LogOut className="w-4 h-4" /> Sign out
+                <button onClick={() => setSettingsOpen(false)} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-settings-close">
+                  <X className="w-4 h-4" strokeWidth={1.8} />
                 </button>
               </div>
 
-              {!isStandalone && (
-                <div className="border border-white/10 p-4 text-center mt-1">
-                  <div className="text-[10px] tracking-[0.25em] uppercase text-white/45 mb-1">📱 Tip</div>
-                  <div className="text-xs text-white/70 leading-relaxed">
-                    On iPhone: tap <span className="text-white font-semibold">Share → "Add to Home Screen"</span> to install ea-central as a full-screen app.
+              <div className="px-5 py-5 flex flex-col gap-6">
+                <div>
+                  <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-3 flex items-center gap-2">
+                    <Palette className="w-3 h-3" /> Theme
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {Object.entries(THEMES).map(([k, t]) => (
+                      <button
+                        key={k}
+                        onClick={() => { setTheme(k); toast.success(`Theme: ${t.name}`); }}
+                        className="relative py-4 flex flex-col items-center gap-2.5 rounded-xl ea-card ea-tap"
+                        style={{
+                          borderColor: themeKey === k ? `${t.hex}66` : undefined,
+                          backgroundColor: themeKey === k ? `${t.hex}12` : undefined,
+                        }}
+                        data-testid={`mobile-theme-${k}`}
+                      >
+                        <span
+                          className="w-7 h-7 rounded-full"
+                          style={{
+                            backgroundColor: t.hex,
+                            boxShadow: themeKey === k ? `0 4px 12px ${t.hex}66` : `0 2px 8px ${t.hex}33`,
+                          }}
+                        />
+                        <span className="text-[10px] tracking-[0.2em] uppercase font-bold" style={{ color: themeKey === k ? t.hex : "rgba(255,255,255,0.85)" }}>{t.name}</span>
+                        {k === "gold" && (
+                          <span className="absolute -top-1.5 -right-1.5 text-[8px] tracking-[0.18em] uppercase font-extrabold px-1.5 py-0.5 rounded-md" style={{ color: "#000", backgroundColor: "#F5C150" }}>
+                            NEW
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
+
+                <div className="pt-1">
+                  <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-3">Native app</div>
+                  <a
+                    href="/downloads"
+                    className="w-full py-3 text-xs tracking-[0.22em] uppercase font-semibold rounded-xl ea-tap flex items-center justify-center gap-2"
+                    style={{ color: accent, backgroundColor: `${accent}1A` }}
+                    data-testid="mobile-settings-download-apk"
+                  >
+                    <Download className="w-4 h-4" strokeWidth={1.8} />
+                    Get Android APK
+                  </a>
+                  <div className="mt-2 text-[11px] leading-relaxed text-white/40">
+                    Install the EA-CENTRAL Android app. Same login, same license, opens straight to your dashboard.
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-3">Session</div>
+                  <button onClick={fullLogout} className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded-xl ea-tap flex items-center justify-center gap-2" style={{ color: "#EF4444", backgroundColor: "rgba(239,68,68,0.10)" }} data-testid="mobile-settings-logout">
+                    <LogOut className="w-4 h-4" strokeWidth={1.8} /> Sign out
+                  </button>
+                </div>
+
+                {!isStandalone && (
+                  <div className="rounded-xl ea-card p-4 text-center">
+                    <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5">📱 Tip</div>
+                    <div className="text-xs text-white/65 leading-relaxed">
+                      On iPhone: tap <span className="text-white font-semibold">Share → "Add to Home Screen"</span> to install ea-central as a full-screen app.
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
 
         {/* Connect (broker) drawer */}
         {connectOpen && (
-          <div className="absolute inset-0 z-30 bg-black/90 backdrop-blur-sm flex flex-col overflow-y-auto" data-testid="mobile-connect-drawer">
-            <div className="flex items-center justify-between px-4 pt-3 pb-2">
-              <h2 className="font-display tracking-[0.22em] uppercase text-sm flex items-center gap-2" style={{ color: accent }}>
-                <Server className="w-4 h-4" /> Broker connection
-              </h2>
-              <button onClick={() => setConnectOpen(false)} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-connect-close">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+          <div className="absolute inset-0 z-30 flex flex-col overflow-y-auto ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.94)", backdropFilter: "blur(20px)" }} data-testid="mobile-connect-drawer">
+            <div className="ea-drawer-enter flex-1 flex flex-col">
+              <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(9,9,11,0.95)", backdropFilter: "blur(20px)" }}>
+                <div className="flex items-center gap-2">
+                  <Server className="w-4 h-4" style={{ color: accent }} strokeWidth={1.8} />
+                  <h2 className="ea-mobile-display text-base text-white">Broker connection</h2>
+                </div>
+                <button onClick={() => setConnectOpen(false)} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-connect-close">
+                  <X className="w-4 h-4" strokeWidth={1.8} />
+                </button>
+              </div>
 
             {/* When broker is already approved, show a summary card instead of the form
                 to prevent the user from accidentally re-submitting and going back to "linking". */}
             {eaData?.broker?.status === "approved" && !brokerRelink ? (
               <div className="px-5 py-4 space-y-4" data-testid="broker-approved-card">
-                <div className="border p-4" style={{ borderColor: accent, backgroundColor: theme.soft }}>
-                  <div className="text-[10px] tracking-[0.25em] uppercase mb-1" style={{ color: accent }}>Approved · live</div>
-                  <div className="text-white font-mono text-sm" data-testid="broker-approved-summary">
+                <div className="ea-card rounded-2xl p-4" style={{ borderColor: "rgba(16,185,129,0.30)" }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ backgroundColor: "#10B981" }} />
+                    <div className="text-[10px] tracking-[0.28em] uppercase" style={{ color: "#10B981" }}>Approved · live</div>
+                  </div>
+                  <div className="text-white ea-mono text-sm" data-testid="broker-approved-summary">
                     {eaData.broker.platform?.toUpperCase()} · {eaData.broker.server} · #{eaData.broker.account}
                   </div>
-                  <div className="text-[11px] text-white/55 mt-2">
+                  <div className="text-[11px] text-white/55 mt-2 leading-relaxed">
                     Your broker is linked and verified server-side. The ea-central bridge will use these credentials to execute trades.
                   </div>
                 </div>
                 <Button
                   type="button"
                   onClick={() => setBrokerRelink(true)}
-                  className="w-full bg-transparent border border-white/15 hover:border-[#1E90FF] text-white rounded-none h-11 text-xs tracking-[0.18em] uppercase"
+                  className="w-full bg-transparent ea-card hover:bg-white/[0.04] text-white rounded-xl h-12 text-xs tracking-[0.18em] uppercase font-semibold ea-tap"
                   data-testid="broker-relink-btn"
                 >
                   Re-link with different credentials
@@ -1214,7 +1232,7 @@ export default function MobileApp() {
                     toast.success("Broker unlinked");
                     setConnectOpen(false);
                   }}
-                  className="text-xs tracking-[0.22em] uppercase text-white/45 hover:text-[#FF3B3B] py-2 w-full text-center"
+                  className="text-xs tracking-[0.22em] uppercase text-white/40 hover:text-[#EF4444] py-2 w-full text-center font-semibold ea-tap"
                   data-testid="broker-unlink-from-approved"
                 >
                   Unlink broker
@@ -1252,30 +1270,30 @@ export default function MobileApp() {
             >
               {/* Server-side approval notice — sets expectation up-front */}
               <div
-                className="flex items-start gap-2 px-3 py-2.5"
-                style={{ border: `1.5px solid ${accent}55`, backgroundColor: theme.soft }}
+                className="flex items-start gap-2.5 rounded-xl px-3.5 py-3 ea-card"
+                style={{ borderColor: `${accent}33` }}
                 data-testid="mobile-broker-wait-notice"
               >
-                <Clock className="w-4 h-4 mt-0.5 shrink-0" style={{ color: accent }} />
-                <div className="text-xs text-white/85 leading-relaxed">
+                <Clock className="w-4 h-4 mt-0.5 shrink-0" style={{ color: accent }} strokeWidth={1.8} />
+                <div className="text-xs text-white/80 leading-relaxed">
                   <span className="font-bold" style={{ color: accent }}>Linking can take 10 minutes or more</span> — our server has to securely verify your broker credentials before any trade can execute on your account. Hang tight.
                 </div>
               </div>
 
               {/* Platform selector */}
               <div>
-                <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block">Trading platform</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 block">Trading platform</label>
+                <div className="grid grid-cols-2 gap-2.5">
                   {PLATFORMS.map((p) => (
                     <button
                       key={p.key}
                       type="button"
                       onClick={() => setBroker({ ...broker, platform: p.key })}
-                      className="py-3 text-xs tracking-[0.22em] uppercase transition"
+                      className="py-3 text-xs tracking-[0.22em] uppercase font-bold rounded-xl ea-card ea-tap"
                       style={{
-                        border: `2px solid ${broker.platform === p.key ? accent : "rgba(255,255,255,0.12)"}`,
-                        color: broker.platform === p.key ? accent : "rgba(255,255,255,0.7)",
-                        backgroundColor: broker.platform === p.key ? theme.soft : "transparent",
+                        borderColor: broker.platform === p.key ? `${accent}66` : undefined,
+                        color: broker.platform === p.key ? accent : "rgba(255,255,255,0.55)",
+                        backgroundColor: broker.platform === p.key ? `${accent}1A` : undefined,
                       }}
                       data-testid={`broker-platform-${p.key}`}
                     >
@@ -1289,14 +1307,12 @@ export default function MobileApp() {
               <BrokerField label="Account / Login" value={broker.account} onChange={(v) => setBroker({ ...broker, account: v })} placeholder="123456789" accent={accent} testid="broker-account" />
               <BrokerField label="Password (investor / main)" type="password" value={broker.password} onChange={(v) => setBroker({ ...broker, password: v })} placeholder="••••••••" accent={accent} testid="broker-password" />
 
-              <div className="border p-3 text-[11px] text-white/65 leading-relaxed" style={{ borderColor: `${accent}40`, backgroundColor: theme.soft }}>
-                <div className="text-[10px] tracking-[0.25em] uppercase mb-1" style={{ color: accent }}>Coming soon</div>
-                Credentials are stored encrypted on the ea-central server and will be picked up by the
-                ea-central bridge (a small desktop helper running on your PC/VPS) for automatic
-                MT4/MT5 trade execution. The bridge installer ships in the next release.
+              <div className="rounded-xl ea-card p-3.5 text-[11px] text-white/60 leading-relaxed">
+                <div className="text-[10px] tracking-[0.28em] uppercase mb-1.5" style={{ color: accent }}>How it works</div>
+                Credentials are stored encrypted on the ea-central server and picked up by the ea-central bridge (a small desktop helper running on your PC/VPS) for automatic MT4/MT5 trade execution.
               </div>
 
-              <Button type="submit" disabled={brokerBusy} className="w-full text-black font-bold rounded-none h-12 tracking-wide" style={{ backgroundColor: accent }} data-testid="broker-save">
+              <Button type="submit" disabled={brokerBusy} className="w-full text-black font-bold rounded-xl h-12 tracking-wide ea-tap" style={{ backgroundColor: accent, boxShadow: `0 6px 18px ${accent}55` }} data-testid="broker-save">
                 {brokerBusy ? "Linking…" : "Link broker"}
               </Button>
               {(broker.server || broker.account || eaData?.broker) && (
@@ -1311,7 +1327,7 @@ export default function MobileApp() {
                     setEaData((d) => ({ ...(d || {}), broker: null }));
                     toast.success("Broker unlinked");
                   }}
-                  className="text-xs tracking-[0.22em] uppercase text-white/45 hover:text-white py-2"
+                  className="text-xs tracking-[0.22em] uppercase text-white/40 hover:text-white py-2 font-semibold ea-tap"
                   data-testid="broker-unlink"
                 >
                   Unlink broker
@@ -1319,6 +1335,7 @@ export default function MobileApp() {
               )}
             </form>
             )}
+            </div>
           </div>
         )}
 
@@ -1627,14 +1644,14 @@ const WelcomePopup = ({ username, eaName, accent, theme, onDismiss }) => {
 
 const BrokerField = ({ label, value, onChange, placeholder, type = "text", accent, testid }) => (
   <div>
-    <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block">{label}</label>
+    <label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 block">{label}</label>
     <Input
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-11"
-      style={{ borderColor: `${accent}55` }}
+      className="bg-[#121214] border border-white/8 focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-xl h-12 px-4"
+      style={{ borderColor: "rgba(255,255,255,0.08)" }}
       data-testid={testid}
     />
   </div>
@@ -1766,9 +1783,9 @@ const NavBtn = ({ icon: Icon, label, active = false, onClick, testid, accent = "
 );
 
 const DrawerInfo = ({ label, value, mono = false }) => (
-  <div className="border border-white/10 px-3 py-2.5">
-    <div className="text-[9px] tracking-[0.25em] uppercase text-white/40">{label}</div>
-    <div className={`text-sm text-white truncate ${mono ? "font-mono" : ""}`}>{value || "—"}</div>
+  <div className="ea-card rounded-xl px-3.5 py-2.5">
+    <div className="text-[9px] tracking-[0.28em] uppercase text-white/35">{label}</div>
+    <div className={`text-sm text-white truncate ${mono ? "ea-mono" : ""}`}>{value || "—"}</div>
   </div>
 );
 
@@ -1788,85 +1805,88 @@ const PairsDrawer = ({ email, license, allowedSymbols, pairConfigs, setEaData, t
   };
 
   return (
-    <div className="absolute inset-0 z-30 bg-black/92 backdrop-blur-sm flex flex-col overflow-y-auto" data-testid="mobile-pairs-drawer">
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <h2 className="font-display tracking-[0.22em] uppercase text-sm flex items-center gap-2" style={{ color: accent }}>
-          <TrendingUp className="w-4 h-4" /> Pairs
-        </h2>
-        <button onClick={onClose} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-pairs-close">
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      <div className="px-4 py-3 space-y-5">
-        {/* Selected pairs to trade */}
-        <section data-testid="pairs-selected-section">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[10px] tracking-[0.25em] uppercase text-white/55">Selected pairs to trade</h3>
-            <span className="text-[10px] tracking-[0.22em] uppercase text-white/45">{pairConfigs.length}</span>
+    <div className="absolute inset-0 z-30 flex flex-col overflow-y-auto ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.94)", backdropFilter: "blur(20px)" }} data-testid="mobile-pairs-drawer">
+      <div className="ea-drawer-enter flex-1 flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(9,9,11,0.95)", backdropFilter: "blur(20px)" }}>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" style={{ color: accent }} strokeWidth={1.8} />
+            <h2 className="ea-mobile-display text-base text-white">Pairs</h2>
           </div>
-          {pairConfigs.length === 0 ? (
-            <div className="border border-white/10 p-4 text-center text-xs text-white/45" data-testid="pairs-selected-empty">
-              No pairs selected yet — tap one from the Allowed list below.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {pairConfigs.map((c) => (
-                <PairCard key={c.symbol} cfg={c} accent={accent} theme={theme}
-                  email={email} license={license} onSaved={refresh}
-                  onRemoved={refresh} />
-              ))}
-            </div>
-          )}
-        </section>
+          <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-pairs-close">
+            <X className="w-4 h-4" strokeWidth={1.8} />
+          </button>
+        </div>
 
-        {/* Allowed pairs (from mentor's EA) */}
-        <section data-testid="pairs-allowed-section">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[10px] tracking-[0.25em] uppercase text-white/55">Allowed pairs · mentor EA</h3>
-            <span className="text-[10px] tracking-[0.22em] uppercase text-white/45">{allowedSymbols.length}</span>
-          </div>
-          {allowedSymbols.length === 0 ? (
-            <div className="border border-white/10 p-4 text-center text-xs text-white/45" data-testid="pairs-allowed-empty">
-              Your mentor hasn't added any pairs to this EA yet.
+        <div className="px-5 py-4 space-y-6">
+          {/* Selected pairs to trade */}
+          <section data-testid="pairs-selected-section">
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-[10px] tracking-[0.28em] uppercase text-white/40">Selected to trade</h3>
+              <span className="text-[10px] tracking-[0.22em] uppercase ea-mono" style={{ color: accent }}>{pairConfigs.length}</span>
             </div>
-          ) : available.length === 0 ? (
-            <div className="border border-white/10 p-4 text-center text-xs text-white/45">
-              All allowed pairs are already in your selection above.
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {available.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSelectedSymbol(s)}
-                  className="py-3 px-2 text-xs font-mono tracking-wide transition truncate"
-                  style={{
-                    border: `2px solid ${selectedSymbol === s ? accent : "rgba(255,255,255,0.12)"}`,
-                    color: selectedSymbol === s ? accent : "#fff",
-                    backgroundColor: selectedSymbol === s ? theme.soft : "transparent",
-                  }}
-                  data-testid={`pairs-allowed-${s}`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
+            {pairConfigs.length === 0 ? (
+              <div className="ea-card rounded-xl p-4 text-center text-xs text-white/40" data-testid="pairs-selected-empty">
+                No pairs selected yet — tap one from the Allowed list below.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {pairConfigs.map((c) => (
+                  <PairCard key={c.symbol} cfg={c} accent={accent} theme={theme}
+                    email={email} license={license} onSaved={refresh}
+                    onRemoved={refresh} />
+                ))}
+              </div>
+            )}
+          </section>
 
-        {/* Config form appears when a symbol is selected */}
-        {selectedSymbol && (
-          <PairConfigForm
-            symbol={selectedSymbol}
-            email={email}
-            license={license}
-            accent={accent}
-            theme={theme}
-            onCancel={() => setSelectedSymbol(null)}
-            onSaved={() => { setSelectedSymbol(null); refresh(); }}
-          />
-        )}
+          {/* Allowed pairs (from mentor's EA) */}
+          <section data-testid="pairs-allowed-section">
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-[10px] tracking-[0.28em] uppercase text-white/40">Allowed · mentor EA</h3>
+              <span className="text-[10px] tracking-[0.22em] uppercase ea-mono text-white/40">{allowedSymbols.length}</span>
+            </div>
+            {allowedSymbols.length === 0 ? (
+              <div className="ea-card rounded-xl p-4 text-center text-xs text-white/40" data-testid="pairs-allowed-empty">
+                Your mentor hasn't added any pairs to this EA yet.
+              </div>
+            ) : available.length === 0 ? (
+              <div className="ea-card rounded-xl p-4 text-center text-xs text-white/40">
+                All allowed pairs are already in your selection above.
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {available.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSelectedSymbol(s)}
+                    className="py-3 px-2 text-xs ea-mono tracking-wide font-bold truncate rounded-xl ea-card ea-tap"
+                    style={{
+                      borderColor: selectedSymbol === s ? `${accent}66` : undefined,
+                      color: selectedSymbol === s ? accent : "#fff",
+                      backgroundColor: selectedSymbol === s ? `${accent}1A` : undefined,
+                    }}
+                    data-testid={`pairs-allowed-${s}`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Config form appears when a symbol is selected */}
+          {selectedSymbol && (
+            <PairConfigForm
+              symbol={selectedSymbol}
+              email={email}
+              license={license}
+              accent={accent}
+              theme={theme}
+              onCancel={() => setSelectedSymbol(null)}
+              onSaved={() => { setSelectedSymbol(null); refresh(); }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1875,9 +1895,9 @@ const PairsDrawer = ({ email, license, allowedSymbols, pairConfigs, setEaData, t
 const PairCard = ({ cfg, accent, theme, email, license, onRemoved }) => {
   const [busy, setBusy] = useState(false);
   return (
-    <div className="rounded border p-3" style={{ borderColor: theme.border, backgroundColor: "rgba(0,17,34,0.45)" }} data-testid={`pair-card-${cfg.symbol}`}>
+    <div className="ea-card rounded-xl p-3.5" data-testid={`pair-card-${cfg.symbol}`}>
       <div className="flex items-center justify-between">
-        <div className="font-mono text-sm font-bold" style={{ color: accent }}>{cfg.symbol}</div>
+        <div className="ea-mono text-sm font-bold tracking-wide" style={{ color: accent }}>{cfg.symbol}</div>
         <button
           disabled={busy}
           onClick={async () => {
@@ -1890,26 +1910,25 @@ const PairCard = ({ cfg, accent, theme, email, license, onRemoved }) => {
               toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
             } finally { setBusy(false); }
           }}
-          className="w-7 h-7 flex items-center justify-center hover:bg-white/5"
-          style={{ border: `1px solid ${accent}55`, color: accent }}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-white/55 hover:text-white hover:bg-white/5 ea-tap"
           data-testid={`pair-remove-${cfg.symbol}`}
           title="Remove"
         >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] tracking-[0.18em] uppercase">
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10px] tracking-[0.18em] uppercase">
         <Chip color={accent}>{cfg.direction}</Chip>
         <Chip color={accent}>{cfg.platform?.toUpperCase()}</Chip>
-        <Chip color="rgba(255,255,255,0.6)">Lot {cfg.lot_size}</Chip>
-        <Chip color="rgba(255,255,255,0.6)">×{cfg.max_trades}</Chip>
+        <Chip color="rgba(255,255,255,0.45)">Lot {cfg.lot_size}</Chip>
+        <Chip color="rgba(255,255,255,0.45)">×{cfg.max_trades}</Chip>
       </div>
     </div>
   );
 };
 
 const Chip = ({ children, color }) => (
-  <span className="px-2 py-0.5" style={{ border: `1px solid ${color}55`, color }}>{children}</span>
+  <span className="px-2 py-0.5 rounded-md font-semibold" style={{ backgroundColor: `${color === "rgba(255,255,255,0.45)" ? "rgba(255,255,255,0.06)" : color + "1A"}`, color }}>{children}</span>
 );
 
 const PairConfigForm = ({ symbol, email, license, accent, theme, onCancel, onSaved }) => {
@@ -1940,27 +1959,27 @@ const PairConfigForm = ({ symbol, email, license, accent, theme, onCancel, onSav
   };
 
   return (
-    <form onSubmit={save} className="rounded-lg p-4 space-y-3" style={{ border: `2px solid ${theme.border}`, backgroundColor: "rgba(0,17,34,0.45)" }} data-testid="pair-config-form">
+    <form onSubmit={save} className="ea-card-elevated rounded-2xl p-4 space-y-3.5" style={{ borderColor: `${accent}33` }} data-testid="pair-config-form">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Configure</div>
-          <div className="font-mono text-lg font-bold" style={{ color: accent }} data-testid="pair-config-symbol">{symbol}</div>
+          <div className="text-[10px] tracking-[0.28em] uppercase text-white/40">Configure</div>
+          <div className="ea-mono text-lg font-bold tracking-wide" style={{ color: accent }} data-testid="pair-config-symbol">{symbol}</div>
         </div>
-        <button type="button" onClick={onCancel} className="w-8 h-8 flex items-center justify-center" style={{ border: `1px solid ${accent}55`, color: accent }} data-testid="pair-config-cancel">
+        <button type="button" onClick={onCancel} className="w-8 h-8 rounded-lg flex items-center justify-center text-white/55 hover:text-white hover:bg-white/5 ea-tap" data-testid="pair-config-cancel">
           <X className="w-4 h-4" />
         </button>
       </div>
 
       <div>
-        <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block">Direction</label>
+        <label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 block">Direction</label>
         <div className="grid grid-cols-3 gap-2">
           {DIRECTIONS.map((d) => (
             <button key={d} type="button" onClick={() => setDirection(d)}
-              className="py-2 text-xs tracking-[0.22em] uppercase font-bold transition"
+              className="py-2.5 text-xs tracking-[0.22em] uppercase font-bold rounded-xl ea-card ea-tap"
               style={{
-                border: `2px solid ${direction === d ? accent : "rgba(255,255,255,0.12)"}`,
-                color: direction === d ? accent : "rgba(255,255,255,0.75)",
-                backgroundColor: direction === d ? theme.soft : "transparent",
+                borderColor: direction === d ? `${accent}66` : undefined,
+                color: direction === d ? accent : "rgba(255,255,255,0.55)",
+                backgroundColor: direction === d ? `${accent}1A` : undefined,
               }}
               data-testid={`pair-direction-${d}`}>
               {d}
@@ -1970,15 +1989,15 @@ const PairConfigForm = ({ symbol, email, license, accent, theme, onCancel, onSav
       </div>
 
       <div>
-        <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block">Platform</label>
+        <label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 block">Platform</label>
         <div className="grid grid-cols-2 gap-2">
           {["mt4", "mt5"].map((p) => (
             <button key={p} type="button" onClick={() => setPlatform(p)}
-              className="py-2 text-xs tracking-[0.22em] uppercase font-bold"
+              className="py-2.5 text-xs tracking-[0.22em] uppercase font-bold rounded-xl ea-card ea-tap"
               style={{
-                border: `2px solid ${platform === p ? accent : "rgba(255,255,255,0.12)"}`,
-                color: platform === p ? accent : "rgba(255,255,255,0.75)",
-                backgroundColor: platform === p ? theme.soft : "transparent",
+                borderColor: platform === p ? `${accent}66` : undefined,
+                color: platform === p ? accent : "rgba(255,255,255,0.55)",
+                backgroundColor: platform === p ? `${accent}1A` : undefined,
               }}
               data-testid={`pair-platform-${p}`}>
               {p.toUpperCase()}
@@ -1989,30 +2008,30 @@ const PairConfigForm = ({ symbol, email, license, accent, theme, onCancel, onSav
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block">Lot size</label>
+          <label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 block">Lot size</label>
           <Input
             inputMode="decimal" required value={lotSize}
             onChange={(e) => setLotSize(e.target.value)}
             placeholder="0.01"
-            className="bg-transparent text-white rounded-none h-10 font-mono"
-            style={{ borderColor: `${accent}55` }}
+            className="bg-[#121214] border border-white/8 text-white rounded-xl h-11 ea-mono px-3"
+            style={{ borderColor: "rgba(255,255,255,0.08)" }}
             data-testid="pair-lot-input"
           />
         </div>
         <div>
-          <label className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-1.5 block"># Trades</label>
+          <label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 block"># Trades</label>
           <Input
             inputMode="numeric" required value={maxTrades}
             onChange={(e) => setMaxTrades(e.target.value)}
             placeholder="1"
-            className="bg-transparent text-white rounded-none h-10 font-mono"
-            style={{ borderColor: `${accent}55` }}
+            className="bg-[#121214] border border-white/8 text-white rounded-xl h-11 ea-mono px-3"
+            style={{ borderColor: "rgba(255,255,255,0.08)" }}
             data-testid="pair-trades-input"
           />
         </div>
       </div>
 
-      <Button type="submit" disabled={busy} className="w-full text-black font-bold rounded-none h-11 tracking-wide mt-1" style={{ backgroundColor: accent }} data-testid="pair-config-save">
+      <Button type="submit" disabled={busy} className="w-full text-black font-bold rounded-xl h-12 tracking-wide mt-1 ea-tap" style={{ backgroundColor: accent, boxShadow: `0 6px 18px ${accent}55` }} data-testid="pair-config-save">
         {busy ? "Saving…" : `Add ${symbol} to selection`}
       </Button>
     </form>
@@ -2025,51 +2044,49 @@ const StartPopup = ({ eaName, broker, pairs, accent, theme, onClose }) => {
   const [expanded, setExpanded] = useState(false);
   return (
     // Positioned only at the bottom — leave action row above tappable.
-    <div className="absolute left-0 right-0 bottom-0 z-30 flex items-end justify-center pointer-events-none" data-testid="mobile-start-popup">
+    <div className="absolute left-0 right-0 bottom-0 z-30 flex items-end justify-center pointer-events-none ea-mobile" data-testid="mobile-start-popup">
       <div
-        className="relative w-[calc(100%-1.5rem)] rounded-t-2xl p-4 mb-3 cursor-pointer pointer-events-auto"
-        style={{ border: `2px solid ${accent}`, backgroundColor: "rgba(0,17,34,0.97)", boxShadow: `0 -8px 40px ${theme.glow}` }}
+        className="relative w-[calc(100%-1.5rem)] rounded-2xl p-4 mb-4 cursor-pointer pointer-events-auto ea-card-elevated ea-drawer-enter"
         onClick={() => setExpanded((v) => !v)}
         data-testid="mobile-start-popup-card"
       >
         <div className="flex items-center gap-3">
-          <span className="relative flex w-3 h-3">
-            <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ backgroundColor: accent }} />
-            <span className="relative inline-flex rounded-full h-3 w-3" style={{ backgroundColor: accent }} />
+          <span className="relative flex w-2.5 h-2.5">
+            <span className="absolute inline-flex h-full w-full rounded-full opacity-60 ea-pulse-ring" style={{ backgroundColor: accent }} />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 ea-pulse-dot" style={{ backgroundColor: accent }} />
           </span>
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] tracking-[0.28em] uppercase text-white/55">{eaName}</div>
+            <div className="text-[10px] tracking-[0.28em] uppercase text-white/40">{eaName}</div>
             <div className="text-white font-semibold text-sm truncate" data-testid="mobile-start-popup-status">
-              {expanded ? "Server connected · waiting for opportunities for execution" : "EA started — tap for details"}
+              {expanded ? "Connected · scanning for execution opportunities" : "EA started — tap for details"}
             </div>
           </div>
-          <button className="text-white/45 hover:text-white" data-testid="mobile-start-popup-close" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-white/45 hover:text-white hover:bg-white/5 ea-tap" data-testid="mobile-start-popup-close" onClick={(e) => { e.stopPropagation(); onClose(); }}>
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {expanded && (
           <div className="mt-4 space-y-3 max-h-[40vh] overflow-y-auto pr-1" data-testid="mobile-start-popup-expanded">
-            <div className="border border-white/10 p-3 text-xs">
-              <div className="text-[10px] tracking-[0.22em] uppercase text-white/55">Broker session</div>
-              <div className="font-mono text-white mt-1 truncate" data-testid="popup-broker-line">
+            <div className="ea-card rounded-xl p-3 text-xs">
+              <div className="text-[10px] tracking-[0.28em] uppercase text-white/40">Broker session</div>
+              <div className="ea-mono text-white mt-1 truncate" data-testid="popup-broker-line">
                 {broker?.platform?.toUpperCase() || "—"} · {broker?.server || "—"} · #{broker?.account || "—"}
               </div>
             </div>
             <div>
-              <div className="text-[10px] tracking-[0.22em] uppercase text-white/55 mb-1">Active pairs ({pairs.length})</div>
+              <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5">Active pairs ({pairs.length})</div>
               {pairs.length === 0 ? (
-                <div className="text-xs text-white/45 border border-white/10 p-3 text-center">No pairs selected</div>
+                <div className="text-xs text-white/45 ea-card rounded-xl p-3 text-center">No pairs selected</div>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {pairs.map((p) => (
-                    <div key={p.symbol} className="border px-3 py-2 grid grid-cols-12 gap-2 items-center text-xs"
-                      style={{ borderColor: theme.border }}
+                    <div key={p.symbol} className="ea-card rounded-lg px-3 py-2 grid grid-cols-12 gap-2 items-center text-xs"
                       data-testid={`popup-pair-${p.symbol}`}>
-                      <div className="col-span-4 font-mono font-bold" style={{ color: accent }}>{p.symbol}</div>
-                      <div className="col-span-3 text-[10px] tracking-[0.18em] uppercase" style={{ color: accent }}>{p.direction}</div>
-                      <div className="col-span-3 text-[10px] tracking-[0.18em] uppercase text-white/55">{p.platform?.toUpperCase()}</div>
-                      <div className="col-span-2 font-mono text-right text-white/75">{p.lot_size} × {p.max_trades}</div>
+                      <div className="col-span-4 ea-mono font-bold" style={{ color: accent }}>{p.symbol}</div>
+                      <div className="col-span-3 text-[10px] tracking-[0.18em] uppercase font-bold" style={{ color: accent }}>{p.direction}</div>
+                      <div className="col-span-3 text-[10px] tracking-[0.18em] uppercase text-white/45">{p.platform?.toUpperCase()}</div>
+                      <div className="col-span-2 ea-mono text-right text-white/65">{p.lot_size} × {p.max_trades}</div>
                     </div>
                   ))}
                 </div>
@@ -2085,70 +2102,74 @@ const StartPopup = ({ eaName, broker, pairs, accent, theme, onClose }) => {
 
 // ============ Trading Style Drawer ============
 const TradingStyleDrawer = ({ current, theme, accent, busy, onClose, onPick }) => (
-  <div className="absolute inset-0 z-30 bg-black/92 backdrop-blur-sm flex flex-col overflow-y-auto" data-testid="mobile-trading-style-drawer">
-    <div className="flex items-center justify-between px-4 pt-3 pb-2">
-      <h2 className="font-display tracking-[0.22em] uppercase text-sm flex items-center gap-2" style={{ color: accent }}>
-        <Crosshair className="w-4 h-4" /> Trading style
-      </h2>
-      <button onClick={onClose} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-trading-style-close">
-        <X className="w-5 h-5" />
-      </button>
-    </div>
+  <div className="absolute inset-0 z-30 flex flex-col overflow-y-auto ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.94)", backdropFilter: "blur(20px)" }} data-testid="mobile-trading-style-drawer">
+    <div className="ea-drawer-enter flex-1 flex flex-col">
+      <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(9,9,11,0.95)", backdropFilter: "blur(20px)" }}>
+        <div className="flex items-center gap-2">
+          <Crosshair className="w-4 h-4" style={{ color: accent }} strokeWidth={1.8} />
+          <h2 className="ea-mobile-display text-base text-white">Trading style</h2>
+        </div>
+        <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-trading-style-close">
+          <X className="w-4 h-4" strokeWidth={1.8} />
+        </button>
+      </div>
 
-    <div className="px-4 pb-2 text-[11px] text-white/55 leading-relaxed">
-      Pick how the EA trades on your account. This choice is shared with the ea-central team server-side.
-    </div>
+      <div className="px-5 pb-2 text-[11px] text-white/45 leading-relaxed">
+        Pick how the EA trades on your account. This choice is shared with the ea-central team server-side.
+      </div>
 
-    <div className="px-4 py-3 space-y-3">
-      {TRADING_STYLES.map((s) => {
-        const isActive = current === s.key;
-        const isHigh = s.risk === "high";
-        const isBest = s.risk === "best";
-        const accentColor = isHigh ? "#FF3B3B" : isBest ? "#22C55E" : accent;
-        return (
-          <button
-            key={s.key}
-            type="button"
-            disabled={busy}
-            onClick={() => onPick(s)}
-            className="w-full text-left rounded-2xl p-4 transition-all active:scale-[0.98] disabled:opacity-60"
-            style={{
-              border: `2px solid ${isActive ? accentColor : (isHigh ? "rgba(255,59,59,0.35)" : isBest ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.12)")}`,
-              backgroundColor: isActive ? (isHigh ? "rgba(255,59,59,0.10)" : isBest ? "rgba(34,197,94,0.10)" : theme.soft) : "rgba(0,17,34,0.55)",
-              boxShadow: isActive ? `0 0 18px ${accentColor}66` : undefined,
-            }}
-            data-testid={`mobile-trading-style-option-${s.key}`}
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded" style={{ border: `1px solid ${accentColor}`, color: accentColor, boxShadow: `0 0 10px ${accentColor}55` }}>
-                {isHigh ? <AlertTriangle className="w-4 h-4" /> : isBest ? <Crosshair className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="font-bold text-base" style={{ color: accentColor, textShadow: `0 0 10px ${accentColor}55` }}>{s.label}</div>
-                  {isBest && (
-                    <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold" style={{ color: "#22C55E", border: "1px solid #22C55E", backgroundColor: "rgba(34,197,94,0.08)" }}>BEST</span>
-                  )}
-                  {isHigh && (
-                    <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold" style={{ color: "#FF3B3B", border: "1px solid #FF3B3B", backgroundColor: "rgba(255,59,59,0.08)" }}>HIGH RISK</span>
+      <div className="px-5 py-4 space-y-3">
+        {TRADING_STYLES.map((s) => {
+          const isActive = current === s.key;
+          const isHigh = s.risk === "high";
+          const isBest = s.risk === "best";
+          const accentColor = isHigh ? "#EF4444" : isBest ? "#10B981" : accent;
+          return (
+            <button
+              key={s.key}
+              type="button"
+              disabled={busy}
+              onClick={() => onPick(s)}
+              className="w-full text-left rounded-2xl p-4 ea-card ea-tap-soft disabled:opacity-60"
+              style={{
+                borderColor: isActive ? `${accentColor}66` : undefined,
+                backgroundColor: isActive
+                  ? (isHigh ? "rgba(239,68,68,0.08)" : isBest ? "rgba(16,185,129,0.08)" : `${accent}12`)
+                  : undefined,
+              }}
+              data-testid={`mobile-trading-style-option-${s.key}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 flex items-center justify-center shrink-0 rounded-xl" style={{ backgroundColor: `${accentColor}1A`, color: accentColor }}>
+                  {isHigh ? <AlertTriangle className="w-4 h-4" /> : isBest ? <Crosshair className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="font-bold text-base ea-mobile-display" style={{ color: accentColor }}>{s.label}</div>
+                    {isBest && (
+                      <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold rounded-md" style={{ color: "#10B981", backgroundColor: "rgba(16,185,129,0.12)" }}>BEST</span>
+                    )}
+                    {isHigh && (
+                      <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold rounded-md" style={{ color: "#EF4444", backgroundColor: "rgba(239,68,68,0.12)" }}>HIGH RISK</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-white/65 mt-1.5 leading-relaxed">{s.blurb}</div>
+                  {s.warn && (
+                    <div className="mt-2 text-[11px] text-[#EF4444] font-semibold rounded-md px-2.5 py-1.5" style={{ backgroundColor: "rgba(239,68,68,0.08)" }}>
+                      ⚠ {s.warn}
+                    </div>
                   )}
                 </div>
-                <div className="text-xs text-white/75 mt-1.5 leading-relaxed">{s.blurb}</div>
-                {s.warn && (
-                  <div className="mt-2 text-[11px] text-[#FF3B3B] font-semibold border-l-2 border-[#FF3B3B] pl-2 py-1 bg-[#FF3B3B]/[0.07]">
-                    {s.warn}
+                {isActive && (
+                  <div className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold shrink-0 self-start rounded-md" style={{ color: accentColor, backgroundColor: `${accentColor}1A` }}>
+                    ACTIVE
                   </div>
                 )}
               </div>
-              {isActive && (
-                <div className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold shrink-0 self-start" style={{ color: accentColor, border: `1px solid ${accentColor}`, backgroundColor: `${accentColor}10` }}>
-                  ACTIVE
-                </div>
-              )}
-            </div>
-          </button>
-        );
-      })}
+            </button>
+          );
+        })}
+      </div>
     </div>
   </div>
 );

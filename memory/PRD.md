@@ -421,3 +421,31 @@ The user asked for "better design and quality and responsive and fast". Removed 
 ## Next Action Items
 - **Compile the APK** using PWABuilder.com (paste your live root URL, not /app) and drop the file on the VPS at `frontend/build/downloads/ea-central.apk` OR set `APK_DOWNLOAD_URL=...` in `backend/.env`.
 - Save to GitHub → on VPS run: `cd /var/www/ea-central && git fetch origin main && git reset --hard origin/main && git clean -fd && cd backend && source venv/bin/activate && pip install -r requirements.txt && deactivate && sudo systemctl restart ea-central-backend && cd ../frontend && yarn install && yarn build && sudo systemctl reload nginx`.
+
+## What's been implemented (2026-02 — Iteration 32 — /app Inner Drawers Luxury Pass)
+
+Brought every drawer inside /app (Menu, Settings, Connect/Broker, Pairs, TradingStyle, StartPopup) up to match the iter31 luxury aesthetic so the home screen no longer clashes with what users see when they tap PAIRS / CONNECT / SETTINGS.
+
+### Drawer chrome (consistent across all 6)
+- Backdrop now `rgba(9,9,11,0.94)` + `backdrop-filter: blur(20px)` instead of `bg-black/92 backdrop-blur-sm` (cleaner luxury blur, no harsh black).
+- Each drawer wraps its content in `.ea-drawer-enter` so it slides up softly with cubic-bezier ease when opened.
+- Sticky drawer headers with backdrop-blur so the page title stays readable while content scrolls under.
+- Header pattern: small icon + Manrope display title + `.ea-card.ea-tap` rounded-xl close button.
+
+### Components upgraded
+- **DrawerInfo helper**: now uses `.ea-card` rounded-xl, smaller uppercase label, no border-on-border.
+- **BrokerField helper**: `bg-[#121214]` rounded-xl input with subtle white/8 border (was transparent + accent-tinted border).
+- **Chip helper** (used in Pairs cards): rounded-md pills with translucent bg in their tint colour (was bordered tiles).
+- **Menu drawer**: 5 cards (Account/EA/Licence/Plan/Expires) as `.ea-card` tiles, rounded-xl Settings + "Back to ea-central.co" buttons, blue-tinted "Sign out" pill.
+- **Settings drawer**: scrollable, theme picker rebuilt as soft `.ea-card` tiles with rounded-color-disc swatch (no neon shadow halo), blue "GET ANDROID APK" pill (Download icon swapped in for the previous Camera icon glitch), red "Sign out" pill, glass iOS Add-to-Home tip card. Section dividers replaced with margin for cleaner separation.
+- **Connect (Broker) drawer**: approved-state card now green-tinted `.ea-card` with pulse-dot + monospace summary; relink button is rounded-xl glass; unlink degraded to text-only link in red. Form mode: rounded-xl notice card, glass platform selector (MT4/MT5), all `BrokerField`s now soft glass inputs, blue "Link broker" CTA with `0 6px 18px accent/55` shadow.
+- **Pairs drawer**: empty states moved to `.ea-card` rounded-xl tiles. Selected-pairs counter is JetBrains-Mono in accent color. Allowed-pair tiles are glass rounded-xl pills with mono font, active state gets accent border + tinted bg.
+- **PairCard**: glass tile with rounded-md tinted chips for direction/platform/lot/trades. Remove button is a subtle text-button (was bordered accent X).
+- **PairConfigForm**: `.ea-card-elevated` rounded-2xl form, accent-tinted glass selectors for Direction/Platform, soft inputs for Lot size + # Trades, big rounded-xl Save CTA with luxury shadow.
+- **TradingStyleDrawer**: each style card is `.ea-card.ea-tap-soft`, active state adds subtle accent border + tinted bg (no harsh box-shadow glow), risk badges (BEST/HIGH RISK/ACTIVE) are rounded-md pills, warning callouts are rounded glass tiles in soft red (no left-border bar).
+- **StartPopup** (after pressing START): rounded-2xl `.ea-card-elevated` with `ea-pulse-ring + ea-pulse-dot` live indicator, glass session info card, mono pair rows in glass tiles.
+
+### Tested (iter32)
+- Captured screenshots of all 5 visible drawers (Menu, Settings, Pairs, Trading Style, Broker Connection) — every drawer renders cleanly with no jarring "old neon" patches.
+- Lint clean.
+- `data-testid`s preserved across every drawer (`mobile-menu-drawer`, `mobile-settings-drawer`, `mobile-connect-drawer`, `mobile-pairs-drawer`, `mobile-trading-style-drawer`, `mobile-start-popup`, etc.).
