@@ -299,8 +299,36 @@
 - Frontend lint clean, scanner tab smoke-tested end-to-end (email → license → home → scanner tab navigates without error).
 - 0 critical defects, 0 minor defects, 0 action items.
 
+## What's been implemented (2026-02 — Iteration 29 — Downloadable APK)
+### Capacitor Android wrapper (`/app/android-app/`)
+- Scaffolded a standard Capacitor 6 project that wraps the live PWA at `/app` (`capacitor.config.ts → server.url`). No floating bubble, no overlay perms — plain WebView shell.
+- Folder layout: `capacitor.config.ts`, `package.json`, `web/index.html` placeholder, full `android/` Android Studio project (build.gradle, AndroidManifest, MainActivity.java).
+- `README.md` documents 3 build paths: (A) **PWABuilder.com** in 60s, (B) Capacitor + Android Studio, (C) Bubblewrap CLI.
+
+### `/downloads` page (`/app/frontend/src/pages/Downloads.jsx`)
+- Two-column layout: **Android Direct APK** (download .apk button, 3-step install guide, Android 6+ note) + **iPhone Add-to-Home-Screen** (Safari PWA install steps).
+- Frontend resolves APK URL from `REACT_APP_APK_DOWNLOAD_URL` env var, falling back to `/downloads/ea-central.apk`.
+- Linked from Landing hero CTA + `/app` menu drawer "Download APK" buttons.
+
+### Backend (`server.py`)
+- New `GET /api/app/apk` route — 302-redirects to `APK_DOWNLOAD_URL` env var, falls back to serving `/app/frontend/build/downloads/ea-central.apk` if present, else 404 with build instructions.
+
+### How user compiles the actual APK (no Android Studio required)
+1. Visit **https://www.pwabuilder.com/**
+2. Enter live PWA URL: `https://ea-central.co.za/app`
+3. Click **Android → Generate** → download the signed `.apk`.
+4. Upload to VPS: `scp ea-central.apk root@vps:/var/www/ea-central/frontend/build/downloads/ea-central.apk`
+5. **OR** set `APK_DOWNLOAD_URL=https://...` in `/var/www/ea-central/backend/.env` to point to any external host.
+6. Restart backend: `sudo systemctl restart ea-central-backend`. The Download APK button now serves your file.
+
+### Tested
+- `/downloads` page renders correctly (screenshot).
+- `/api/app/apk` returns 404 with helpful message when no APK is present (expected on preview).
+- Curl verified backend route is mounted under `/api/`.
+
 ## Next Action Items
-- Save to GitHub → pull on VPS → `cd /var/www/ea-central && git pull origin main && cd backend && source venv/bin/activate && pip install -r requirements.txt && deactivate && sudo systemctl restart ea-central-backend && cd ../frontend && yarn install && yarn build && sudo systemctl reload nginx`.
+- **Compile the APK** using PWABuilder.com (60-second flow above) and drop it on the VPS — then the Download .apk button on the live site will serve a real Android app.
+- Save to GitHub → pull on VPS → `cd /var/www/ea-central && git fetch origin main && git reset --hard origin/main && git clean -fd && cd backend && source venv/bin/activate && pip install -r requirements.txt && deactivate && sudo systemctl restart ea-central-backend && cd ../frontend && yarn install && yarn build && sudo systemctl reload nginx`.
 - **Webhook / Audit log section on `/admin/dashboard`** — last 20 admin push-signal + EFT verification events. (P2)
 - **Mentor profile image on Landing testimonials + License receipt** pages. (P2)
 - **Refactor monoliths**: split `server.py` (now ~2700 lines) into routers (`auth.py`, `mentor.py`, `mobile.py`, `admin.py`, `bridge.py`, `scanner.py`) and break `MobileApp.jsx` (>2500 lines) into per-stage components. (P2)
