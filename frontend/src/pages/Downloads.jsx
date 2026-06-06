@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Download, Smartphone, Apple, ShieldCheck, Wifi, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
-const APK_URL = process.env.REACT_APP_APK_DOWNLOAD_URL || "/downloads/ea-central.apk";
+// All "Download APK" buttons hit /api/app/apk which 302-redirects to the
+// APK_DOWNLOAD_URL env var on the backend. This lets you swap the APK by
+// editing backend/.env without rebuilding the frontend.
+const API_URL = process.env.REACT_APP_BACKEND_URL || "";
+const APK_URL = `${API_URL}/api/app/apk`;
 
 export default function Downloads() {
   return (
