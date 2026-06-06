@@ -449,3 +449,29 @@ Brought every drawer inside /app (Menu, Settings, Connect/Broker, Pairs, Trading
 - Captured screenshots of all 5 visible drawers (Menu, Settings, Pairs, Trading Style, Broker Connection) — every drawer renders cleanly with no jarring "old neon" patches.
 - Lint clean.
 - `data-testid`s preserved across every drawer (`mobile-menu-drawer`, `mobile-settings-drawer`, `mobile-connect-drawer`, `mobile-pairs-drawer`, `mobile-trading-style-drawer`, `mobile-start-popup`, etc.).
+
+## What's been implemented (2026-02 — Iteration 33 — "Let's make money king" voice on app open)
+
+### What it does
+When the `/app` welcome popup mounts (once per session on app open), the browser speaks **"Let's make money, king."** via the Web Speech API (`window.speechSynthesis`). Free, no API key needed, works offline on all modern browsers (iOS Safari, Android Chrome, desktop Chrome/Firefox/Edge).
+
+### How it works (`MobileApp.jsx`)
+- New top-level `playWelcomeVoice()` helper builds a `SpeechSynthesisUtterance("Let's make money, king.")` with rate 0.95 / pitch 0.95 / volume 1, picks the best available English voice (`Google US English`, `Samantha`, `Daniel`, fallback to first `en-*` voice), and calls `speechSynthesis.speak(u)`.
+- `WelcomePopup` now has a `useEffect` that fires `playWelcomeVoice()` 150ms after mount (or after `voiceschanged` if voices weren't loaded yet — needed for some browsers).
+- Respects the `LS_SOUND_MUTED` localStorage flag — silent if user has muted.
+
+### Mute toggle in Settings
+- New `SoundToggle` component in the Settings drawer. Shows current state (`Volume2` icon = on, `VolumeX` icon = off) and the message "on · tap to mute" / "off".
+- Tapping the toggle flips `LS_SOUND_MUTED` and:
+  - If re-enabling, immediately plays a preview ("Let's make money, king.") so the user hears it works.
+  - If muting, cancels any speech still in the queue.
+- Located between the "Native app" (Download APK) section and the "Session" (Sign out) section.
+
+### Tested (iter33)
+- Playwright intercepted `speechSynthesis.speak()` and confirmed the exact spoken text `"Let's make money, king."` fires on welcome popup mount.
+- Toggle off → `LS_SOUND_MUTED=1` saved.
+- Toggle back on → `LS_SOUND_MUTED=0` saved AND preview voice plays.
+- Captured screenshot of Settings showing the new toggle card.
+
+### Pre-existing lint warnings (NOT caused by this change)
+The lint scan surfaced 13 pre-existing React 19 strict-mode warnings in `MobileApp.jsx` (set-state-in-effect, no-unescaped-entities, purity for `Math.random()` and `new Date()` in render). These warnings existed before iter33 and don't affect runtime behaviour. They can be addressed in the planned `MobileApp.jsx` refactor (P2 backlog).

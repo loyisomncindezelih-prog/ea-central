@@ -36,6 +36,8 @@ import {
   Activity,
   Sparkles,
   Coins,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -1162,6 +1164,14 @@ export default function MobileApp() {
                 </div>
 
                 <div className="pt-1">
+                  <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-3">Voice on open</div>
+                  <SoundToggle accent={accent} />
+                  <div className="mt-2 text-[11px] leading-relaxed text-white/40">
+                    Plays a short voice-line ("Let's make money, king") when the app opens. Toggle off to keep the app silent.
+                  </div>
+                </div>
+
+                <div className="pt-1">
                   <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-3">Session</div>
                   <button onClick={fullLogout} className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded-xl ea-tap flex items-center justify-center gap-2" style={{ color: "#EF4444", backgroundColor: "rgba(239,68,68,0.10)" }} data-testid="mobile-settings-logout">
                     <LogOut className="w-4 h-4" strokeWidth={1.8} /> Sign out
@@ -1583,11 +1593,55 @@ const WELCOME_LINES = [
   "Big moves start small. Today is your day.",
 ];
 
+const LS_SOUND_MUTED = "ea_mobile_sound_muted";
+
+// Plays "Let's make money king" via the browser's built-in Web Speech API.
+// Free, no API key needed, works offline on most modern browsers (incl. iOS Safari, Android Chrome).
+// Honours the localStorage mute toggle (set from /app Settings).
+const playWelcomeVoice = () => {
+  try {
+    if (localStorage.getItem(LS_SOUND_MUTED) === "1") return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    // Cancel any queued speech (defensive — prevents stutter on rapid remounts)
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance("Let's make money, king.");
+    u.rate = 0.95;
+    u.pitch = 0.95;
+    u.volume = 1;
+    // Try to pick a clear English voice — varies by browser/OS.
+    const voices = window.speechSynthesis.getVoices();
+    const preferred =
+      voices.find((v) => /Google US English|Samantha|Daniel|en-US|en_GB/i.test(v.name + v.lang)) ||
+      voices.find((v) => v.lang && v.lang.startsWith("en")) ||
+      voices[0];
+    if (preferred) u.voice = preferred;
+    window.speechSynthesis.speak(u);
+  } catch { /* silently ignore — non-critical UX feature */ }
+};
+
 const WelcomePopup = ({ username, eaName, accent, theme, onDismiss }) => {
   const line = WELCOME_LINES[Math.floor(Math.random() * WELCOME_LINES.length)];
   const hour = new Date().getHours();
   const greeting = hour < 5 ? "Up early" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : hour < 22 ? "Good evening" : "Night owl";
   const handle = (username || "trader").split(/[@\s]/)[0];
+
+  // Some browsers populate voices async — wait once for voiceschanged then play.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const speak = () => playWelcomeVoice();
+    // If voices aren't loaded yet, wait for them.
+    if (window.speechSynthesis.getVoices().length === 0) {
+      const onVoices = () => { speak(); window.speechSynthesis.removeEventListener("voiceschanged", onVoices); };
+      window.speechSynthesis.addEventListener("voiceschanged", onVoices);
+      // Fallback in case voiceschanged never fires (some browsers)
+      const t = setTimeout(speak, 350);
+      return () => { window.speechSynthesis.removeEventListener("voiceschanged", onVoices); clearTimeout(t); };
+    }
+    // Small delay so it fires after the popup animation begins
+    const t = setTimeout(speak, 150);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <div
       className="absolute inset-0 z-40 flex items-center justify-center px-5 ea-backdrop-enter ea-mobile"
@@ -1788,6 +1842,54 @@ const DrawerInfo = ({ label, value, mono = false }) => (
     <div className={`text-sm text-white truncate ${mono ? "ea-mono" : ""}`}>{value || "—"}</div>
   </div>
 );
+
+// Sound on/off toggle for the "Let's make money king" voice-line played on app open.
+const SoundToggle = ({ accent }) => {
+  const [muted, setMuted] = useState(() => {
+    try { return localStorage.getItem(LS_SOUND_MUTED) === "1"; } catch { return false; }
+  });
+
+  const toggle = () => {
+    const next = !muted;
+    setMuted(next);
+    try { localStorage.setItem(LS_SOUND_MUTED, next ? "1" : "0"); } catch { /* ignore */ }
+    if (!next) {
+      // Re-enabling — play a preview so the user hears it works.
+      playWelcomeVoice();
+    } else {
+      // Turning off — cancel anything still in the queue.
+      try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="w-full py-3 px-4 text-xs tracking-[0.22em] uppercase font-semibold rounded-xl ea-card ea-tap flex items-center justify-between"
+      style={{
+        borderColor: muted ? undefined : `${accent}33`,
+        color: muted ? "rgba(255,255,255,0.55)" : accent,
+        backgroundColor: muted ? undefined : `${accent}12`,
+      }}
+      data-testid="mobile-settings-sound-toggle"
+    >
+      <span className="flex items-center gap-2">
+        {muted ? <VolumeX className="w-4 h-4" strokeWidth={1.8} /> : <Volume2 className="w-4 h-4" strokeWidth={1.8} />}
+        {muted ? "Voice muted" : "Voice on"}
+      </span>
+      <span
+        className="text-[10px] tracking-[0.22em] uppercase font-bold px-2 py-0.5 rounded-md"
+        style={{
+          color: muted ? "rgba(255,255,255,0.40)" : accent,
+          backgroundColor: muted ? "rgba(255,255,255,0.06)" : `${accent}22`,
+        }}
+      >
+        {muted ? "off" : "on · tap to mute"}
+      </span>
+    </button>
+  );
+};
 
 // ============ Pairs drawer ============
 const DIRECTIONS = ["BUY", "SELL", "BOTH"];
