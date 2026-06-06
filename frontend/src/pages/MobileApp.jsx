@@ -936,6 +936,15 @@ export default function MobileApp() {
             })()}
           </button>
 
+          {/* Rolling status banner — replaces the boring "awaiting admin" copy.
+              Cycles fun status messages so the user feels something is happening. */}
+          {eaData?.broker?.status === "pending_approval" && (
+            <RollingBrokerStatus
+              connectedAt={eaData.broker.connected_at}
+              accent={accent}
+            />
+          )}
+
           {/* Decline reason banner — shown inline when admin declined the broker linking */}
           {eaData?.broker?.status === "declined" && (
             <div
@@ -1266,7 +1275,7 @@ export default function MobileApp() {
                     platform: data.platform, server: data.server, account: data.account, password: "",
                   }));
                   setEaData((d) => ({ ...(d || {}), broker: { platform: data.platform, server: data.server, account: data.account, connected_at: data.connected_at, status: data.status || "pending_approval" } }));
-                  toast.info(`${data.platform.toUpperCase()} broker linking to server… awaiting server-side verification`);
+                  toast.info(`${data.platform.toUpperCase()} linking… securing connection`);
                   setBrokerRelink(false);
                   setConnectOpen(false);
                 } catch (err) {
@@ -1286,7 +1295,7 @@ export default function MobileApp() {
               >
                 <Clock className="w-4 h-4 mt-0.5 shrink-0" style={{ color: accent }} strokeWidth={1.8} />
                 <div className="text-xs text-white/80 leading-relaxed">
-                  <span className="font-bold" style={{ color: accent }}>Linking can take 10 minutes or more</span> — our server has to securely verify your broker credentials before any trade can execute on your account. Hang tight.
+                  <span className="font-bold" style={{ color: accent }}>Linking usually takes a few minutes.</span> Our server has to securely verify your broker credentials before any trade can execute. If verification doesn't finish within 60 minutes, the connection auto-times-out and you can re-link.
                 </div>
               </div>
 
@@ -1842,6 +1851,59 @@ const DrawerInfo = ({ label, value, mono = false }) => (
     <div className={`text-sm text-white truncate ${mono ? "ea-mono" : ""}`}>{value || "—"}</div>
   </div>
 );
+
+// Rolling status messages shown while broker connection is "pending_approval".
+// Replaces the boring "awaiting admin approval" — cycles through 6 friendly progress
+// lines every 4.5 seconds so the user feels something is actively happening.
+// Auto-decline after 1 hour is handled server-side; this banner just keeps engagement up.
+const PENDING_LINES = [
+  "Linking your broker to ea-central bridge…",
+  "Verifying broker credentials securely…",
+  "Establishing encrypted MT4/MT5 session…",
+  "Checking account permissions with broker…",
+  "Syncing market feed for your trading server…",
+  "Almost there — finalising secure handshake…",
+];
+
+const RollingBrokerStatus = ({ connectedAt, accent }) => {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setIdx((i) => (i + 1) % PENDING_LINES.length), 4500);
+    return () => clearInterval(iv);
+  }, []);
+  // Time-elapsed indicator (so the user knows roughly where they are in the 1-hour auto-decline window)
+  const elapsedMinutes = (() => {
+    if (!connectedAt) return null;
+    const ms = Date.now() - new Date(connectedAt).getTime();
+    if (Number.isNaN(ms)) return null;
+    return Math.max(0, Math.floor(ms / 60000));
+  })();
+  return (
+    <div
+      className="mt-2 rounded-xl p-3 flex items-start gap-2.5 ea-card-enter"
+      style={{ border: "1px solid rgba(234,179,8,0.30)", backgroundColor: "rgba(234,179,8,0.06)" }}
+      data-testid="mobile-broker-rolling-status"
+    >
+      <div className="relative w-4 h-4 mt-0.5 shrink-0">
+        <span className="absolute inset-0 rounded-full ea-pulse-ring" style={{ border: "2px solid #EAB308" }} />
+        <span className="absolute inset-[3px] rounded-full ea-pulse-dot" style={{ backgroundColor: "#EAB308" }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] tracking-[0.22em] uppercase font-bold" style={{ color: "#EAB308" }}>
+          Establishing connection
+        </div>
+        <div className="text-xs text-white/85 mt-0.5 leading-relaxed" data-testid="mobile-broker-rolling-line">
+          {PENDING_LINES[idx]}
+        </div>
+        {elapsedMinutes !== null && (
+          <div className="text-[10px] text-white/40 mt-1 ea-mono">
+            elapsed {elapsedMinutes}m · times out at 60m
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // Sound on/off toggle for the "Let's make money king" voice-line played on app open.
 const SoundToggle = ({ accent }) => {

@@ -423,6 +423,9 @@ async def verify_account_config():
                 "Hi, I just made the payment for ea-central verification. My email: {{email}}. Please verify and activate my account.",
             ),
         },
+        # iter34 — additional manual payment methods (crypto + Skrill)
+        "usdt_trc20_address": os.environ.get("USDT_TRC20_ADDRESS", "TEHDtK1J669uogbM5gXESJKRBrbafk3BsY"),
+        "skrill_email":       os.environ.get("SKRILL_EMAIL", "loyisomncindezelih@gmail.com"),
     }
 
 
@@ -1133,6 +1136,23 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
 
     if key_status(key_doc) == "expired":
         raise HTTPException(status_code=410, detail="Licence has expired. Please contact your mentor for a new key.")
+
+    # iter34 — Auto-decline broker connections that have been "pending_approval"
+    # for more than 1 hour without admin action. Runs cheaply on every activate-license
+    # call (which polls every few seconds while user is on /app).
+    cutoff_1h = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    await db.broker_connections.update_many(
+        {
+            "status": "pending_approval",
+            "connected_at": {"$lt": cutoff_1h},
+        },
+        {"$set": {
+            "status": "declined",
+            "decision_at": now_iso(),
+            "decision_reason": "Auto-declined after 1 hour without admin verification. Please re-link to retry.",
+            "auto_declined": True,
+        }},
+    )
 
     broker = await db.broker_connections.find_one({"license_key": key_doc["key"]}, {"_id": 0})
     broker_summary = None

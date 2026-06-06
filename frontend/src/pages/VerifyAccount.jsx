@@ -18,7 +18,19 @@ import {
   Upload,
   AlertTriangle,
   Loader2,
+  Bitcoin,
+  Wallet,
 } from "lucide-react";
+
+// Manual payment methods. Edit the contact details in /app/backend/.env via
+// USDT_TRC20_ADDRESS and SKRILL_EMAIL. Defaults match what the founder shared.
+const PAY_METHODS = [
+  { key: "eft",    label: "EFT",          icon: Landmark, hint: "South African bank" },
+  { key: "usdt",   label: "USDT · TRC20", icon: Bitcoin,  hint: "Crypto · Binance" },
+  { key: "skrill", label: "Skrill",       icon: Wallet,   hint: "Email transfer" },
+];
+const USDT_ADDRESS_FALLBACK = "TEHDtK1J669uogbM5gXESJKRBrbafk3BsY";
+const SKRILL_EMAIL_FALLBACK = "loyisomncindezelih@gmail.com";
 
 const PRICE_LABEL = "R500.00";
 const PRICE_SUBLABEL = "ZAR · one-time verification";
@@ -77,6 +89,7 @@ export default function VerifyAccount() {
   const [proofName, setProofName] = useState("");
   const [proofUploaded, setProofUploaded] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [payMethod, setPayMethod] = useState("eft"); // eft | usdt | skrill
 
   // Pull bank + whatsapp config once on mount so we can render the EFT card.
   useEffect(() => {
@@ -249,31 +262,98 @@ export default function VerifyAccount() {
 
             {state === "bank" && (
               <div className="mt-8 max-w-md mx-auto" data-testid="verify-bank-card">
-                <div className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-3 text-center">/ pay via EFT</div>
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/55 mb-3 text-center">/ choose payment method</div>
 
-                {/* Immediate payment warning — critical for SA banks: standard EFT can take 24-48h */}
-                <div
-                  className="mb-3 flex items-start gap-2 border border-[#FFC850]/55 bg-[#FFC850]/[0.08] px-3 py-2.5"
-                  data-testid="verify-immediate-warning"
-                >
-                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-[#FFC850]" />
-                  <div className="text-xs text-white/85 leading-relaxed">
-                    <span className="font-bold text-[#FFC850]">Use IMMEDIATE / PayShap payment</span> only.
-                    Standard EFT takes 24–48 hours and your account won't activate until it reflects.
-                  </div>
+                {/* Payment method tabs */}
+                <div className="grid grid-cols-3 gap-2 mb-4" data-testid="verify-method-tabs">
+                  {PAY_METHODS.map((m) => {
+                    const active = payMethod === m.key;
+                    const Icon = m.icon;
+                    return (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => setPayMethod(m.key)}
+                        className="py-3 px-2 transition flex flex-col items-center gap-1.5 rounded-md"
+                        style={{
+                          border: `2px solid ${active ? "#1E90FF" : "rgba(255,255,255,0.10)"}`,
+                          backgroundColor: active ? "rgba(30,144,255,0.10)" : "transparent",
+                          boxShadow: active ? "0 0 14px rgba(30,144,255,0.30)" : undefined,
+                        }}
+                        data-testid={`verify-method-${m.key}`}
+                      >
+                        <Icon className="w-4 h-4" style={{ color: active ? "#1E90FF" : "rgba(255,255,255,0.65)" }} />
+                        <div className="text-[10px] tracking-[0.18em] uppercase font-bold" style={{ color: active ? "#1E90FF" : "rgba(255,255,255,0.85)" }}>
+                          {m.label}
+                        </div>
+                        <div className="text-[9px] text-white/40 leading-tight text-center">{m.hint}</div>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="border border-[#1E90FF]/40 bg-black/40 px-5 py-3">
-                  <BankRow label="Bank"          value={eft.bank_name}    testid="bank-name" />
-                  <BankRow label="Account holder" value={eft.holder}       testid="bank-holder" />
-                  <BankRow label="Account number" value={eft.account}      testid="bank-account" />
-                  <BankRow label="Branch code"    value={eft.branch_code}  testid="bank-branch" />
-                  <BankRow label="Account type"   value={eft.account_type} testid="bank-type" />
-                  <BankRow label="Reference"      value={email || "your email"} testid="bank-ref" copyLabel="Reference" />
-                  <BankRow label="Amount"         value={amount}           testid="bank-amount" />
-                </div>
+                {/* EFT card */}
+                {payMethod === "eft" && (
+                  <>
+                    <div
+                      className="mb-3 flex items-start gap-2 border border-[#FFC850]/55 bg-[#FFC850]/[0.08] px-3 py-2.5"
+                      data-testid="verify-immediate-warning"
+                    >
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-[#FFC850]" />
+                      <div className="text-xs text-white/85 leading-relaxed">
+                        <span className="font-bold text-[#FFC850]">Use IMMEDIATE / PayShap payment</span> only.
+                        Standard EFT takes 24–48 hours and your account won't activate until it reflects.
+                      </div>
+                    </div>
+                    <div className="border border-[#1E90FF]/40 bg-black/40 px-5 py-3" data-testid="verify-eft-block">
+                      <BankRow label="Bank"          value={eft.bank_name}    testid="bank-name" />
+                      <BankRow label="Account holder" value={eft.holder}       testid="bank-holder" />
+                      <BankRow label="Account number" value={eft.account}      testid="bank-account" />
+                      <BankRow label="Branch code"    value={eft.branch_code}  testid="bank-branch" />
+                      <BankRow label="Account type"   value={eft.account_type} testid="bank-type" />
+                      <BankRow label="Reference"      value={email || "your email"} testid="bank-ref" copyLabel="Reference" />
+                      <BankRow label="Amount"         value={amount}           testid="bank-amount" />
+                    </div>
+                  </>
+                )}
 
-                {/* Proof of payment upload (required) */}
+                {/* USDT TRC20 card */}
+                {payMethod === "usdt" && (
+                  <>
+                    <div className="mb-3 flex items-start gap-2 border border-[#F0B90B]/55 bg-[#F0B90B]/[0.08] px-3 py-2.5">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-[#F0B90B]" />
+                      <div className="text-xs text-white/85 leading-relaxed">
+                        <span className="font-bold text-[#F0B90B]">Send via TRON (TRC20) network ONLY.</span> Sending USDT on the wrong network (ERC20, BEP20) will lose your funds.
+                      </div>
+                    </div>
+                    <div className="border border-[#1E90FF]/40 bg-black/40 px-5 py-3" data-testid="verify-usdt-block">
+                      <BankRow label="Network"         value="TRON · TRC20"                                       testid="usdt-network" />
+                      <BankRow label="USDT address"    value={cfg?.usdt_trc20_address || USDT_ADDRESS_FALLBACK}  testid="usdt-address" copyLabel="USDT address" />
+                      <BankRow label="Amount"          value={`${amount} (equivalent in USDT)`}                  testid="usdt-amount" />
+                    </div>
+                    <div className="mt-2 text-[10px] tracking-[0.22em] uppercase text-white/35 text-center">
+                      Convert {amount} → USDT at today's rate, then send to the address above.
+                    </div>
+                  </>
+                )}
+
+                {/* Skrill card */}
+                {payMethod === "skrill" && (
+                  <>
+                    <div className="mb-3 flex items-start gap-2 border border-[#862165]/55 bg-[#862165]/[0.10] px-3 py-2.5">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#C238A0" }} />
+                      <div className="text-xs text-white/85 leading-relaxed">
+                        Open Skrill → <span className="font-bold" style={{ color: "#C238A0" }}>Send Money to Email</span> → use the email below as the recipient.
+                      </div>
+                    </div>
+                    <div className="border border-[#1E90FF]/40 bg-black/40 px-5 py-3" data-testid="verify-skrill-block">
+                      <BankRow label="Skrill email"  value={cfg?.skrill_email || SKRILL_EMAIL_FALLBACK} testid="skrill-email" copyLabel="Skrill email" />
+                      <BankRow label="Amount"        value={amount}                                     testid="skrill-amount" />
+                    </div>
+                  </>
+                )}
+
+                {/* Proof of payment upload (required for ALL methods) */}
                 <label
                   className="mt-4 block cursor-pointer"
                   data-testid="verify-proof-uploader"
@@ -304,7 +384,7 @@ export default function VerifyAccount() {
                         {uploading ? "Uploading…" : proofUploaded ? "Proof uploaded" : "Upload proof of payment"}
                       </div>
                       <div className="text-[11px] text-white/55 truncate mt-0.5">
-                        {proofUploaded ? proofName : `Image or PDF · max ${MAX_PROOF_MB}MB`}
+                        {proofUploaded ? proofName : `Image or PDF · max ${MAX_PROOF_MB}MB · works for all 3 methods`}
                       </div>
                     </div>
                   </div>
@@ -321,7 +401,7 @@ export default function VerifyAccount() {
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
                 <p className="text-[10px] tracking-[0.22em] uppercase text-white/35 text-center pt-3">
-                  Use your <span className="text-white/65">email</span> as the EFT reference so we can match it.
+                  Use your <span className="text-white/65">email</span> as the payment reference so we can match it.
                 </p>
                 <p className="text-[10px] tracking-[0.18em] uppercase text-white/35 text-center pt-1">
                   By paying you accept the <a href="/terms" target="_blank" rel="noopener" className="text-[#1E90FF] hover:underline" data-testid="verify-terms-link">Terms & Conditions</a> · payments are <span className="text-[#FF3B3B]">non-refundable</span>.

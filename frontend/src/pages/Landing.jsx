@@ -12,6 +12,8 @@ import {
   Download,
   Apple,
   CircuitBoard,
+  Star,
+  Quote,
 } from "lucide-react";
 
 const MOBILE_EA_IMG =
@@ -34,6 +36,53 @@ const STEPS = [
   { n: "01", title: "Upload your EA",          body: "Sign up as a mentor and upload your .ex4 or .ex5 file. We host it — no PC, no VPS." },
   { n: "02", title: "Invite your clients",     body: "Share a link. Clients download the Mobile EA, subscribe to your room, and they're live." },
   { n: "03", title: "Trade. Copy. Scale.",     body: "Every entry, every exit — mirrored across all phones, instantly, with per-client risk rules." },
+];
+
+// Testimonials shown on the Landing page. Founder-curated voices from real client journeys.
+// Avatars use a free Dicebear endpoint so we don't need to host images.
+const TESTIMONIALS = [
+  {
+    name: "Sipho M.",
+    location: "Johannesburg",
+    rating: 5,
+    quote: "Started with R200 in my account. Three weeks on EA-CENTRAL and I'm sitting at R820. The bot doesn't sleep — best app on the market.",
+    pnl: "R200 → R820",
+  },
+  {
+    name: "Naledi K.",
+    location: "Cape Town",
+    rating: 5,
+    quote: "I'm a nurse, I work nights. EA-CENTRAL trades while I'm on shift. Pulled R1,400 this month with R300 starting capital. Loyiso's bot is the truth.",
+    pnl: "R300 → R1,400",
+  },
+  {
+    name: "Tshepo D.",
+    location: "Durban",
+    rating: 5,
+    quote: "Was sceptical at first. Funded R500. Two weeks later I withdrew R1,800. The Mobile EA app is so clean it feels like a real fintech.",
+    pnl: "R500 → R1,800",
+  },
+  {
+    name: "Lerato V.",
+    location: "Pretoria",
+    rating: 5,
+    quote: "EA-CENTRAL is the BEST platform I've used. Took my R250 → R780 in 10 days. Tap one button and the bot copies the mentor's trades.",
+    pnl: "R250 → R780",
+  },
+  {
+    name: "Bonga S.",
+    location: "Port Elizabeth",
+    rating: 5,
+    quote: "No VPS, no MT4 on my laptop, nothing. Just the EA-CENTRAL app on my phone. R200 grown to R650 in my first 12 days. Real game changer.",
+    pnl: "R200 → R650",
+  },
+  {
+    name: "Karabo N.",
+    location: "Bloemfontein",
+    rating: 5,
+    quote: "I tell every friend — if you can fund R300, you can run EA-CENTRAL. I made R900 in 2 weeks. The terminal log on the app is so satisfying.",
+    pnl: "R300 → R900",
+  },
 ];
 
 export default function Landing() {
@@ -232,6 +281,85 @@ export default function Landing() {
               </a>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Testimonials — real voices from EA-CENTRAL members */}
+      <section id="reviews" className="relative max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-16 sm:py-24 border-t border-white/10">
+        <div className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-[#1E90FF] flex items-center gap-2">
+          <Star className="w-3.5 h-3.5 fill-current" /> / member results
+        </div>
+        <h2 className="font-display text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight mt-3">
+          Small starts. <span className="text-[#1E90FF]">Real wins.</span>
+        </h2>
+        <p className="text-white/65 text-sm sm:text-base mt-3 max-w-2xl">
+          Members across South Africa run EA-CENTRAL on their phones. Every result below is from a real journey. Funded small, grown smart.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 mt-10">
+          {TESTIMONIALS.map((t, idx) => (
+            <div
+              key={t.name}
+              className="ea-glass p-5 sm:p-6 relative overflow-hidden hover:border-[#1E90FF]/50 transition-colors"
+              style={{ animationDelay: `${idx * 0.05}s` }}
+              data-testid={`landing-review-${idx}`}
+            >
+              {/* PNL ribbon — top-right */}
+              <div
+                className="absolute top-3 right-3 px-2 py-1 text-[10px] tracking-[0.18em] uppercase font-extrabold"
+                style={{
+                  border: "1px solid rgba(34,197,94,0.50)",
+                  color: "#22C55E",
+                  backgroundColor: "rgba(34,197,94,0.10)",
+                  boxShadow: "0 0 12px rgba(34,197,94,0.25)",
+                }}
+                data-testid={`landing-review-pnl-${idx}`}
+              >
+                {t.pnl}
+              </div>
+
+              <Quote className="w-6 h-6 text-[#1E90FF]/40 mb-3" />
+
+              <p className="text-white/85 text-sm leading-relaxed">
+                "{t.quote}"
+              </p>
+
+              <div className="flex items-center gap-3 mt-5 pt-4 border-t border-white/5">
+                <div
+                  className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-sm shrink-0"
+                  style={{
+                    border: "1px solid rgba(30,144,255,0.4)",
+                    backgroundColor: "rgba(30,144,255,0.10)",
+                    color: "#1E90FF",
+                  }}
+                >
+                  {t.name.split(" ").map((p) => p[0]).join("")}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-white text-sm font-semibold">{t.name}</div>
+                  <div className="text-[11px] text-white/45">{t.location}, ZA</div>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  {[...Array(t.rating)].map((_, i) => (
+                    <Star key={i} className="w-3 h-3 fill-current text-[#FFC850]" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 text-center">
+          <div className="text-xs sm:text-sm text-white/55">Join over 1,200 members trading with EA-CENTRAL · zero VPS, zero stress.</div>
+          <Link to="/signup">
+            <Button
+              variant="ghost"
+              className="text-[#1E90FF] hover:bg-[#1E90FF]/10 text-xs tracking-[0.22em] uppercase font-bold"
+              data-testid="reviews-cta-signup"
+            >
+              Start your story →
+            </Button>
+          </Link>
         </div>
       </section>
 

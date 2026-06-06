@@ -255,11 +255,27 @@ export default function AdminDashboard() {
 
   const act = async (id, action) => {
     setActingId(id);
+    // Optimistic UI: flip the row's status immediately so the admin sees
+    // the change without waiting for a full /admin/users round-trip. Roll back on error.
+    const newStatus = action === "approve" ? "approved" : "rejected";
+    const previousUsers = users;
+    setUsers((rows) => rows.map((u) => (u.id === id ? { ...u, status: newStatus } : u)));
+    setStats((s) => {
+      if (!s) return s;
+      const prev = previousUsers.find((u) => u.id === id)?.status;
+      const next = { ...s };
+      if (prev === "pending") next.pending = Math.max(0, (next.pending || 0) - 1);
+      next[newStatus] = (next[newStatus] || 0) + 1;
+      return next;
+    });
     try {
       await api.post(`/admin/users/${id}/${action}`);
       toast.success(`User ${action}d`);
-      await load();
+      // Refresh in the background for accurate counts — no UI lag.
+      load();
     } catch (err) {
+      // Roll back optimistic change.
+      setUsers(previousUsers);
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
     } finally {
       setActingId(null);
