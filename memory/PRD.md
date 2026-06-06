@@ -523,3 +523,37 @@ The lint scan surfaced 13 pre-existing React 19 strict-mode warnings in `MobileA
 - ✓ Backend `/api/verify-account/config` exposes amount + usdt + skrill values.
 - ✓ Landing `#reviews` section renders all 6 cards with green PNL ribbons (R200→R820 verified).
 - ✓ Lint clean for all new code (pre-existing React-strict warnings unchanged).
+
+## What's been implemented (2026-02 — Iteration 35 — Full website luxury redesign: Landing + Login + Signup)
+
+### Landing (`/`)
+- Removed `bg-black` + animated cyber grid → `.ea-mobile .ea-mesh-bg` with soft 32px dot grid and dual ambient halos (blue top-right, gold bottom-left).
+- Hero badge: rounded-full glass pill with pulse-dot (was bordered angular box).
+- Hero headline: Manrope Display 800 ("ea-mobile-display"), `tracking-tight leading-[0.95]`, underline replaced with proper blue under-bar.
+- CTA buttons: blue rounded-xl with `0 8px 28px accent/55` luxury shadow + ghost glass variant for "Pay to activate".
+- Stat row: 3 glass cards with Manrope display numerals instead of inline text (∞ / 0 / ~ms).
+- Phone mockup: rounded-[40px] with proper gradient bezel + softer shadow (matches `/app`).
+- Ticker: thinner borders, green/red color-coding for positive/negative ticks, JetBrains Mono font.
+
+### Login (`/login`)
+- Complete rewrite from scratch. Removed the old hard-bordered split panel.
+- **Left brand panel**: pulse-dot badge "/ mentor portal", Manrope Display 5xl-6xl headline ("Step back into your control room"), 2 feature glass tiles (Encrypted credentials · Device-bound sessions) — each with rounded-xl icon tile.
+- **Right login card**: `.ea-card-elevated` rounded-3xl with corner blue blur halo, icon-prefixed inputs (Mail / Lock icons left-anchored), rounded-xl bg `#121214`, big rounded-xl blue CTA with soft shadow.
+- Error display: rounded-xl glass tile with AlertCircle icon + soft red bg.
+- Single-column on mobile (brand panel hidden); two-column 5/7 split on `lg+`.
+
+### Signup (`/signup`)
+- Complete rewrite. Same layout pattern as Login.
+- **Left brand panel**: "/ mentor onboarding" with sparkles icon, 3-up stat grid (∞ clients / 0 client vps / ~ms latency), and a **payment-info glass card** showing "R500 · EFT / USDT / Skrill" so visitors know all 3 payment methods exist before signing up.
+- **Right form card**: `.ea-card-elevated` rounded-3xl with corner blue halo, new `IconField` helper renders icon-prefixed inputs for username/email/password, dual-input row for country-code + contact, EA file drop-zone with green/blue state styling, Terms checkbox linked to `/terms`, rounded-xl error tile, big rounded-xl blue CTA.
+- Preserved: country-code select, EA file 8MB validation, agree-to-terms gating.
+
+### Preserved (no functional regression)
+- All `data-testid`s intact: `login-form`, `login-email`, `login-password`, `login-submit`, `login-error`, `signup-form`, `signup-username`, `signup-email`, `signup-contact`, `signup-password`, `signup-ea-file*`, `signup-agree`, `signup-submit`, `signup-error`, `hero-be-mentor-btn`, `hero-verify-btn`.
+- All auth/onboarding flows untouched — only visual layer changed.
+- Landing testimonials section (iter34) renders unchanged below the new hero.
+
+### Tested (iter35)
+- Lint clean for Login.jsx and Signup.jsx (0 blocking, 0 advisory).
+- Smoke screenshots: Landing hero (1280px), Login page, Signup page — all 3 render correctly with the new aesthetic.
+- Form input verified working (typed "visualtest9" into signup-username, value read back correctly).

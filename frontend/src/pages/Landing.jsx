@@ -87,38 +87,39 @@ const TESTIMONIALS = [
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-black text-white" data-testid="landing-page">
+    <div className="min-h-screen text-white ea-mobile ea-mesh-bg" data-testid="landing-page">
       <Header />
 
       {/* HERO */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 ea-grid opacity-60 pointer-events-none" />
-        <div className="absolute -top-32 -right-40 w-[640px] h-[640px] rounded-full bg-[#1E90FF]/20 blur-[140px] pointer-events-none" />
-        <div className="absolute -bottom-40 -left-40 w-[520px] h-[520px] rounded-full bg-[#1E90FF]/10 blur-[120px] pointer-events-none" />
+        <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+        <div className="absolute -top-40 -right-40 w-[640px] h-[640px] rounded-full blur-3xl pointer-events-none opacity-25" style={{ backgroundColor: "#1E90FF22" }} />
+        <div className="absolute -bottom-40 -left-40 w-[520px] h-[520px] rounded-full blur-3xl pointer-events-none opacity-15" style={{ backgroundColor: "#F5C15014" }} />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-20 sm:pb-28 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-          <div className="lg:col-span-7 ea-fade-up">
-            <div className="inline-flex items-center gap-2 sm:gap-3 px-3 py-1.5 border border-[#1E90FF]/40 bg-[#1E90FF]/5 text-[#1E90FF] text-[10px] sm:text-xs tracking-[0.22em] sm:tracking-[0.25em] uppercase">
-              <span className="w-2 h-2 bg-[#1E90FF] rounded-full ea-pulse-dot" />
+          <div className="lg:col-span-7 ea-card-enter">
+            <div className="inline-flex items-center gap-2 sm:gap-3 px-3 py-1.5 rounded-full text-[#1E90FF] text-[10px] sm:text-xs tracking-[0.25em] uppercase font-semibold ea-card">
+              <span className="w-1.5 h-1.5 bg-[#1E90FF] rounded-full ea-pulse-dot" />
               live · download · copy
             </div>
 
-            <h1 className="font-display mt-6 text-[2.4rem] sm:text-5xl lg:text-7xl font-bold tracking-tight leading-[0.95]">
-              Distribute your <span className="text-[#1E90FF] ea-glow">EA signals</span>
+            <h1 className="ea-mobile-display mt-6 text-[2.5rem] sm:text-5xl lg:text-7xl tracking-tight leading-[0.95]">
+              Distribute your <span className="text-[#1E90FF]">EA signals</span>
               <br />
-              to <span className="underline decoration-[#1E90FF] underline-offset-[8px] sm:underline-offset-[10px]">every client's phone</span>.
+              to <span className="text-white" style={{ borderBottom: "3px solid #1E90FF", paddingBottom: "2px" }}>every client's phone</span>.
             </h1>
 
-            <p className="mt-6 sm:mt-7 text-sm sm:text-base md:text-lg text-white/70 max-w-xl leading-relaxed">
-              ea-central is the platform that helps mentors distribute their EA signals to clients
-              on mobile. Your EA runs on your PC or VPS — every trade is synced to all your
-              clients' mobile apps in real time.
+            <p className="mt-6 sm:mt-7 text-sm sm:text-base md:text-lg text-white/65 max-w-xl leading-relaxed">
+              ea-central is the platform that helps mentors distribute EA signals to clients
+              on mobile. Your EA runs on your PC or VPS — every trade syncs to all your
+              clients' phones in real time.
             </p>
 
             <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
               <Link to="/signup">
                 <Button
-                  className="w-full sm:w-auto bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none px-6 sm:px-8 py-5 sm:py-6 text-sm sm:text-base tracking-wide shadow-[0_0_30px_rgba(30,144,255,0.45)]"
+                  className="w-full sm:w-auto text-black font-bold rounded-xl px-7 sm:px-9 py-5 sm:py-6 text-sm sm:text-base tracking-wide ea-tap"
+                  style={{ backgroundColor: "#1E90FF", boxShadow: "0 8px 28px rgba(30,144,255,0.55)" }}
                   data-testid="hero-be-mentor-btn"
                 >
                   Be a Mentor
@@ -128,7 +129,7 @@ export default function Landing() {
               <Link to="/verify-account" className="w-full sm:w-auto">
                 <Button
                   variant="ghost"
-                  className="w-full sm:w-auto border border-[#1E90FF]/60 text-[#1E90FF] hover:bg-[#1E90FF]/10 hover:border-[#1E90FF] rounded-none px-6 py-5 sm:py-6 text-xs sm:text-sm tracking-wider"
+                  className="w-full sm:w-auto rounded-xl px-7 py-5 sm:py-6 text-xs sm:text-sm tracking-wider ea-card hover:bg-white/[0.04] text-white font-semibold ea-tap"
                   data-testid="hero-verify-btn"
                 >
                   Pay to activate account
@@ -136,20 +137,29 @@ export default function Landing() {
               </Link>
             </div>
 
-            <div className="mt-10 sm:mt-12 grid grid-cols-3 max-w-md gap-4 sm:gap-6 text-[10px] sm:text-xs text-white/60 uppercase tracking-[0.18em] sm:tracking-[0.2em]">
-              <div><div className="text-white text-xl sm:text-2xl font-display font-bold">∞</div>clients per mentor</div>
-              <div><div className="text-white text-xl sm:text-2xl font-display font-bold">0</div>vps for clients</div>
-              <div><div className="text-white text-xl sm:text-2xl font-display font-bold">~ms</div>mirror latency</div>
+            <div className="mt-10 sm:mt-12 grid grid-cols-3 max-w-md gap-3 sm:gap-4">
+              <div className="ea-card rounded-xl p-3 sm:p-4">
+                <div className="text-white ea-mobile-display text-2xl sm:text-3xl">∞</div>
+                <div className="text-[9px] sm:text-[10px] tracking-[0.22em] uppercase text-white/45 mt-1">clients / mentor</div>
+              </div>
+              <div className="ea-card rounded-xl p-3 sm:p-4">
+                <div className="text-white ea-mobile-display text-2xl sm:text-3xl">0</div>
+                <div className="text-[9px] sm:text-[10px] tracking-[0.22em] uppercase text-white/45 mt-1">vps for clients</div>
+              </div>
+              <div className="ea-card rounded-xl p-3 sm:p-4">
+                <div className="text-[#1E90FF] ea-mobile-display text-2xl sm:text-3xl">~ms</div>
+                <div className="text-[9px] sm:text-[10px] tracking-[0.22em] uppercase text-white/45 mt-1">mirror latency</div>
+              </div>
             </div>
           </div>
 
-          {/* Phone with real Mobile EA screenshot */}
+          {/* Phone with Mobile EA screenshot */}
           <div className="lg:col-span-5 relative flex justify-center">
-            <div className="relative w-full max-w-[280px] sm:max-w-[320px] ea-fade-up" style={{ animationDelay: "120ms" }}>
-              <div className="absolute -inset-8 bg-[#1E90FF]/20 blur-3xl rounded-full" />
-              <div className="relative rounded-[40px] border border-white/15 bg-[#050505] p-2 sm:p-3 shadow-[0_0_50px_rgba(30,144,255,0.3)]">
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 w-24 sm:w-28 h-5 sm:h-6 bg-black rounded-b-2xl z-10" />
-                <div className="aspect-[9/19] rounded-[32px] overflow-hidden bg-black">
+            <div className="relative w-full max-w-[280px] sm:max-w-[320px] ea-card-enter" style={{ animationDelay: "150ms" }}>
+              <div className="absolute -inset-8 bg-[#1E90FF]/20 blur-3xl rounded-full pointer-events-none" />
+              <div className="relative rounded-[40px] border border-white/10 p-2 sm:p-2.5" style={{ background: "linear-gradient(180deg, #18181B 0%, #09090B 100%)", boxShadow: "0 30px 60px rgba(0,0,0,0.6), 0 0 100px rgba(30,144,255,0.20)" }}>
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 sm:w-28 h-4 sm:h-5 bg-black rounded-b-2xl z-10" />
+                <div className="aspect-[9/19] rounded-[34px] overflow-hidden bg-black">
                   <img
                     src={MOBILE_EA_IMG}
                     alt="ea-central Mobile EA"
@@ -157,22 +167,22 @@ export default function Landing() {
                   />
                 </div>
               </div>
-              <div className="mt-4 flex items-center justify-center gap-2 text-[10px] tracking-[0.25em] uppercase text-white/45">
+              <div className="mt-4 flex items-center justify-center gap-2 text-[10px] tracking-[0.28em] uppercase text-white/40">
                 <CircuitBoard className="w-3 h-3 text-[#1E90FF]" />
-                ea-central mobile EA
+                ea-central · mobile EA
               </div>
             </div>
           </div>
         </div>
 
         {/* Ticker */}
-        <div className="relative border-y border-white/10 bg-black/60 overflow-hidden">
-          <div className="ea-ticker flex gap-8 sm:gap-12 py-3 whitespace-nowrap text-[10px] sm:text-xs uppercase tracking-[0.22em] sm:tracking-[0.25em]">
+        <div className="relative border-y border-white/[0.06] bg-black/40 overflow-hidden backdrop-blur-sm">
+          <div className="ea-ticker flex gap-8 sm:gap-12 py-3 whitespace-nowrap text-[10px] sm:text-xs uppercase tracking-[0.25em] ea-mono">
             {[...TICKER, ...TICKER, ...TICKER].map(([sym, chg], i) => (
-              <span key={i} className="flex items-center gap-2 sm:gap-3 text-white/70">
-                <span className="text-white">{sym}</span>
-                <span className={chg.startsWith("-") ? "text-white/50" : "text-[#1E90FF]"}>{chg}</span>
-                <span className="text-white/20">·</span>
+              <span key={i} className="flex items-center gap-2 sm:gap-3 text-white/65">
+                <span className="text-white font-semibold">{sym}</span>
+                <span className={chg.startsWith("-") ? "text-[#EF4444]" : "text-[#10B981]"}>{chg}</span>
+                <span className="text-white/15">·</span>
               </span>
             ))}
           </div>

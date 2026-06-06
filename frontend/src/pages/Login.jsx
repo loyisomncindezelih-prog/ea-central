@@ -2,13 +2,11 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuth, formatApiErrorDetail } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Lock, Mail, ShieldCheck, AlertCircle } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
@@ -28,7 +26,6 @@ export default function Login() {
       navigate("/dashboard");
     } catch (err) {
       const detail = err.response?.data?.detail;
-      // 402 payment_required → bounce to /verify-account
       if (err.response?.status === 402 && detail && typeof detail === "object" && detail.code === "payment_required") {
         toast.error(detail.message || "Complete payment to unlock your account");
         navigate(`/verify-account?email=${encodeURIComponent(detail.email || email)}`);
@@ -43,96 +40,137 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white" data-testid="login-page">
+    <div className="min-h-screen text-white ea-mobile ea-mesh-bg" data-testid="login-page">
       <Header />
-      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[calc(100vh-4rem)]">
-        <div className="hidden lg:flex lg:col-span-5 relative overflow-hidden border-r border-white/10">
-          <div className="absolute inset-0 ea-grid opacity-60" />
-          <div className="absolute top-1/3 -left-24 w-[420px] h-[420px] rounded-full bg-[#1E90FF]/20 blur-3xl" />
-          <div className="relative z-10 flex flex-col justify-between p-12 w-full">
-            <Logo size={44} />
-            <div>
-              <div className="text-xs tracking-[0.3em] uppercase text-[#1E90FF]">/ mentor login</div>
-              <h2 className="font-display text-4xl font-black tracking-tight mt-4 leading-tight">
-                Step back into
-                <br />
-                <span className="text-[#1E90FF]">your control room.</span>
-              </h2>
-              <p className="mt-6 text-white/60 text-sm max-w-sm leading-relaxed">
-                Pick up where you left off. Your bot, your clients, your room — all one tap away.
-              </p>
-            </div>
-            <div className="text-[10px] tracking-[0.3em] uppercase text-white/30">
-              ea-central · mentor portal
-            </div>
-          </div>
-        </div>
 
-        <div className="lg:col-span-7 flex items-center justify-center p-6 md:p-12">
-          <div className="w-full max-w-md">
-            <div className="text-xs tracking-[0.3em] uppercase text-[#1E90FF]">/ welcome back</div>
-            <h1 className="font-display text-3xl md:text-4xl font-black tracking-tight mt-3">
-              Mentor login.
+      {/* Hero area */}
+      <div className="relative overflow-hidden min-h-[calc(100vh-4rem)]">
+        {/* Ambient halos */}
+        <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full blur-3xl pointer-events-none opacity-30" style={{ backgroundColor: "#1E90FF1F" }} />
+        <div className="absolute -bottom-40 -right-40 w-[520px] h-[520px] rounded-full blur-3xl pointer-events-none opacity-20" style={{ backgroundColor: "#1E90FF14" }} />
+        {/* Soft dot grid */}
+        <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+
+        <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-12 lg:py-20 items-center min-h-[calc(100vh-4rem)]">
+          {/* Left brand panel */}
+          <aside className="hidden lg:flex lg:col-span-5 flex-col gap-6">
+            <div className="text-[10px] tracking-[0.32em] uppercase text-[#1E90FF] flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1E90FF] ea-pulse-dot" />
+              / mentor portal
+            </div>
+            <h1 className="ea-mobile-display text-5xl xl:text-6xl text-white leading-[0.95]">
+              Step back into
+              <br />
+              <span className="text-[#1E90FF]">your control room.</span>
             </h1>
-            <p className="text-white/60 text-sm mt-2">
-              New here?{" "}
-              <Link to="/signup" className="text-[#1E90FF] hover:underline" data-testid="login-to-signup">
-                Create a mentor account
-              </Link>
-              .
+            <p className="text-white/55 text-sm leading-relaxed max-w-md">
+              Pick up where you left off. Your bot, your clients, your trading room — all one tap away.
             </p>
 
-            <form onSubmit={submit} className="mt-8 space-y-5" data-testid="login-form">
-              <div>
-                <Label className="text-[11px] tracking-[0.25em] uppercase text-white/55 mb-2 block">Email</Label>
-                <Input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@domain.com"
-                  className="bg-transparent border-white/20 focus:border-[#1E90FF] focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12"
-                  data-testid="login-email"
-                />
-              </div>
-              <div>
-                <Label className="text-[11px] tracking-[0.25em] uppercase text-white/55 mb-2 block">Password</Label>
-                <Input
-                  required
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="bg-transparent border-white/20 focus:border-[#1E90FF] focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12"
-                  data-testid="login-password"
-                />
-              </div>
-
-              {error && (
-                <div
-                  className="border border-white/20 bg-white/5 text-white/80 text-sm px-4 py-3"
-                  data-testid="login-error"
-                >
-                  {error}
+            <div className="mt-2 space-y-3">
+              {[
+                { icon: ShieldCheck, label: "Encrypted credentials", sub: "BCrypt 12 rounds · JWT auto-rotation" },
+                { icon: Lock,        label: "Device-bound sessions", sub: "Lost laptop? Old token is dead instantly." },
+              ].map(({ icon: Icon, label, sub }) => (
+                <div key={label} className="flex items-start gap-3 ea-card rounded-xl p-3.5 max-w-md">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#1E90FF1A", color: "#1E90FF" }}>
+                    <Icon className="w-4 h-4" strokeWidth={1.8} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white">{label}</div>
+                    <div className="text-[11px] text-white/45 mt-0.5">{sub}</div>
+                  </div>
                 </div>
-              )}
+              ))}
+            </div>
+          </aside>
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-12 tracking-wide disabled:opacity-50"
-                data-testid="login-submit"
-              >
-                {loading ? "Logging in…" : (
-                  <>
-                    Login <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </form>
+          {/* Login card */}
+          <div className="lg:col-span-7 flex justify-center">
+            <div className="w-full max-w-md">
+              <div className="ea-card-elevated rounded-3xl p-7 sm:p-9 ea-card-enter relative overflow-hidden">
+                {/* Card accent corner */}
+                <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full blur-3xl pointer-events-none opacity-50" style={{ backgroundColor: "#1E90FF22" }} />
+
+                <div className="relative">
+                  <div className="text-[10px] tracking-[0.32em] uppercase text-[#1E90FF]">/ welcome back</div>
+                  <h2 className="ea-mobile-display text-3xl sm:text-4xl text-white mt-2">
+                    Mentor login.
+                  </h2>
+                  <p className="text-white/55 text-sm mt-2">
+                    New here?{" "}
+                    <Link to="/signup" className="text-[#1E90FF] hover:underline font-semibold" data-testid="login-to-signup">
+                      Create a mentor account
+                    </Link>
+                    .
+                  </p>
+
+                  <form onSubmit={submit} className="mt-7 space-y-4" data-testid="login-form">
+                    <div>
+                      <label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 block">Email</label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" strokeWidth={1.8} />
+                        <Input
+                          required
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@domain.com"
+                          className="bg-[#121214] border border-white/8 focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-xl h-12 pl-11"
+                          style={{ borderColor: "rgba(255,255,255,0.08)" }}
+                          data-testid="login-email"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 block">Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" strokeWidth={1.8} />
+                        <Input
+                          required
+                          type="password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="bg-[#121214] border border-white/8 focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-xl h-12 pl-11"
+                          style={{ borderColor: "rgba(255,255,255,0.08)" }}
+                          data-testid="login-password"
+                        />
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div
+                        className="flex items-start gap-2.5 rounded-xl px-3.5 py-2.5"
+                        style={{ border: "1px solid rgba(239,68,68,0.30)", backgroundColor: "rgba(239,68,68,0.06)" }}
+                        data-testid="login-error"
+                      >
+                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#EF4444" }} />
+                        <div className="text-xs text-white/85 leading-relaxed">{error}</div>
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full text-black font-bold rounded-xl h-12 tracking-wide ea-tap text-sm disabled:opacity-40"
+                      style={{ backgroundColor: "#1E90FF", boxShadow: "0 6px 22px rgba(30,144,255,0.55)" }}
+                      data-testid="login-submit"
+                    >
+                      {loading ? "Signing in…" : (<>Sign in <ArrowRight className="ml-2 h-4 w-4" /></>)}
+                    </Button>
+                  </form>
+
+                  <div className="text-[10px] tracking-[0.28em] uppercase text-white/30 text-center mt-6 ea-mono">
+                    ea-central · mentor portal
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
       <Footer />
     </div>
   );
