@@ -557,3 +557,28 @@ The lint scan surfaced 13 pre-existing React 19 strict-mode warnings in `MobileA
 - Lint clean for Login.jsx and Signup.jsx (0 blocking, 0 advisory).
 - Smoke screenshots: Landing hero (1280px), Login page, Signup page — all 3 render correctly with the new aesthetic.
 - Form input verified working (typed "visualtest9" into signup-username, value read back correctly).
+
+## What's been implemented (2026-02 — Iteration 36 — Mentor Dashboard upgrade + perf)
+
+### Speed improvements
+- **`Dashboard`**: hydrates KPI cards from `sessionStorage` cache (key `ea_mentor_stats_cache`) for instant first paint, then revalidates in background. Stale-while-revalidate pattern means no perceived loading state on every navigation back to the dashboard.
+- Skeleton-shimmer placeholders (`.ea-shimmer`) for the 3 KPI numerals while initial load runs.
+- Calendar pill uses `useMemo` so the date string isn't recomputed on every render.
+
+### Visual upgrades (matching /app + iter35 aesthetic)
+- **`MentorLayout`**: rewritten. Removed `bg-black`. New `.ea-mesh-bg` with halos + dot grid; sidebar is `.ea-card-elevated rounded-2xl` with rounded-xl active-state nav pills (blue tint + soft glow). Logout button is a glass `.ea-card` rounded-xl pill.
+- **`Dashboard`**: Manrope Display headline ("Good afternoon, alpha_mentor"), glass MENTOR ID pill with mono ID and IdCard icon, calendar pill top-right. 3 KPI cards `.ea-card-elevated rounded-2xl` with rounded-xl icon tiles, large Manrope display numerals, animated progress bar with blue glow shadow, big soft-shadow blue CTA. 3 status cards become rounded-xl glass pills with green CheckCircle "Online".
+- **`ManageEAs`**: matching glass-card grid, rounded-xl inputs with `#121214` bg, blue soft-shadow CTAs, "MANAGE →" pill buttons.
+- **`Profile`**: gorgeous conic-gradient avatar ring (matches `/app` MobileApp avatar), rounded-xl form fields, glass read-only email tile with Lock icon, blue soft-shadow Save CTA.
+
+### React 19 strict-mode compliance
+- Replaced the `setForm(...)` inside `useEffect` in `Profile.jsx` with the React-docs-recommended "reset state via render with a key" pattern using `userKey` comparison. Lint clean for our new code (0 blocking, 0 advisory).
+
+### Preserved
+- All API endpoints unchanged: `/mentor/stats`, `/mentor/eas/*`, `/mentor/profile`.
+- All `data-testid`s intact: `dashboard-page`, `dashboard-greeting`, `dashboard-active-count`, `mentor-id`, `system-banner`, `verify-status-card`, `kpi-license-usage`, `kpi-active-subs`, `kpi-total-eas`, `kpi-generate-key-btn`, `kpi-manage-eas-btn`, `kpi-key-stats-btn`, `manage-eas-page`, `new-ea-*`, `ea-row-*`, `ea-view-*`, `profile-page`, `profile-avatar-preview`, `profile-upload-btn`, `profile-remove-btn`, `profile-username`, `profile-country-code`, `profile-contact`, `profile-save-btn`.
+
+### Tested (iter36)
+- ✓ Lint clean for Dashboard.jsx, ManageEAs.jsx, Profile.jsx, MentorLayout.jsx (0 blocking, 0 advisory).
+- ✓ End-to-end login → /dashboard → /dashboard/manage-eas → /dashboard/profile flow verified via Playwright with screenshots.
+- ✓ Sidebar active state highlights correctly across nav transitions.

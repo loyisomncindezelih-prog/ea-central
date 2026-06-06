@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import MentorLayout from "@/components/MentorLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,15 +48,20 @@ export default function Profile() {
   const [preview, setPreview] = useState(null); // pending new image (data URL)
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
+  // Sync form state with `user` context using the React-docs-recommended
+  // "reset state during render with a key" pattern. Avoids setState-in-effect
+  // and is safe for React 19 strict mode.
+  const userKey = user?.id || "";
+  const [syncedFor, setSyncedFor] = useState("");
+  if (user && userKey !== syncedFor) {
+    setSyncedFor(userKey);
     setForm({
       username: user.username || "",
       country_code: user.country_code || "+27",
       contact_number: user.contact_number || "",
     });
     setPreview(null);
-  }, [user]);
+  }
 
   const currentAvatar = preview ?? user?.profile_image ?? null;
 
@@ -103,37 +108,45 @@ export default function Profile() {
 
   return (
     <MentorLayout>
-      <div data-testid="profile-page">
-        <div className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-[#1E90FF]">/ profile</div>
-        <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight mt-2">
-          Your <span className="text-[#1E90FF]">profile</span>.
-        </h1>
-        <p className="text-white/65 text-sm mt-2 max-w-xl">
-          Update your info and EA logo. The image you upload becomes your EA's logo for clients on the Mobile EA.
-        </p>
+      <div data-testid="profile-page" className="ea-mobile">
+        <div className="ea-card-enter">
+          <div className="text-[10px] sm:text-xs tracking-[0.32em] uppercase text-[#1E90FF]">/ profile</div>
+          <h1 className="ea-mobile-display text-3xl md:text-4xl text-white leading-[1.05] mt-2">
+            Your <span className="text-[#1E90FF]">profile</span>.
+          </h1>
+          <p className="text-white/55 text-sm mt-2.5 max-w-xl leading-relaxed">
+            Update your info and EA logo. The image you upload becomes your EA&apos;s logo for clients on the Mobile EA.
+          </p>
+        </div>
 
-        <form onSubmit={save} className="ea-glass mt-8 p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8">
+        <form onSubmit={save} className="ea-card-elevated rounded-2xl mt-7 p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8 ea-card-enter" style={{ animationDelay: "0.05s" }}>
           {/* Avatar column */}
           <div className="flex flex-col items-center gap-3">
-            <div className="w-44 h-44 rounded-full overflow-hidden relative" style={{ border: "2px solid #1E90FF", boxShadow: "0 0 36px rgba(30,144,255,0.35)" }} data-testid="profile-avatar-preview">
-              {currentAvatar ? (
-                <img src={currentAvatar} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 32%", transform: "scale(1.6)", transformOrigin: "50% 32%" }} />
-              )}
+            <div className="relative" style={{ width: 176, height: 176 }}>
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{ background: "conic-gradient(from 0deg, #1E90FF66, transparent 40%, #1E90FF33, transparent 80%, #1E90FF66)", filter: "blur(2px)" }}
+              />
+              <div className="absolute inset-[6px] rounded-full overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.10)", backgroundColor: "#09090B" }} data-testid="profile-avatar-preview">
+                {currentAvatar ? (
+                  <img src={currentAvatar} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <img src={ROBOT_IMG} alt="" className="w-full h-full object-cover" style={{ objectPosition: "50% 32%", transform: "scale(1.6)", transformOrigin: "50% 32%" }} />
+                )}
+              </div>
             </div>
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} data-testid="profile-file-input" />
             <div className="flex gap-2 w-full">
-              <Button type="button" onClick={() => fileRef.current?.click()} className="flex-1 bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-10 text-xs tracking-[0.18em] uppercase" data-testid="profile-upload-btn">
+              <Button type="button" onClick={() => fileRef.current?.click()} className="flex-1 text-black font-bold rounded-xl h-10 text-xs tracking-[0.2em] uppercase ea-tap" style={{ backgroundColor: "#1E90FF", boxShadow: "0 6px 18px rgba(30,144,255,0.55)" }} data-testid="profile-upload-btn">
                 <Camera className="w-4 h-4 mr-2" /> {currentAvatar ? "Change" : "Upload"}
               </Button>
               {(user?.profile_image || preview) && (
-                <Button type="button" onClick={removeImage} className="bg-transparent border border-white/20 hover:border-[#FF3B3B] hover:text-[#FF3B3B] text-white rounded-none h-10 px-3" data-testid="profile-remove-btn" title="Use default">
+                <Button type="button" onClick={removeImage} className="bg-transparent ea-card hover:bg-[#EF4444]/10 hover:text-[#EF4444] text-white rounded-xl h-10 px-3 ea-tap" data-testid="profile-remove-btn" title="Use default">
                   <Trash2 className="w-4 h-4" />
                 </Button>
               )}
             </div>
-            <p className="text-[10px] tracking-[0.18em] uppercase text-white/45 text-center mt-1">
+            <p className="text-[10px] tracking-[0.22em] uppercase text-white/40 text-center mt-1">
               JPG or PNG · auto-resized
             </p>
           </div>
@@ -141,11 +154,11 @@ export default function Profile() {
           {/* Form column */}
           <div className="space-y-5">
             <FieldBlock label="Email" icon={Mail} locked>
-              <div className="flex items-center gap-2 bg-transparent border border-white/15 px-3 h-12 text-white/55" data-testid="profile-email-readonly">
-                <span className="flex-1 truncate font-mono text-sm">{user?.email || ""}</span>
+              <div className="flex items-center gap-2 ea-card rounded-xl px-3 h-12 text-white/55" data-testid="profile-email-readonly">
+                <span className="flex-1 truncate ea-mono text-sm">{user?.email || ""}</span>
                 <Lock className="w-3.5 h-3.5 text-white/35" />
               </div>
-              <p className="text-[10px] tracking-[0.18em] uppercase text-white/35 mt-1">Email cannot be changed.</p>
+              <p className="text-[10px] tracking-[0.22em] uppercase text-white/35 mt-1">Email cannot be changed.</p>
             </FieldBlock>
 
             <FieldBlock label="Username" icon={User}>
@@ -154,7 +167,8 @@ export default function Profile() {
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
                 placeholder="Your display name"
-                className="bg-transparent border-white/20 focus:border-[#1E90FF] focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12"
+                className="bg-[#121214] border border-white/8 focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-xl h-12 px-4"
+                style={{ borderColor: "rgba(255,255,255,0.08)" }}
                 data-testid="profile-username"
               />
             </FieldBlock>
@@ -166,7 +180,8 @@ export default function Profile() {
                   value={form.country_code}
                   onChange={(e) => setForm({ ...form, country_code: e.target.value })}
                   placeholder="+27"
-                  className="bg-transparent border-white/20 focus:border-[#1E90FF] focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12 font-mono"
+                  className="bg-[#121214] border border-white/8 focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-xl h-12 ea-mono px-3"
+                  style={{ borderColor: "rgba(255,255,255,0.08)" }}
                   data-testid="profile-country-code"
                 />
               </FieldBlock>
@@ -176,14 +191,15 @@ export default function Profile() {
                   value={form.contact_number}
                   onChange={(e) => setForm({ ...form, contact_number: e.target.value })}
                   placeholder="763280102"
-                  className="bg-transparent border-white/20 focus:border-[#1E90FF] focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-none h-12 font-mono"
+                  className="bg-[#121214] border border-white/8 focus-visible:ring-0 focus-visible:ring-offset-0 text-white rounded-xl h-12 ea-mono px-3"
+                  style={{ borderColor: "rgba(255,255,255,0.08)" }}
                   data-testid="profile-contact"
                 />
               </FieldBlock>
             </div>
 
             <div className="pt-2">
-              <Button type="submit" disabled={busy} className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-12 px-6 tracking-wide" data-testid="profile-save-btn">
+              <Button type="submit" disabled={busy} className="text-black font-bold rounded-xl h-12 px-6 tracking-wide ea-tap" style={{ backgroundColor: "#1E90FF", boxShadow: "0 6px 18px rgba(30,144,255,0.55)" }} data-testid="profile-save-btn">
                 <Save className="w-4 h-4 mr-2" /> {busy ? "Saving…" : "Save changes"}
               </Button>
             </div>
@@ -196,10 +212,10 @@ export default function Profile() {
 
 const FieldBlock = ({ label, icon: Icon, children, locked }) => (
   <div>
-    <Label className="text-[11px] tracking-[0.25em] uppercase text-white/55 mb-2 flex items-center gap-2">
+    <Label className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-1.5 flex items-center gap-2">
       {Icon && <Icon className="w-3 h-3 text-[#1E90FF]" />}
       {label}
-      {locked && <span className="text-[9px] text-white/35">(read-only)</span>}
+      {locked && <span className="text-[9px] text-white/30">(read-only)</span>}
     </Label>
     {children}
   </div>
