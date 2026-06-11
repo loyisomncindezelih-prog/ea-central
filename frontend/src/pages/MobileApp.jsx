@@ -53,6 +53,11 @@ const LS_THEME = "ea_mobile_theme";
 const LS_BROKER = "ea_mobile_broker";
 const LS_DEVICE = "ea_mobile_device_id";
 const LS_INSTALL_DISMISSED = "ea_mobile_install_dismissed";
+const SS_EA_CACHE = "ea_mobile_eadata_cache";
+
+// Obsidian abstract texture behind the chart-scanner upload zone
+const SCANNER_BG =
+  "https://images.unsplash.com/photo-1578662996442-48f60103fc96?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
 
 // Detect iOS Safari (no `beforeinstallprompt` support — must show manual instructions).
 function isIosSafari() {
@@ -298,16 +303,27 @@ export default function MobileApp() {
           device_id: getDeviceId(),
         });
         setEaData(data);
+        try { sessionStorage.setItem(SS_EA_CACHE, JSON.stringify(data)); } catch { /* ignore */ }
         setStage("app");
         return;
       } catch (err) {
         const code = err.response?.status;
         if (code === 410) {
           toast.error("Your licence has expired");
+          try { sessionStorage.removeItem(SS_EA_CACHE); } catch { /* ignore */ }
+          setEaData(null);
           localStorage.removeItem(LS_LICENSE);
           setLicense("");
           setStage("license");
           return;
+        }
+        if (!err.response) {
+          // Network hiccup — if we already painted from cache, stay in the app.
+          try { if (sessionStorage.getItem(SS_EA_CACHE)) return; } catch { /* ignore */ }
+        } else {
+          // Server rejected the session (device mismatch, revoked key…) — drop the cache.
+          try { sessionStorage.removeItem(SS_EA_CACHE); } catch { /* ignore */ }
+          setEaData(null);
         }
         // fall through to email/license stage
       }
@@ -454,6 +470,7 @@ export default function MobileApp() {
   };
 
   const handleExpire = () => {
+    try { sessionStorage.removeItem(SS_EA_CACHE); } catch { /* ignore */ }
     localStorage.removeItem(LS_LICENSE);
     setLicense("");
     setEaData(null);
@@ -462,6 +479,7 @@ export default function MobileApp() {
   };
 
   const fullLogout = () => {
+    try { sessionStorage.removeItem(SS_EA_CACHE); } catch { /* ignore */ }
     localStorage.removeItem(LS_LICENSE);
     localStorage.removeItem(LS_EMAIL);
     setLicense("");
@@ -690,10 +708,10 @@ export default function MobileApp() {
             className="absolute inset-0"
             style={{
               background: `
-                radial-gradient(ellipse 80% 60% at 50% 0%, ${accent}1A 0%, transparent 55%),
-                radial-gradient(ellipse 60% 50% at 10% 100%, ${accent}10 0%, transparent 60%),
-                radial-gradient(ellipse 60% 50% at 90% 100%, rgba(245,193,80,0.06) 0%, transparent 60%),
-                #09090B
+                radial-gradient(ellipse 90% 55% at 50% -10%, rgba(255,255,255,0.05) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 45% at 85% 105%, rgba(245,208,97,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 45% at 10% 105%, ${accent}0D 0%, transparent 60%),
+                #030303
               `,
             }}
           />
@@ -704,8 +722,8 @@ export default function MobileApp() {
               backgroundSize: "24px 24px",
             }}
           />
-          <div className="absolute inset-x-0 top-0 h-24" style={{ background: "linear-gradient(180deg, rgba(9,9,11,0.95) 0%, transparent 100%)" }} />
-          <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(0deg, rgba(9,9,11,0.95) 0%, transparent 100%)" }} />
+          <div className="absolute inset-x-0 top-0 h-24" style={{ background: "linear-gradient(180deg, rgba(3,3,3,0.95) 0%, transparent 100%)" }} />
+          <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(0deg, rgba(3,3,3,0.95) 0%, transparent 100%)" }} />
         </div>
 
         {/* === FOREGROUND CONTENT === */}
@@ -717,9 +735,9 @@ export default function MobileApp() {
           </button>
           <div className="flex items-center gap-2">
             {running && (
-              <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ backgroundColor: "#10B981", boxShadow: "0 0 6px #10B981" }} data-testid="mobile-running-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ backgroundColor: "#00E676", boxShadow: "0 0 6px #00E676" }} data-testid="mobile-running-pulse" />
             )}
-            <h1 className="ea-mobile-display text-base tracking-tight text-white truncate max-w-[55%] text-center" data-testid="mobile-app-title">
+            <h1 className="ea3-display text-base tracking-tight text-white truncate max-w-[55%] text-center" data-testid="mobile-app-title">
               {eaName}
             </h1>
           </div>
@@ -771,8 +789,8 @@ export default function MobileApp() {
           data-testid="mobile-ea-nameplate"
           style={{ animationDelay: "0.05s" }}
         >
-          <div className="text-[10px] tracking-[0.32em] uppercase text-white/40 mb-1">Robot</div>
-          <div className="ea-mobile-display text-2xl sm:text-3xl text-white break-words leading-tight">
+          <div className="text-[10px] tracking-[0.32em] uppercase mb-1" style={{ color: "rgba(245,208,97,0.75)" }}>Robot</div>
+          <div className="ea3-display text-2xl sm:text-3xl text-white break-words leading-tight">
             {eaName}
           </div>
           <div className="text-white/50 text-xs mt-1.5 tracking-wide">Fully automated trading EA</div>
@@ -813,7 +831,7 @@ export default function MobileApp() {
           style={{ animationDelay: "0.15s" }}
         >
           <span className="text-white/50 text-[11px] tracking-wide">Powered by</span>
-          <span className="ea-mobile-display tracking-[0.16em] text-[12px]" style={{ color: accent }} data-testid="mobile-powered-by">EA-CENTRAL</span>
+          <span className="ea3-display tracking-[0.16em] text-[12px]" style={{ color: "#F5D061" }} data-testid="mobile-powered-by">EA-CENTRAL</span>
         </div>
 
         {/* Trading Style — risk profile picker */}
@@ -821,7 +839,7 @@ export default function MobileApp() {
           const currentStyle = TRADING_STYLES.find((s) => s.key === eaData?.trading_style);
           const isHighRisk = currentStyle?.risk === "high";
           const isBest = currentStyle?.risk === "best";
-          const styleColor = isHighRisk ? "#EF4444" : isBest ? "#10B981" : accent;
+          const styleColor = isHighRisk ? "#EF4444" : isBest ? "#00E676" : accent;
           return (
             <button
               type="button"
@@ -843,7 +861,7 @@ export default function MobileApp() {
                 </div>
               </div>
               {isBest && (
-                <div className="text-[9px] tracking-[0.22em] uppercase px-2 py-1 font-bold rounded-md" style={{ color: "#10B981", backgroundColor: "rgba(16,185,129,0.10)" }} data-testid="mobile-trading-style-best">
+                <div className="text-[9px] tracking-[0.22em] uppercase px-2 py-1 font-bold rounded-md" style={{ color: "#00E676", backgroundColor: "rgba(0,230,118,0.10)" }} data-testid="mobile-trading-style-best">
                   BEST
                 </div>
               )}
@@ -920,12 +938,12 @@ export default function MobileApp() {
                 !eaData?.broker ? "rgba(255,255,255,0.35)" :
                 s === "declined" ? "#EF4444" :
                 s === "pending_approval" ? "#EAB308" :
-                s === "approved" ? "#10B981" : accent;
+                s === "approved" ? "#00E676" : accent;
               const bg =
                 !eaData?.broker ? "rgba(255,255,255,0.04)" :
                 s === "declined" ? "rgba(239,68,68,0.10)" :
                 s === "pending_approval" ? "rgba(234,179,8,0.10)" :
-                s === "approved" ? "rgba(16,185,129,0.10)" : `${accent}1A`;
+                s === "approved" ? "rgba(0,230,118,0.10)" : `${accent}1A`;
               return (
                 <div className="text-[10px] tracking-[0.22em] uppercase px-2 py-1 rounded-md font-bold"
                   style={{ color, backgroundColor: bg }}
@@ -981,12 +999,12 @@ export default function MobileApp() {
                 <div
                   className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] tracking-[0.22em] uppercase font-bold"
                   style={{
-                    color: "#10B981",
-                    backgroundColor: "rgba(16,185,129,0.10)",
+                    color: "#00E676",
+                    backgroundColor: "rgba(0,230,118,0.10)",
                   }}
                   data-testid="mobile-ea-live-pill"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] ea-pulse-dot" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00E676] ea-pulse-dot" />
                   Live
                 </div>
               )}
@@ -997,7 +1015,7 @@ export default function MobileApp() {
           </div>
 
           <div
-            className="rounded-2xl overflow-hidden ea-card"
+            className="rounded-2xl overflow-hidden ea3-term"
             data-testid="mobile-ea-terminal"
           >
             {/* Terminal title bar */}
@@ -1019,10 +1037,10 @@ export default function MobileApp() {
             >
               {signals.length === 0 ? (
                 <div className="space-y-0.5">
-                  <div style={{ color: "#10B981" }}>
+                  <div style={{ color: "#00E676" }}>
                     <span style={{ color: accent }}>$</span> ea-central --watch <span className="ea-term-cursor">▊</span>
                   </div>
-                  <div style={{ color: "#10B981", opacity: 0.75 }}>
+                  <div style={{ color: "#00E676", opacity: 0.75 }}>
                     [ok] connected · polling every {running ? "3s" : "8s"}
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.55)" }}>
@@ -1076,18 +1094,19 @@ export default function MobileApp() {
 
         {/* Menu drawer */}
         {menuOpen && (
-          <div className="absolute inset-0 z-30 flex flex-col ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.92)", backdropFilter: "blur(20px)" }} data-testid="mobile-menu-drawer">
-            <div className="ea-drawer-enter flex-1 flex flex-col">
-              <div className="flex items-center justify-between px-5 pt-4 pb-3">
+          <div className="ea3-sheet-wrap ea-mobile" onClick={() => setMenuOpen(false)} data-testid="mobile-menu-drawer">
+            <div className="ea3-sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="ea3-handle" />
+              <div className="flex items-center justify-between px-5 pt-2 pb-3">
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accent }} />
-                  <h2 className="ea-mobile-display text-base text-white">Menu</h2>
+                  <h2 className="ea3-display text-base text-white">Menu</h2>
                 </div>
                 <button onClick={() => setMenuOpen(false)} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-menu-close">
                   <X className="w-4 h-4" strokeWidth={1.8} />
                 </button>
               </div>
-              <div className="px-5 py-4 flex flex-col gap-2.5 overflow-y-auto">
+              <div className="px-5 pt-1 pb-8 flex flex-col gap-2.5 overflow-y-auto">
                 <DrawerInfo label="Account" value={email} />
                 <DrawerInfo label="EA" value={eaName} />
                 <DrawerInfo label="Licence" value={eaData?.key} mono />
@@ -1109,19 +1128,20 @@ export default function MobileApp() {
 
         {/* Settings drawer */}
         {settingsOpen && (
-          <div className="absolute inset-0 z-30 flex flex-col ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.92)", backdropFilter: "blur(20px)" }} data-testid="mobile-settings-drawer">
-            <div className="ea-drawer-enter flex-1 flex flex-col overflow-y-auto">
-              <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(9,9,11,0.95)", backdropFilter: "blur(20px)" }}>
+          <div className="ea3-sheet-wrap ea-mobile" onClick={() => setSettingsOpen(false)} data-testid="mobile-settings-drawer">
+            <div className="ea3-sheet overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="ea3-handle" />
+              <div className="flex items-center justify-between px-5 pt-2 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(14,14,16,0.95)", backdropFilter: "blur(20px)" }}>
                 <div className="flex items-center gap-2">
                   <SettingsIcon className="w-4 h-4" style={{ color: accent }} strokeWidth={1.8} />
-                  <h2 className="ea-mobile-display text-base text-white">Settings</h2>
+                  <h2 className="ea3-display text-base text-white">Settings</h2>
                 </div>
                 <button onClick={() => setSettingsOpen(false)} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-settings-close">
                   <X className="w-4 h-4" strokeWidth={1.8} />
                 </button>
               </div>
 
-              <div className="px-5 py-5 flex flex-col gap-6">
+              <div className="px-5 pt-5 pb-10 flex flex-col gap-6">
                 <div>
                   <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 mb-3 flex items-center gap-2">
                     <Palette className="w-3 h-3" /> Theme
@@ -1202,12 +1222,13 @@ export default function MobileApp() {
 
         {/* Connect (broker) drawer */}
         {connectOpen && (
-          <div className="absolute inset-0 z-30 flex flex-col overflow-y-auto ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.94)", backdropFilter: "blur(20px)" }} data-testid="mobile-connect-drawer">
-            <div className="ea-drawer-enter flex-1 flex flex-col">
-              <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(9,9,11,0.95)", backdropFilter: "blur(20px)" }}>
+          <div className="ea3-sheet-wrap ea-mobile" onClick={() => setConnectOpen(false)} data-testid="mobile-connect-drawer">
+            <div className="ea3-sheet overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="ea3-handle" />
+              <div className="flex items-center justify-between px-5 pt-2 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(14,14,16,0.95)", backdropFilter: "blur(20px)" }}>
                 <div className="flex items-center gap-2">
                   <Server className="w-4 h-4" style={{ color: accent }} strokeWidth={1.8} />
-                  <h2 className="ea-mobile-display text-base text-white">Broker connection</h2>
+                  <h2 className="ea3-display text-base text-white">Broker connection</h2>
                 </div>
                 <button onClick={() => setConnectOpen(false)} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-connect-close">
                   <X className="w-4 h-4" strokeWidth={1.8} />
@@ -1217,11 +1238,11 @@ export default function MobileApp() {
             {/* When broker is already approved, show a summary card instead of the form
                 to prevent the user from accidentally re-submitting and going back to "linking". */}
             {eaData?.broker?.status === "approved" && !brokerRelink ? (
-              <div className="px-5 py-4 space-y-4" data-testid="broker-approved-card">
-                <div className="ea-card rounded-2xl p-4" style={{ borderColor: "rgba(16,185,129,0.30)" }}>
+              <div className="px-5 pt-4 pb-8 space-y-4" data-testid="broker-approved-card">
+                <div className="ea-card rounded-2xl p-4" style={{ borderColor: "rgba(0,230,118,0.30)" }}>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ backgroundColor: "#10B981" }} />
-                    <div className="text-[10px] tracking-[0.28em] uppercase" style={{ color: "#10B981" }}>Approved · live</div>
+                    <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ backgroundColor: "#00E676" }} />
+                    <div className="text-[10px] tracking-[0.28em] uppercase" style={{ color: "#00E676" }}>Approved · live</div>
                   </div>
                   <div className="text-white ea-mono text-sm" data-testid="broker-approved-summary">
                     {eaData.broker.platform?.toUpperCase()} · {eaData.broker.server} · #{eaData.broker.account}
@@ -1284,7 +1305,7 @@ export default function MobileApp() {
                   setBrokerBusy(false);
                 }
               }}
-              className="px-5 py-4 flex flex-col gap-4"
+              className="px-5 pt-4 pb-8 flex flex-col gap-4"
               data-testid="mobile-broker-form"
             >
               {/* Server-side approval notice — sets expectation up-front */}
@@ -1670,13 +1691,13 @@ const WelcomePopup = ({ username, eaName, accent, theme, onDismiss }) => {
           <TrendingUp className="w-6 h-6" strokeWidth={2} />
         </div>
 
-        <div className="text-[10px] tracking-[0.3em] uppercase mb-1.5 text-white/40">
+        <div className="text-[10px] tracking-[0.3em] uppercase mb-1.5" style={{ color: "rgba(245,208,97,0.8)" }}>
           {greeting}
         </div>
-        <div className="ea-mobile-display text-2xl text-white" data-testid="mobile-welcome-headline">
+        <div className="ea3-display text-2xl text-white" data-testid="mobile-welcome-headline">
           {handle},
         </div>
-        <div className="ea-mobile-display text-2xl mt-0.5" style={{ color: accent }}>
+        <div className="ea3-display text-2xl mt-0.5" style={{ color: accent }}>
           let's make money.
         </div>
 
@@ -1724,13 +1745,13 @@ const PhoneFrame = ({ children, standalone = false, accent = "#1E90FF" }) => {
   if (standalone) {
     // Installed as PWA / Add-to-Home — go full screen, no phone bezel
     return (
-      <div className="min-h-screen text-white flex flex-col ea-mobile ea-mesh-bg" data-testid="mobile-app-page" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="min-h-screen text-white flex flex-col ea-mobile ea3-bg" data-testid="mobile-app-page" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         {children}
       </div>
     );
   }
   return (
-    <div className="min-h-screen text-white flex items-center justify-center p-3 sm:p-6 md:p-10 relative overflow-hidden ea-mobile ea-mesh-bg ea-dot-grid" data-testid="mobile-app-page" style={{ "--ea-accent": accent }}>
+    <div className="min-h-screen text-white flex items-center justify-center p-3 sm:p-6 md:p-10 relative overflow-hidden ea-mobile ea3-bg ea-dot-grid" data-testid="mobile-app-page" style={{ "--ea-accent": accent }}>
       {/* Desktop ambient halos — subtle, no flashing */}
       <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full blur-3xl pointer-events-none hidden md:block opacity-30" style={{ backgroundColor: `${accent}1F` }} />
       <div className="absolute -bottom-32 -right-32 w-[520px] h-[520px] rounded-full blur-3xl pointer-events-none hidden md:block opacity-20" style={{ backgroundColor: `${accent}14` }} />
@@ -1746,12 +1767,12 @@ const PhoneFrame = ({ children, standalone = false, accent = "#1E90FF" }) => {
         className="relative w-full max-w-[400px] rounded-[40px] border border-white/10 p-2 sm:p-2.5"
         style={{
           height: "min(92vh, 850px)",
-          background: "linear-gradient(180deg, #18181B 0%, #09090B 100%)",
-          boxShadow: `0 0 0 1px rgba(255,255,255,0.04), 0 30px 60px rgba(0,0,0,0.6), 0 0 100px ${accent}1A`,
+          background: "linear-gradient(180deg, #161616 0%, #050505 100%)",
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.05), 0 30px 80px rgba(0,0,0,0.75), 0 0 90px rgba(245,208,97,0.07)",
         }}
       >
         <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-5 bg-black rounded-b-2xl z-20" />
-        <div className="w-full h-full rounded-[34px] bg-[#09090B] overflow-hidden flex flex-col">
+        <div className="w-full h-full rounded-[34px] bg-[#030303] overflow-hidden flex flex-col">
           {/* Status bar */}
           <div className="flex items-center justify-between px-6 pt-3 pb-1 text-[10px] text-white/55 ea-mono shrink-0">
             <span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
@@ -1780,7 +1801,7 @@ const AuthScreen = ({ icon: Icon, title, subtitle, children, testid, accent = "#
     >
       <Icon className="w-6 h-6" strokeWidth={1.6} />
     </div>
-    <h2 className="relative ea-mobile-display text-3xl mt-7 text-center" style={{ color: "#F8FAFC" }}>{title}</h2>
+    <h2 className="relative ea3-display text-3xl mt-7 text-center" style={{ color: "#F8FAFC" }}>{title}</h2>
     <p className="relative text-white/55 text-sm text-center mt-2.5 max-w-xs leading-relaxed">{subtitle}</p>
     <div className="relative w-full mt-8">{children}</div>
     <div className="relative mt-auto pb-3 pt-8 text-[10px] tracking-[0.3em] uppercase text-white/25 flex items-center gap-2">
@@ -1969,19 +1990,20 @@ const PairsDrawer = ({ email, license, allowedSymbols, pairConfigs, setEaData, t
   };
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col overflow-y-auto ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.94)", backdropFilter: "blur(20px)" }} data-testid="mobile-pairs-drawer">
-      <div className="ea-drawer-enter flex-1 flex flex-col">
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(9,9,11,0.95)", backdropFilter: "blur(20px)" }}>
+    <div className="ea3-sheet-wrap ea-mobile" onClick={onClose} data-testid="mobile-pairs-drawer">
+      <div className="ea3-sheet overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="ea3-handle" />
+        <div className="flex items-center justify-between px-5 pt-2 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(14,14,16,0.95)", backdropFilter: "blur(20px)" }}>
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4" style={{ color: accent }} strokeWidth={1.8} />
-            <h2 className="ea-mobile-display text-base text-white">Pairs</h2>
+            <h2 className="ea3-display text-base text-white">Pairs</h2>
           </div>
           <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-pairs-close">
             <X className="w-4 h-4" strokeWidth={1.8} />
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-6">
+        <div className="px-5 pt-4 pb-8 space-y-6">
           {/* Selected pairs to trade */}
           <section data-testid="pairs-selected-section">
             <div className="flex items-center justify-between mb-2.5">
@@ -2266,12 +2288,13 @@ const StartPopup = ({ eaName, broker, pairs, accent, theme, onClose }) => {
 
 // ============ Trading Style Drawer ============
 const TradingStyleDrawer = ({ current, theme, accent, busy, onClose, onPick }) => (
-  <div className="absolute inset-0 z-30 flex flex-col overflow-y-auto ea-mobile" style={{ backgroundColor: "rgba(9,9,11,0.94)", backdropFilter: "blur(20px)" }} data-testid="mobile-trading-style-drawer">
-    <div className="ea-drawer-enter flex-1 flex flex-col">
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(9,9,11,0.95)", backdropFilter: "blur(20px)" }}>
+  <div className="ea3-sheet-wrap ea-mobile" onClick={onClose} data-testid="mobile-trading-style-drawer">
+    <div className="ea3-sheet overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="ea3-handle" />
+      <div className="flex items-center justify-between px-5 pt-2 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(14,14,16,0.95)", backdropFilter: "blur(20px)" }}>
         <div className="flex items-center gap-2">
           <Crosshair className="w-4 h-4" style={{ color: accent }} strokeWidth={1.8} />
-          <h2 className="ea-mobile-display text-base text-white">Trading style</h2>
+          <h2 className="ea3-display text-base text-white">Trading style</h2>
         </div>
         <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea-tap text-white/85" data-testid="mobile-trading-style-close">
           <X className="w-4 h-4" strokeWidth={1.8} />
@@ -2282,12 +2305,12 @@ const TradingStyleDrawer = ({ current, theme, accent, busy, onClose, onPick }) =
         Pick how the EA trades on your account. This choice is shared with the ea-central team server-side.
       </div>
 
-      <div className="px-5 py-4 space-y-3">
+      <div className="px-5 pt-4 pb-8 space-y-3">
         {TRADING_STYLES.map((s) => {
           const isActive = current === s.key;
           const isHigh = s.risk === "high";
           const isBest = s.risk === "best";
-          const accentColor = isHigh ? "#EF4444" : isBest ? "#10B981" : accent;
+          const accentColor = isHigh ? "#EF4444" : isBest ? "#00E676" : accent;
           return (
             <button
               key={s.key}
@@ -2298,7 +2321,7 @@ const TradingStyleDrawer = ({ current, theme, accent, busy, onClose, onPick }) =
               style={{
                 borderColor: isActive ? `${accentColor}66` : undefined,
                 backgroundColor: isActive
-                  ? (isHigh ? "rgba(239,68,68,0.08)" : isBest ? "rgba(16,185,129,0.08)" : `${accent}12`)
+                  ? (isHigh ? "rgba(239,68,68,0.08)" : isBest ? "rgba(0,230,118,0.08)" : `${accent}12`)
                   : undefined,
               }}
               data-testid={`mobile-trading-style-option-${s.key}`}
@@ -2309,9 +2332,9 @@ const TradingStyleDrawer = ({ current, theme, accent, busy, onClose, onPick }) =
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="font-bold text-base ea-mobile-display" style={{ color: accentColor }}>{s.label}</div>
+                    <div className="font-bold text-base ea3-display" style={{ color: accentColor }}>{s.label}</div>
                     {isBest && (
-                      <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold rounded-md" style={{ color: "#10B981", backgroundColor: "rgba(16,185,129,0.12)" }}>BEST</span>
+                      <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold rounded-md" style={{ color: "#00E676", backgroundColor: "rgba(0,230,118,0.12)" }}>BEST</span>
                     )}
                     {isHigh && (
                       <span className="text-[9px] tracking-[0.22em] uppercase px-1.5 py-0.5 font-bold rounded-md" style={{ color: "#EF4444", backgroundColor: "rgba(239,68,68,0.12)" }}>HIGH RISK</span>
@@ -2372,7 +2395,7 @@ const TerminalLine = ({ s, accent }) => {
     status === "executing"   ? "EA took a trade" :
                                 "queued by server";
   return (
-    <div className="leading-snug" data-testid={`mobile-term-line-${s.id}`} style={{ wordBreak: "break-word" }}>
+    <div className="leading-snug ea3-line-in" data-testid={`mobile-term-line-${s.id}`} style={{ wordBreak: "break-word" }}>
       <span className="text-white/55">[{t}]</span>{" "}
       <span style={{ color, fontWeight: 800 }}>{tag}</span>{" "}
       <span style={{ color: accent, fontWeight: 700 }}>{s.symbol || "—"}</span>{" "}
@@ -2392,15 +2415,11 @@ const ScannerPanel = ({ scanBusy, scanResult, scanBalance, accent, theme, onPick
   const noTokens = !isUnlimited && (scanBalance?.scans_balance ?? 0) <= 0;
   return (
     <div className="relative z-10 px-4 mt-4 space-y-4" data-testid="mobile-scanner-panel">
-      <div className="rounded-2xl px-4 py-4" style={{
-        border: `2px solid ${accent}`,
-        backgroundColor: "rgba(0,8,18,0.7)",
-        boxShadow: `0 0 20px ${theme.glow}, inset 0 0 16px ${theme.soft}`,
-      }}>
+      <div className="rounded-3xl px-4 py-4 ea-card">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4" style={{ color: accent }} />
-            <h2 className="font-display text-base font-bold tracking-[0.22em] uppercase" style={{ color: accent }}>Chart Scanner</h2>
+            <Sparkles className="w-4 h-4" style={{ color: "#F5D061" }} />
+            <h2 className="ea3-display text-base text-white">Chart Scanner</h2>
           </div>
           <div
             className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
@@ -2425,10 +2444,12 @@ const ScannerPanel = ({ scanBusy, scanResult, scanBalance, accent, theme, onPick
         <ScannerResult result={scanResult} accent={accent} theme={theme} onExecute={onExecute} onClear={onClearResult} busy={scanBusy} />
       ) : (
         <div
-          className="rounded-2xl p-5 text-center"
+          className="rounded-3xl p-5 text-center"
           style={{
-            border: `2px dashed ${accent}66`,
-            backgroundColor: "rgba(0,8,18,0.5)",
+            border: "1.5px dashed rgba(255,255,255,0.18)",
+            backgroundImage: `linear-gradient(rgba(3,3,3,0.85), rgba(3,3,3,0.93)), url(${SCANNER_BG})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
           }}
         >
           <input
@@ -2441,8 +2462,8 @@ const ScannerPanel = ({ scanBusy, scanResult, scanBalance, accent, theme, onPick
           />
           <div className="flex justify-center mb-3">
             <div className="w-14 h-14 rounded-full flex items-center justify-center"
-              style={{ border: `2px solid ${accent}66`, backgroundColor: `${accent}11`, boxShadow: `0 0 18px ${accent}44` }}>
-              <Camera className="w-6 h-6" style={{ color: accent }} />
+              style={{ border: "1px solid rgba(255,255,255,0.14)", backgroundColor: "rgba(255,255,255,0.05)" }}>
+              <Camera className="w-6 h-6 text-white/85" />
             </div>
           </div>
           <div className="text-white text-sm font-semibold">Upload a chart screenshot</div>
@@ -2451,11 +2472,11 @@ const ScannerPanel = ({ scanBusy, scanResult, scanBalance, accent, theme, onPick
           {noTokens ? (
             <button
               onClick={onOpenBuy}
-              className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded"
+              className="w-full py-3.5 text-xs tracking-[0.22em] uppercase font-bold rounded-full ea3-tap"
               style={{
                 color: "#000",
                 backgroundColor: accent,
-                boxShadow: `0 0 18px ${accent}99`,
+                boxShadow: `0 8px 24px ${accent}40`,
               }}
               data-testid="mobile-scanner-buy-tokens"
             >
@@ -2466,11 +2487,11 @@ const ScannerPanel = ({ scanBusy, scanResult, scanBalance, accent, theme, onPick
             <button
               onClick={() => fileRef.current?.click()}
               disabled={scanBusy}
-              className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded disabled:opacity-50"
+              className="w-full py-3.5 text-xs tracking-[0.22em] uppercase font-bold rounded-full ea3-tap disabled:opacity-50"
               style={{
                 color: "#000",
                 backgroundColor: accent,
-                boxShadow: `0 0 18px ${accent}99`,
+                boxShadow: `0 8px 24px ${accent}40`,
               }}
               data-testid="mobile-scanner-upload-btn"
             >
@@ -2502,11 +2523,10 @@ const ScannerResult = ({ result, accent, theme, onExecute, onClear, busy }) => {
   const requested = result.execution_status === "verifying";
   return (
     <div
-      className="rounded-2xl p-4"
+      className="rounded-3xl p-4 ea-card"
       style={{
-        border: `2px solid ${color}`,
-        backgroundColor: "rgba(0,8,18,0.75)",
-        boxShadow: `0 0 22px ${color}55, inset 0 0 16px ${color}22`,
+        borderColor: `${color}55`,
+        boxShadow: `0 12px 36px rgba(0,0,0,0.5), inset 0 0 24px ${color}14`,
       }}
       data-testid="mobile-scanner-result"
     >
@@ -2559,11 +2579,11 @@ const ScannerResult = ({ result, accent, theme, onExecute, onClear, busy }) => {
         <button
           onClick={onExecute}
           disabled={busy || requested}
-          className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded disabled:opacity-60"
+          className="w-full py-3.5 text-xs tracking-[0.22em] uppercase font-bold rounded-full ea3-tap disabled:opacity-60"
           style={{
             color: "#000",
             backgroundColor: color,
-            boxShadow: `0 0 18px ${color}99`,
+            boxShadow: `0 8px 24px ${color}40`,
           }}
           data-testid="mobile-scanner-execute-btn"
         >
@@ -2620,13 +2640,15 @@ const BuyScansModal = ({ open, onClose, onSubmit, busy, accent, theme }) => {
   ];
 
   return (
-    <div className="absolute inset-0 z-40 bg-black/92 backdrop-blur-sm flex flex-col overflow-y-auto" data-testid="mobile-scanner-buy-modal">
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <h2 className="font-display tracking-[0.22em] uppercase text-sm" style={{ color: accent }}>Buy Scan Tokens</h2>
-        <button onClick={onClose} className="w-10 h-10 flex items-center justify-center" style={{ border: `1px solid ${accent}66`, color: accent }} data-testid="mobile-scanner-buy-close">
-          <X className="w-5 h-5" />
-        </button>
-      </div>
+    <div className="ea3-sheet-wrap ea-mobile" style={{ zIndex: 40 }} onClick={onClose} data-testid="mobile-scanner-buy-modal">
+      <div className="ea3-sheet overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="ea3-handle" />
+        <div className="flex items-center justify-between px-5 pt-2 pb-2">
+          <h2 className="ea3-display text-base text-white">Buy scan tokens</h2>
+          <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center ea-card ea3-tap text-white/85" data-testid="mobile-scanner-buy-close">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
       <div className="px-5 pb-6 space-y-5">
         <div className="space-y-3">
@@ -2684,8 +2706,8 @@ const BuyScansModal = ({ open, onClose, onSubmit, busy, accent, theme }) => {
         <button
           onClick={submit}
           disabled={busy || !proof}
-          className="w-full py-3 text-xs tracking-[0.22em] uppercase font-bold rounded disabled:opacity-50"
-          style={{ color: "#000", backgroundColor: accent, boxShadow: `0 0 18px ${accent}99` }}
+          className="w-full py-3.5 text-xs tracking-[0.22em] uppercase font-bold rounded-full ea3-tap disabled:opacity-50"
+          style={{ color: "#000", backgroundColor: accent, boxShadow: `0 8px 24px ${accent}40` }}
           data-testid="mobile-scanner-buy-submit"
         >
           {busy ? "Submitting…" : "I paid — submit for approval"}
@@ -2693,6 +2715,7 @@ const BuyScansModal = ({ open, onClose, onSubmit, busy, accent, theme }) => {
         <div className="text-[10px] text-white/45 text-center leading-relaxed">
           Admin will approve your purchase within minutes and your scans will be credited automatically.
         </div>
+      </div>
       </div>
     </div>
   );

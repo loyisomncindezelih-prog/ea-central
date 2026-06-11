@@ -1,0 +1,39 @@
+{
+  "summary": "EA CENTRAL 'Obsidian Tactical Luxury' client-app redesign (frontend-only) — all 12 review-request flows tested end-to-end in a single mobile (390x844) browser context against the public preview URL. 11/12 explicit PASS, 1 PARTIAL that is correct business logic. The redesign — bottom-sheet drawers (.ea3-sheet + .ea3-handle), Cabinet Grotesk headings (.ea3-display), gold #F5D061 accents, pitch-black terminal (rgb(0,0,0)), sessionStorage perceived-speed cache (ea_mobile_eadata_cache) — all verified working as specified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/frontend/src/pages/MobileApp.jsx is 2729 lines — far above the 700-line guideline. Strong candidates for extraction: PairsDrawer (~line 1990), StartPopup (~2233), TradingStyleDrawer (~2291), ScannerPanel (~2417), ScannerBuyModal (~2643), WelcomePopup (~1680), BrokerConnectDrawer (~1225). Splitting would also let each bottom-sheet manage its own state without re-rendering the entire MobileApp on each drawer toggle.",
+    "fullLogout() at line 481 clears localStorage + sessionStorage frontend-side but does NOT call the backend to release the licence device-binding. This means once a user logs out on device A, the licence remains device-locked to A's random device_id — re-activating on the same browser without that uuid (e.g. after clearing localStorage) returns 'device mismatch' until an admin manually unbinds. Consider POST /api/mobile/release on logout, OR persist device_id in a more durable place (cookie + localStorage).",
+    "tryResume writes sessionStorage cache AFTER the /api/mobile/trade-signals fetch completes (~line 306). The 'perceived speed' goal is achieved on the SECOND load (reload verified working), but on the FIRST load after activation the cache write is racy — if user reloads within the first 1-2 seconds before tryResume's first successful fetch, they'll still hit the no-cache path. Consider writing an initial sessionStorage snapshot directly from the /activate-license response payload.",
+    "Start button at /app silently no-ops when broker is in pending_approval state (no toast/error feedback). Observed during testing: clicking mobile-action-start while broker shows 'linking' produced no popup, no pulse, no toast — user has no feedback explaining why nothing happened. Add a toast.error('Broker still pending approval') or disable the button visually."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100% on UI rendering (11/12 explicit PASS, 1 PARTIAL is correct business gate)"},
+  "test_credentials": "Mobile client: test_mentor30@test.com + EAC-37F5-CA65-6BD4-A8A6 (30d). Licence was unbound at test teardown (bound_to_email=null, bound_device_id=null) so next iteration can re-pair cleanly. Admin: admin@ea-central.com / Admin@123.",
+  "seed_data_creation": "Test created 1 broker_connections row (status=pending_approval) which was deleted at teardown. Pair_configs left clean (added then removed within test). No persistent test data remains.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 12 EA3 redesign flows pass on mobile 390x844 viewport against https://copy-trading-hub-2.preview.emergentagent.com/app . Bottom sheets use .ea3-sheet/.ea3-handle classes inside .ea3-sheet-wrap. sessionStorage key for perceived-speed cache is 'ea_mobile_eadata_cache'. Licence device-locks on first activation — ALWAYS run the full activation+test flow in ONE browser_automation call (the tool starts a fresh context each invocation, losing localStorage device_id). If you get 'device mismatch', unbind via: db.license_keys.update_one({'key':'EAC-37F5-CA65-6BD4-A8A6'}, {'$set':{'bound_device_id':None,'bound_to_email':None}}) and also delete db.broker_connections for that licence_key. The Start EA flow correctly REQUIRES broker to be approved — in tests where broker is in pending_approval, mobile-start-popup and mobile-running-pulse will NOT appear, and this is correct business logic (though UX could be improved with a toast).",
+  "detailed_test_results": {
+    "1_activation_flow": "PASS — mobile-email-screen renders, email submit advances to mobile-license-screen, licence submit lands on mobile-app-screen, mobile-welcome-popup appears and is dismissable via mobile-welcome-dismiss.",
+    "2_perceived_speed_cache": "PASS — after page.reload(), mobile-app-screen renders directly with NO trip back to mobile-email-screen or mobile-license-screen. sessionStorage 'ea_mobile_eadata_cache' confirmed populated post-reload (verified via instant-paint behavior).",
+    "3_menu_bottom_sheet": "PASS — mobile-menu-drawer opens with .ea3-sheet child and .ea3-handle drag handle present. Backdrop click closes it; mobile-menu-close also closes.",
+    "4_settings_bottom_sheet": "PASS — mobile-settings-drawer has .ea3-sheet + .ea3-handle. mobile-theme-gold present and clickable. mobile-settings-sound-toggle present and clickable. mobile-settings-close works.",
+    "5_pairs_bottom_sheet": "PASS — mobile-pairs-drawer has .ea3-sheet + .ea3-handle. pairs-allowed-EURUSD, pairs-allowed-XAUUSD, pairs-allowed-GBPJPY all render. Selecting EURUSD opens pair-config-form. pair-direction-BUY + pair-config-save creates pair-card-EURUSD. Pair-remove-EURUSD cleanup works.",
+    "6_trading_style_bottom_sheet": "PASS — mobile-trading-style-drawer opens, mobile-trading-style-option-day_trading selects 'Day Trading', closes drawer, card shows 'Day Trading' with mobile-trading-style-best BEST badge.",
+    "7_broker_connect_bottom_sheet": "PASS — mobile-connect-drawer renders mobile-broker-form. Filling server/account/password and submitting broker-save closes drawer, mobile-broker-status-badge shows 'linking', mobile-broker-rolling-status banner appears with cycling messages.",
+    "8_ea_terminal": "PASS — mobile-ea-terminal present with computed background rgb(0,0,0) (pitch black) and contains 'ea-central' label text. Terminal-style chrome confirmed.",
+    "9_start_stop_ea": "PARTIAL (correct business logic) — clicking mobile-action-start with broker in pending_approval state produces no mobile-start-popup and no mobile-running-pulse. Screenshot confirms top-of-page warning banner 'Broker is still pending server-side approval.' This is correct gating behavior. Recommendation: surface a toast or visually disable the Start button so users know why nothing happened.",
+    "10_scanner_tab": "PASS — mobile-nav-scanner switches to mobile-scanner-panel. mobile-scanner-balance pill renders. mobile-scanner-buy-link opens mobile-scanner-buy-modal which has .ea3-sheet + .ea3-handle (bottom-sheet style). mobile-scanner-buy-close works. No purchase submitted.",
+    "11_visual_sanity": "PASS — body.innerText scanned for '3.0' substring: NOT FOUND anywhere. .ea3-display computed font-family resolves to 'Cabinet Grotesk, Manrope, system-ui, sans-serif'. mobile-powered-by EA-CENTRAL chip color is rgb(245, 208, 97) = #F5D061 gold as spec'd. Robot nameplate present and labeled 'ROBOT'.",
+    "12_logout": "PASS — mobile-menu-logout returns user to mobile-email-screen. sessionStorage 'ea_mobile_eadata_cache' cleared (null after logout)."
+  },
+  "rca of the issue": "N/A — no defects found. The only PARTIAL result (Start EA with pending broker) is correct business logic, not a bug. Test report contains a UX recommendation to add a toast/disabled-state on the Start button when broker isn't approved yet."
+}

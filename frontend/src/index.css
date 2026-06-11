@@ -398,3 +398,69 @@ h6,
         border-color: inherit;
     }
 }
+
+/* =========================================================================
+   EA CENTRAL 3.0 — Obsidian Tactical Luxury (client app /app only)
+   ========================================================================= */
+.ea3-display { font-family: "Cabinet Grotesk", "Manrope", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.03em; }
+.ea3-gold { color: #F5D061; }
+
+.ea3-bg {
+    background:
+        radial-gradient(ellipse 90% 55% at 50% -10%, rgba(255,255,255,0.045), transparent 60%),
+        radial-gradient(ellipse 60% 45% at 85% 105%, rgba(245,208,97,0.05), transparent 60%),
+        #030303;
+}
+
+/* Obsidian overrides — every glass card inside the client app goes void-black */
+[data-testid="mobile-app-page"] .ea-card {
+    background: rgba(10,10,10,0.80);
+    border-color: rgba(255,255,255,0.05);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+[data-testid="mobile-app-page"] .ea-card-elevated {
+    background: #121212;
+    border-color: rgba(255,255,255,0.08);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+[data-testid="mobile-app-page"] .ea-dock,
+[data-testid="mobile-app-page"] .ea-segmented {
+    background: rgba(8,8,8,0.85);
+    border-color: rgba(255,255,255,0.07);
+}
+
+/* Pitch-black terminal with live-green chrome */
+.ea3-term {
+    background: #000;
+    border: 1px solid rgba(0,230,118,0.18);
+    box-shadow: inset 0 0 24px rgba(0,0,0,0.8), 0 8px 32px rgba(0,0,0,0.45);
+}
+
+/* Tactical tap — fast 100ms press */
+.ea3-tap { transition: transform 0.1s ease-out; }
+.ea3-tap:active { transform: scale(0.98); }
+
+/* Bottom sheets — premium drawer surface with drag handle */
+@keyframes ea3-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ea3-up { from { transform: translateY(48px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.ea3-sheet-wrap {
+    position: absolute; inset: 0; z-index: 30;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    background: rgba(0,0,0,0.62);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    animation: ea3-fade 0.18s ease-out;
+}
+.ea3-sheet {
+    background: #0E0E10;
+    border-top: 1px solid rgba(255,255,255,0.10);
+    border-radius: 32px 32px 0 0;
+    max-height: 92%;
+    display: flex; flex-direction: column;
+    box-shadow: 0 -20px 60px rgba(0,0,0,0.6);
+    animation: ea3-up 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ea3-handle { width: 48px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 9999px; margin: 12px auto 4px; flex-shrink: 0; }
+
+/* Staggered terminal line entrance */
+@keyframes ea3-line { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+.ea3-line-in { animation: ea3-line 0.25s ease-out both; }
