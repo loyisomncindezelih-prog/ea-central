@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { CheckCircle2, Clock, ArrowRight, CreditCard, AlertCircle } from "lucide-react";
 
-const PRICE_LABEL = "R500.00";
+const PRICE_LABEL = "R700.00";
 
 export default function PendingApproval() {
   const { state } = useLocation();

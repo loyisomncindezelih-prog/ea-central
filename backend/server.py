@@ -420,7 +420,7 @@ async def verify_account_config():
         # Optional 1-on-1 mentorship add-on — bumps the verification fee.
         "mentorship_amount": os.environ.get("MENTORSHIP_AMOUNT_ZAR", "1450"),
         "whatsapp": {
-            "number":   os.environ.get("WHATSAPP_NUMBER", "+27670229140"),
+            "number":   os.environ.get("WHATSAPP_NUMBER", "+27694495897"),
             "template": os.environ.get(
                 "WHATSAPP_TEMPLATE",
                 "Hi, I just made the payment for ea-central verification. My email: {{email}}. Please verify and activate my account.",

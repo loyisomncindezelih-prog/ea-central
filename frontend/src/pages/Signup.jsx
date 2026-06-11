@@ -59,7 +59,7 @@ export default function Signup() {
         payload.ea_file_data_url = eaFile.dataUrl;
       }
       const res = await register(payload);
-      toast.success("Account created — complete the R500 payment to unlock your dashboard");
+      toast.success("Account created — complete the R700 payment to unlock your dashboard");
       navigate(`/verify-account?email=${encodeURIComponent(res?.user?.email || form.email)}&new=1`);
     } catch (err) {
       const msg = formatApiErrorDetail(err.response?.data?.detail) || err.message;
@@ -113,7 +113,7 @@ export default function Signup() {
             <div className="mt-1 ea-card rounded-xl p-4 max-w-md" data-testid="signup-payment-card">
               <div className="text-[10px] tracking-[0.28em] uppercase text-white/40">One-time activation</div>
               <div className="flex items-baseline gap-2 mt-1">
-                <span className="ea-mobile-display text-3xl text-[#1E90FF]">R500</span>
+                <span className="ea-mobile-display text-3xl text-[#1E90FF]">R700</span>
                 <span className="text-[10px] tracking-[0.22em] uppercase text-white/45">· EFT / USDT / Skrill</span>
               </div>
               <div className="text-[11px] text-white/45 mt-2 leading-relaxed">

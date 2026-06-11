@@ -58,7 +58,7 @@ export default function PaymentSuccess() {
                 ? "Your mentor account is verified and active. Welcome to ea-central."
                 : confirmed
                   ? "Yoco confirmed your payment. Finalising your account…"
-                  : "We're confirming your R500.00 payment with Yoco. This usually takes a few seconds."}
+                  : "We're confirming your R700.00 payment with Yoco. This usually takes a few seconds."}
             </p>
 
             {email && (
