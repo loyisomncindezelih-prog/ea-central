@@ -1,114 +1,89 @@
 {
-  "theme": "DARK",
-  "archetype": "Archetype 5 (Luxury) mixed with Archetype 2 (Performance Pro)",
-  "global_rules": {
-    "philosophy": "Institutional Algorithmic Trading Terminal. Premium, deep, mysterious, but highly functional. Moving away from cheap 'neon cyberpunk' to 'high-end luxury tech'.",
-    "animations": "CSS-only for performance. Rely on `active:scale-95 transition-transform duration-200 ease-out` for all interactive elements to simulate haptic feedback without JS bloat.",
-    "performance": "Minimize heavy DOM nodes. Use CSS gradients instead of large images. Use `content-visibility: auto` on off-screen drawers.",
-    "accessibility": "Maintain minimum 4.5:1 contrast for all text. Use `data-testid` on all interactive elements."
-  },
+  "theme": "Dark",
+  "archetype": "5 (Luxury) + 4 (Swiss/Tactical Hybrid)",
+  "concept": "Obsidian Tactical Luxury. An evolution of the existing dark glassmorphism into a tighter, more precise 'milled crystal' look. It removes generic blue glows and replaces them with stark contrast, pure white data, and surgical neon accents to create an ultra-premium, high-frequency trading feel.",
   "typography": {
     "headings": {
       "family": "Cabinet Grotesk",
-      "weights": ["500", "700", "900"],
-      "usage": "H1/H2, EA Name, Welcome Popups, Key Metrics. Never use Inter."
+      "weights": ["300", "800"],
+      "usage": "H1, H2, Hero numbers. Must use tracking-tight."
     },
     "body": {
       "family": "Manrope",
-      "weights": ["400", "500"],
-      "usage": "Paragraphs, labels, descriptions."
-    },
-    "monospace": {
-      "family": "JetBrains Mono",
       "weights": ["400", "500", "600"],
-      "usage": "EA Status Terminal, live numbers, balances, PnL."
+      "usage": "Primary UI text, labels, generic descriptions."
     },
-    "scale": {
-      "h1": "text-4xl tracking-tight",
-      "h2": "text-2xl tracking-tight",
-      "h3": "text-xl",
-      "body": "text-sm",
-      "label": "text-[10px] tracking-widest uppercase",
-      "terminal": "text-[10px] leading-tight"
+    "mono": {
+      "family": "JetBrains Mono",
+      "weights": ["400", "700"],
+      "usage": "Terminal logs, live P/L numbers, timestamps, lot sizes."
     }
   },
   "colors": {
-    "base": {
-      "background": "#09090B",
-      "surface": "#121214",
-      "surface_elevated": "#1C1C1F"
+    "background": {
+      "base": "#030303",
+      "surface": "#0A0A0A",
+      "elevated": "#121212"
     },
     "text": {
-      "primary": "#F8FAFC",
-      "secondary": "#94A3B8",
-      "muted": "#475569"
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#52525B"
     },
-    "borders": {
-      "default": "rgba(255, 255, 255, 0.08)",
-      "highlight": "rgba(255, 255, 255, 0.15)"
-    },
-    "themes": {
-      "gold": { "primary": "#EAB308", "bg": "rgba(234, 179, 8, 0.1)" },
-      "blue": { "primary": "#3B82F6", "bg": "rgba(59, 130, 246, 0.1)" },
-      "green": { "primary": "#10B981", "bg": "rgba(16, 185, 129, 0.1)" },
-      "red": { "primary": "#EF4444", "bg": "rgba(239, 68, 68, 0.1)" }
-    },
-    "status": {
-      "ok": "#10B981",
-      "cls": "#8B5CF6",
-      "err": "#EF4444",
-      "bal": "#EAB308",
-      "skp": "#64748B",
-      "took": "#3B82F6",
-      "pen": "#F97316"
+    "accents": {
+      "premium": "#F5D061",
+      "live_profit": "#00E676",
+      "stop_loss": "#FF3B30",
+      "border_glass": "rgba(255, 255, 255, 0.05)",
+      "border_highlight": "rgba(255, 255, 255, 0.15)"
     }
+  },
+  "surfaces": {
+    "glass_card": "bg-[#0A0A0A]/80 backdrop-blur-2xl border border-white/5 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
+    "terminal_panel": "bg-black border border-[#00E676]/20 rounded-xl shadow-inner",
+    "drawer_surface": "bg-[#121212] border-t border-white/10 rounded-t-[32px]"
   },
   "layout_and_spacing": {
-    "app_container": "Mobile-first width constraints. Desktop view: `max-w-[400px] mx-auto h-[850px] max-h-[95vh] relative rounded-[40px] overflow-hidden border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)] bg-[#09090B]`. Desktop background framing: Deep, elegant abstract mesh gradient (CSS only).",
-    "mobile_canvas": "`w-full h-full min-h-screen md:min-h-[850px] flex flex-col overflow-x-hidden`",
-    "grid": "Control Room Grid (Dense). `gap-3` or `gap-4` for maximum data density.",
-    "cards": "Cardless or 'Crystal Glass' approach. `bg-[#121214] border border-white/5 rounded-2xl p-4`. Remove massive neon drop-shadows. Replace with 1px inner strokes and ambient glow."
+    "padding_scale": "Mobile-first standard: p-4 to p-6 for screen edges. Cards use p-5.",
+    "border_radius": "Concentric: Wrapper rounded-3xl, inner elements rounded-2xl or rounded-xl. Buttons rounded-full.",
+    "alignment": "Optical alignment. Left-aligned for data rows (label left, value right). Center-aligned for primary Actions like Start EA."
+  },
+  "motion_and_interactions": {
+    "perceived_speed": "Heavy use of animate-pulse for loading states (skeletons) using neutral-900. Instant optimistic UI updates.",
+    "tap_feedback": "active:scale-[0.98] transition-transform duration-100 ease-out on all buttons, list rows, and cards.",
+    "terminal_pulse": "Live indicator dot should use animate-ping with #00E676. Terminal text lines should stagger in."
   },
   "components": {
-    "auth_stages": {
-      "email_entry": "Minimalist luxury. Centered brand logo, large elegant input field (`border-b` only or fully rounded pill). Huge, high-contrast submit button. Smooth CSS fade-in.",
-      "license_activation": "Similar to email, but input is heavily letter-spaced (`tracking-[0.2em]`) for the key."
+    "activation_screen": {
+      "description": "Centered glass card in pure void. Inputs have 1px base borders, focusing to solid white. Large premium 'Unlock' CTA.",
+      "data_testid": "activation-screen"
     },
-    "action_row_3_col": {
-      "keep_or_upgrade": "UPGRADE. Currently the most tapped element.",
-      "design": "Unified 'Dynamic Island' style Segmented Control. A single pill-shaped container `bg-[#1C1C1F] p-1 rounded-full flex items-center`. 3 equal segments. Active/Start button is highly vibrant (Theme color). Others are muted. CSS haptic scale `active:scale-95`."
+    "home_dashboard": {
+      "description": "Hero section shows live status. Main 'Start EA' is a massive pill button with a glowing background mesh.",
+      "data_testid": "home-dashboard"
     },
-    "ea_status_terminal": {
-      "keep_or_upgrade": "UPGRADE. Needs institutional feel.",
-      "design": "Strict monospace log. `h-[160px] bg-black/60 backdrop-blur-md rounded-xl border border-white/5 p-3 overflow-y-auto font-mono text-[10px] relative`. Hide scrollbars `scrollbar-hide`. Fade-out mask at the top `mask-image: linear-gradient(to bottom, transparent, black 20%)`.",
-      "tags": "Status tags are tiny badges: `px-1.5 py-0.5 rounded-sm uppercase tracking-wider bg-opacity-20`."
+    "terminal_panel": {
+      "description": "Pitch black container, JetBrains Mono text. Left-aligned logs. A pulsing green dot in the top right.",
+      "data_testid": "terminal-panel"
     },
-    "trading_style_picker": {
-      "design": "Horizontal scroll or tightly packed grid. Use subtle color gradients to indicate risk (Green for Scalping -> Red for Aggressive). Active state gets a 1px solid border of the theme color."
-    },
-    "bottom_nav": {
-      "design": "Floating 'Dock' rather than full-width bar to feel more premium. `fixed bottom-6 left-4 right-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-2 flex justify-around items-center z-50`."
+    "trade_history": {
+      "description": "List of flat rows (no cards). Symbol (Manrope) + Buy/Sell Badge + P/L (JetBrains Mono).",
+      "data_testid": "trade-history-list"
     },
     "drawers": {
-      "design": "Slide up from bottom (`translate-y-full` to `translate-y-0`). `rounded-t-3xl bg-[#09090B] border-t border-white/10`. Header of drawer has a small gray drag handle `w-12 h-1 bg-white/20 rounded-full mx-auto mt-2`."
+      "description": "Settings, Connect Broker, Pairs, Menu. Use Vaul/Shadcn Drawer. Must have a drag handle (w-12 h-1 bg-white/20 rounded-full).",
+      "data_testid": "bottom-drawer"
+    },
+    "chart_scanner": {
+      "description": "Upload area uses a dashed border with a high-end abstract dark background. AI prediction uses a progress bar and glowing confidence text.",
+      "data_testid": "chart-scanner"
     }
   },
-  "micro_features": {
-    "haptic_feedback": "Add `active:scale-[0.97]` to all buttons and cards.",
-    "status_pulse": "The START/STOP button and EA Avatar should have a tiny absolute positioned pulsing dot (`animate-ping`) when EA is active.",
-    "loaders": "Use pure CSS shimmering skeletons for initial data load `animate-pulse bg-white/5`.",
-    "scroll_behavior": "Add `scroll-smooth` to terminal. Hide scrollbars universally using custom CSS classes `[&::-webkit-scrollbar]:hidden`."
-  },
   "media": {
-    "hero_backgrounds": "Use CSS radial gradients. Example: `background: radial-gradient(circle at 50% 0%, rgba(var(--theme-primary), 0.15) 0%, transparent 50%)`."
+    "chart_scanner_bg": "https://images.unsplash.com/photo-1578662996442-48f60103fc96?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxkYXJrJTIwYWJzdHJhY3QlMjB0ZXh0dXJlfGVufDB8fHx8MTc4MTA1NDE3OXww&ixlib=rb-4.1.0&q=85",
+    "ai_pulse_texture": "https://images.unsplash.com/photo-1770486036751-e55247238964?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGdsb3dpbmclMjBwdWxzZSUyMGFpJTIwc2Nhbm5lciUyMGRhdGElMjBkYXJrfGVufDB8fHx8MTc4MTIwMDAzM3ww&ixlib=rb-4.1.0&q=85"
   },
-  "instructions_to_main_agent": [
-    "Load `Cabinet Grotesk`, `Manrope`, and `JetBrains Mono` from Google Fonts or a reliable CDN in `index.html`.",
-    "Do NOT use heavy JavaScript animation libraries like Framer Motion for simple clicks. Rely on Tailwind's `transition-transform duration-200 active:scale-95`.",
-    "Refactor the 2500-line `MobileApp.jsx` monolith into smaller functional components where possible, or strictly organize it if keeping as monolith.",
-    "Retain all existing state logic, API calls (`/api/mobile/...`), and strict `data-testid` attributes.",
-    "Apply the 'Luxury / Performance Pro' dark theme. Remove all existing massive neon drop-shadows.",
-    "Implement the Desktop framing: wrap the entire app in a centered 400x850 container if window width > 768px. Fill the rest of the desktop body with a dark abstract background.",
-    "Build the EA Status Terminal as a highly readable, dense, command-line interface."
-  ]
+  "icons_strategy": "Phosphor Icons (@phosphor-icons/react). Duotone weight for general nav, Fill for active states.",
+  "testing": "All interactive elements must have data-testid attributes (e.g., data-testid='start-ea-button').",
+  "instructions_to_main_agent": "Ensure pure JSON parsing. Implement mobile PWA layouts (h-screen, overflow-y-auto). Strictly use Cabinet Grotesk for headings and JetBrains Mono for the terminal. No '3.0' text anywhere. Install Phosphor Icons, Framer Motion, and clsx/tailwind-merge if not present."
 }
