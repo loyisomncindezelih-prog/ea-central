@@ -582,3 +582,19 @@ The lint scan surfaced 13 pre-existing React 19 strict-mode warnings in `MobileA
 - ✓ Lint clean for Dashboard.jsx, ManageEAs.jsx, Profile.jsx, MentorLayout.jsx (0 blocking, 0 advisory).
 - ✓ End-to-end login → /dashboard → /dashboard/manage-eas → /dashboard/profile flow verified via Playwright with screenshots.
 - ✓ Sidebar active state highlights correctly across nav transitions.
+
+## What's been implemented (2026-06 — Iteration 37 — APK link finalized + Key Stats luxury redesign)
+
+### Real APK wired (verified)
+- `APK_DOWNLOAD_URL` re-added to `/app/backend/.env` pointing to the user's uploaded artifact: `https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/i13snrh7_EA-CENTRAL.apk` (2.5 MB).
+- `GET /api/app/apk` verified via curl: returns **302** → artifact URL. Downloads page button works end-to-end.
+- VPS note: user must add the same `APK_DOWNLOAD_URL=` line to `/var/www/ea-central/backend/.env`.
+
+### Key Stats luxury redesign (`KeyStats.jsx`)
+- Replaced old neon `rounded-none` style with the luxury aesthetic: Manrope display headline, glass count-chip cards that double as filter tabs (All / Activated / Not Activated / Expired), `.ea-card-elevated rounded-2xl` table, rounded-pill status badges (green for Active), rounded-xl blue glow CTAs, shimmer skeleton loaders, staggered `ea-card-enter` animations.
+- Added `sessionStorage` stale-while-revalidate caching (key `ea_mentor_keys_cache`) for instant first paint, matching the Dashboard pattern.
+- All data-testids preserved: `key-stats-page`, `ks-refresh`, `ks-generate`, `ks-tab-*`, `ks-loading`, `ks-empty`, `ks-row-*`, `ks-copy-*`, `ks-reactivate-*`, `ks-delete-*`.
+
+### Tested (iter37)
+- ✓ curl: `/api/app/apk` → 302 to artifact URL.
+- ✓ Playwright screenshot: login → /dashboard/key-stats renders new aesthetic correctly (chips, table header, empty state).
