@@ -31,6 +31,7 @@ import {
   Power,
   PowerOff,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 
 const TABS = [
@@ -749,6 +750,16 @@ export default function AdminDashboard() {
                   {u.status !== "pending" && u.payment_proof_uploaded_at && (
                     <div className="mt-1 text-[9px] tracking-[0.2em] uppercase text-white/40">
                       proof on file
+                    </div>
+                  )}
+                  {u.wants_mentorship && (
+                    <div className="mt-1 text-[9px] tracking-[0.2em] uppercase flex items-center gap-1" style={{ color: "#F5D061" }} data-testid={`admin-mentorship-${u.id}`}>
+                      <Sparkles className="w-3 h-3" /> mentorship
+                    </div>
+                  )}
+                  {u.status === "pending" && u.verification_amount_zar && (
+                    <div className="mt-1 text-[9px] tracking-[0.2em] uppercase text-white/45" data-testid={`admin-expected-amount-${u.id}`}>
+                      expects R{Number(u.verification_amount_zar).toFixed(2)}
                     </div>
                   )}
                 </div>

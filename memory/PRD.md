@@ -635,3 +635,21 @@ The lint scan surfaced 13 pre-existing React 19 strict-mode warnings in `MobileA
 
 ### Seed data (post factory reset)
 - Mentor test_mentor30@test.com / Passw0rd! (approved), EA "AlphaWave Pro" (EURUSD/XAUUSD/GBPJPY), licence EAC-37F5-CA65-6BD4-A8A6 (unbound at test teardown).
+
+## What's been implemented (2026-06 — Iteration 40 — New pricing R700 + Mentorship add-on R1450)
+
+### Pricing change (user request: "prices are R700.00 and make them choose if they need mentorship with that the price will jump to R1450.00")
+- Backend `.env`: `BANK_AMOUNT_ZAR=700`, new `MENTORSHIP_AMOUNT_ZAR=1450` (must also be set on VPS).
+- `/verify-account/config` now returns `mentorship_amount`; eft.amount default bumped to 700.
+- Login 402 payment-gate message is dynamic from env (now "R700.00").
+- `POST /verify-account/proof` accepts `wants_mentorship: bool`; stores `wants_mentorship` + `verification_amount_zar` snapshot (700 or 1450) on the user.
+
+### Frontend
+- VerifyAccount.jsx: new package selector (testids `verify-package-standard` / `verify-package-mentorship`, gold "RECOMMENDED" badge on mentorship). Price plate, EFT/USDT/Skrill amount rows and CTA all switch R700.00 ↔ R1450.00; plate goes gold for mentorship. WhatsApp proof message appends the chosen package + amount.
+- AdminDashboard.jsx: pending user rows show gold "mentorship" badge (`admin-mentorship-{id}`) and "expects R1450.00/R700.00" line (`admin-expected-amount-{id}`).
+
+### Tested (iter40 — curl + screenshot)
+- ✓ config returns 700/1450; login gate message says R700.00; proof with wants_mentorship=true stores flag + expected 1450; admin list returns both fields.
+- ✓ UI: default price R700.00, clicking mentorship card switches to R1450.00 with gold styling.
+- Note: edit-tool glitch observed twice (reported success but no change) — always re-grep after批 parallel edits.
+- Seed: pricetest@test.com / Passw0rd! left in pending state with mentorship flag (demo for admin badge).

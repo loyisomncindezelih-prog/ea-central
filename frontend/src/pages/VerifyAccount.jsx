@@ -32,8 +32,9 @@ const PAY_METHODS = [
 const USDT_ADDRESS_FALLBACK = "TEHDtK1J669uogbM5gXESJKRBrbafk3BsY";
 const SKRILL_EMAIL_FALLBACK = "loyisomncindezelih@gmail.com";
 
-const PRICE_LABEL = "R500.00";
-const PRICE_SUBLABEL = "ZAR · one-time verification";
+const fmtZar = (v) => `R${Number(v || 0).toFixed(2)}`;
+const BASE_AMOUNT_FALLBACK = "700";
+const MENTORSHIP_AMOUNT_FALLBACK = "1450";
 const MAX_PROOF_MB = 5;
 
 // Open WhatsApp with a pre-filled message. `number` may include "+" — strip non-digits.
@@ -90,6 +91,7 @@ export default function VerifyAccount() {
   const [proofUploaded, setProofUploaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [payMethod, setPayMethod] = useState("eft"); // eft | usdt | skrill
+  const [wantsMentorship, setWantsMentorship] = useState(false);
 
   // Pull bank + whatsapp config once on mount so we can render the EFT card.
   useEffect(() => {
@@ -102,7 +104,7 @@ export default function VerifyAccount() {
   }, []);
 
   useEffect(() => {
-    if (isNew && email) toast.info(`Almost there, ${email} — send ${PRICE_LABEL} via EFT to unlock your mentor dashboard.`);
+    if (isNew && email) toast.info(`Almost there, ${email} — send your verification payment to unlock your mentor dashboard.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -155,7 +157,7 @@ export default function VerifyAccount() {
         r.onerror = rej;
         r.readAsDataURL(file);
       });
-      await api.post("/verify-account/proof", { email, proof_data_url: dataUrl, filename: file.name });
+      await api.post("/verify-account/proof", { email, proof_data_url: dataUrl, filename: file.name, wants_mentorship: wantsMentorship });
       setProofName(file.name);
       setProofUploaded(true);
       toast.success("Proof of payment uploaded ✓");
@@ -175,16 +177,22 @@ export default function VerifyAccount() {
       toast.error("WhatsApp number not configured. Please contact support.");
       return;
     }
+    const pkg = wantsMentorship
+      ? `EA Access + Mentorship (${mentorshipAmount})`
+      : `EA Access only (${baseAmount})`;
     openWhatsApp({
       number: cfg.whatsapp.number,
-      template: cfg.whatsapp.template,
+      template: `${cfg.whatsapp.template} Package: ${pkg}.`,
       email,
     });
     setState("paid-pending");
   };
 
   const eft = cfg?.eft || {};
-  const amount = eft.amount ? `R${eft.amount}` : PRICE_LABEL;
+  const baseAmount = fmtZar(eft.amount || BASE_AMOUNT_FALLBACK);
+  const mentorshipAmount = fmtZar(cfg?.mentorship_amount || MENTORSHIP_AMOUNT_FALLBACK);
+  const amount = wantsMentorship ? mentorshipAmount : baseAmount;
+  const planeAccent = wantsMentorship ? "#F5C150" : "#1E90FF";
 
   return (
     <div className="min-h-screen bg-black text-white" data-testid="verify-account-page">
@@ -208,16 +216,60 @@ export default function VerifyAccount() {
               An admin will activate your dashboard shortly after.
             </p>
 
+            {/* Package selector — EA access only vs EA access + 1-on-1 mentorship */}
+            <div className="mt-8 mx-auto max-w-md grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="verify-package-selector">
+              <button
+                type="button"
+                onClick={() => setWantsMentorship(false)}
+                className="p-4 text-left transition"
+                style={{
+                  border: `2px solid ${!wantsMentorship ? "#1E90FF" : "rgba(255,255,255,0.12)"}`,
+                  backgroundColor: !wantsMentorship ? "rgba(30,144,255,0.08)" : "transparent",
+                  boxShadow: !wantsMentorship ? "0 0 16px rgba(30,144,255,0.25)" : undefined,
+                }}
+                data-testid="verify-package-standard"
+              >
+                <div className="text-[10px] tracking-[0.25em] uppercase font-bold" style={{ color: !wantsMentorship ? "#1E90FF" : "rgba(255,255,255,0.6)" }}>
+                  EA Access
+                </div>
+                <div className="font-display text-xl font-black text-white mt-1">{baseAmount}</div>
+                <div className="text-[10px] text-white/45 mt-1 leading-relaxed">Host your EA · self-guided</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setWantsMentorship(true)}
+                className="p-4 text-left transition relative"
+                style={{
+                  border: `2px solid ${wantsMentorship ? "#F5C150" : "rgba(255,255,255,0.12)"}`,
+                  backgroundColor: wantsMentorship ? "rgba(245,193,80,0.08)" : "transparent",
+                  boxShadow: wantsMentorship ? "0 0 16px rgba(245,193,80,0.25)" : undefined,
+                }}
+                data-testid="verify-package-mentorship"
+              >
+                <div className="absolute -top-2 right-3 px-2 py-0.5 text-[8px] tracking-[0.2em] uppercase font-bold" style={{ backgroundColor: "#F5C150", color: "#000" }}>
+                  recommended
+                </div>
+                <div className="text-[10px] tracking-[0.25em] uppercase font-bold" style={{ color: wantsMentorship ? "#F5C150" : "rgba(255,255,255,0.6)" }}>
+                  EA + Mentorship
+                </div>
+                <div className="font-display text-xl font-black text-white mt-1">{mentorshipAmount}</div>
+                <div className="text-[10px] text-white/45 mt-1 leading-relaxed">Everything in EA Access + 1-on-1 mentorship</div>
+              </button>
+            </div>
+
             {/* Price plate */}
             <div
-              className="mt-8 mx-auto max-w-sm border border-[#1E90FF]/50 bg-[#1E90FF]/[0.07] p-5 text-center"
+              className="mt-4 mx-auto max-w-sm p-5 text-center"
+              style={{ border: `1px solid ${planeAccent}80`, backgroundColor: `${planeAccent}12` }}
               data-testid="verify-price-plate"
             >
               <div className="text-[10px] tracking-[0.3em] uppercase text-white/55">Verification fee</div>
-              <div className="font-display text-4xl sm:text-5xl font-black tracking-tight text-[#1E90FF] mt-1" data-testid="verify-price">
+              <div className="font-display text-4xl sm:text-5xl font-black tracking-tight mt-1" style={{ color: planeAccent }} data-testid="verify-price">
                 {amount}
               </div>
-              <div className="text-[11px] tracking-[0.22em] uppercase text-white/45 mt-1">{PRICE_SUBLABEL}</div>
+              <div className="text-[11px] tracking-[0.22em] uppercase text-white/45 mt-1">
+                {wantsMentorship ? "ZAR · verification + mentorship" : "ZAR · one-time verification"}
+              </div>
               <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-white/55">
                 <Landmark className="w-3 h-3 text-[#1E90FF]" />
                 Manual EFT · admin verifies on WhatsApp

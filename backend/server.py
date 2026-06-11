@@ -305,15 +305,16 @@ async def login(payload: LoginIn, request: Request, response: Response):
     # flag without a proof_data_url must not pass the payment gate.
     paid = bool(user.get("payment_proof_data_url"))
 
-    # Mentors must pay R500.00 before they can even sit in the approval queue.
+    # Mentors must pay the verification fee before they can even sit in the approval queue.
     # Admins skip the payment gate.
     if status == "pending" and role != "admin" and not paid:
         await clear_failures(identifier)
+        fee = os.environ.get("BANK_AMOUNT_ZAR", "700")
         raise HTTPException(
             status_code=402,
             detail={
                 "code": "payment_required",
-                "message": "Complete the R500.00 verification payment to unlock your mentor account.",
+                "message": f"Complete the R{float(fee):.2f} verification payment to unlock your mentor account.",
                 "email": email,
             },
         )
@@ -413,9 +414,11 @@ async def verify_account_config():
             "account":       os.environ.get("BANK_ACCOUNT", "2195277943"),
             "branch_code":   os.environ.get("BANK_BRANCH_CODE", "470010"),
             "account_type":  os.environ.get("BANK_ACCOUNT_TYPE", "Savings"),
-            "amount":        os.environ.get("BANK_AMOUNT_ZAR", "500"),
+            "amount":        os.environ.get("BANK_AMOUNT_ZAR", "700"),
             "currency":      "ZAR",
         },
+        # Optional 1-on-1 mentorship add-on — bumps the verification fee.
+        "mentorship_amount": os.environ.get("MENTORSHIP_AMOUNT_ZAR", "1450"),
         "whatsapp": {
             "number":   os.environ.get("WHATSAPP_NUMBER", "+27670229140"),
             "template": os.environ.get(
@@ -518,6 +521,7 @@ class ProofIn(BaseModel):
     email: EmailStr
     proof_data_url: str = Field(min_length=20, max_length=8 * 1024 * 1024)  # ~8MB base64 cap
     filename: str | None = Field(default=None, max_length=200)
+    wants_mentorship: bool = False
 
 
 @api_router.post("/verify-account/proof")
@@ -537,6 +541,10 @@ async def verify_account_proof(request: Request, payload: ProofIn):
     head = payload.proof_data_url.split(",", 1)[0]
     if not any(t in head for t in ("image/", "application/pdf")):
         raise HTTPException(status_code=400, detail="Only image or PDF files are accepted")
+    # Snapshot what this user is expected to have paid so admin can reconcile
+    # against the bank statement (R700 base, R1450 with the mentorship add-on).
+    expected_amount = os.environ.get("MENTORSHIP_AMOUNT_ZAR", "1450") if payload.wants_mentorship \
+        else os.environ.get("BANK_AMOUNT_ZAR", "700")
     await db.users.update_one(
         {"email": email},
         {"$set": {
@@ -545,6 +553,8 @@ async def verify_account_proof(request: Request, payload: ProofIn):
             "payment_proof_uploaded_at": now_iso(),
             "payment_clicked": True,
             "payment_clicked_at": user.get("payment_clicked_at") or now_iso(),
+            "wants_mentorship": payload.wants_mentorship,
+            "verification_amount_zar": expected_amount,
         }},
     )
     return {"ok": True, "uploaded_at": now_iso()}
