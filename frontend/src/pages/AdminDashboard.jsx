@@ -30,6 +30,7 @@ import {
   Server as ServerIcon,
   Power,
   PowerOff,
+  Trash2,
 } from "lucide-react";
 
 const TABS = [
@@ -74,6 +75,9 @@ export default function AdminDashboard() {
   const [tradeBusy, setTradeBusy] = useState(false);
   const [maintenance, setMaintenance] = useState({ enabled: false, message: "" });
   const [maintBusy, setMaintBusy] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetText, setResetText] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
 
   const refreshClient = useCallback(async (lk) => {
     try {
@@ -211,6 +215,23 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   }, [tab]);
+
+  const factoryReset = async () => {
+    if (resetText !== "DELETE") return;
+    setResetBusy(true);
+    try {
+      const { data } = await api.post("/admin/factory-reset", { confirm: resetText });
+      const total = Object.values(data.deleted || {}).reduce((a, b) => a + b, 0);
+      toast.success(`Factory reset complete — ${total} records wiped. Starting afresh.`);
+      setResetOpen(false);
+      setResetText("");
+      await Promise.all([load(), loadClients()]);
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setResetBusy(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -421,6 +442,95 @@ export default function AdminDashboard() {
             {maintBusy ? "..." : maintenance.enabled ? "TURN SITE BACK ON" : "TURN SITE OFF"}
           </Button>
         </div>
+
+        {/* Danger zone — factory reset */}
+        <div
+          className="mt-4 ea-glass p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6"
+          style={{ borderColor: "rgba(255,59,59,0.35)" }}
+          data-testid="admin-reset-card"
+        >
+          <div className="flex items-center gap-3 shrink-0">
+            <div
+              className="w-11 h-11 flex items-center justify-center border"
+              style={{ borderColor: "rgba(255,59,59,0.6)", backgroundColor: "rgba(255,59,59,0.10)", color: "#FF3B3B" }}
+            >
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Danger zone</div>
+              <div className="font-display text-lg font-bold text-[#FF3B3B]">Start afresh</div>
+            </div>
+          </div>
+          <p className="flex-1 text-xs text-white/55 leading-relaxed">
+            Permanently deletes <span className="text-white font-semibold">every user</span> (mentors &amp; clients),
+            all licence keys, EAs, broker connections, scans, trade signals and payment records.
+            Your admin account survives. <span className="text-[#FF3B3B] font-semibold">This cannot be undone.</span>
+          </p>
+          <Button
+            onClick={() => { setResetText(""); setResetOpen(true); }}
+            className="bg-[#FF3B3B]/15 hover:bg-[#FF3B3B]/30 border border-[#FF3B3B]/60 text-[#FF3B3B] font-bold rounded-none h-11 px-5 shrink-0 tracking-[0.15em] uppercase text-xs"
+            data-testid="admin-reset-open-btn"
+          >
+            <Trash2 className="w-4 h-4 mr-2" /> Delete all users
+          </Button>
+        </div>
+
+        {/* Factory reset confirmation modal */}
+        {resetOpen && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={() => !resetBusy && setResetOpen(false)}
+            data-testid="admin-reset-modal"
+          >
+            <div
+              className="ea-glass w-full max-w-md p-6"
+              style={{ borderColor: "rgba(255,59,59,0.5)", boxShadow: "0 0 40px rgba(255,59,59,0.2)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 flex items-center justify-center border shrink-0"
+                  style={{ borderColor: "rgba(255,59,59,0.6)", backgroundColor: "rgba(255,59,59,0.10)", color: "#FF3B3B" }}
+                >
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div className="font-display text-xl font-bold text-white">Wipe the entire platform?</div>
+              </div>
+              <p className="text-xs text-white/60 mt-4 leading-relaxed">
+                All mentors, clients, licence keys, EAs, broker connections, scans and payment
+                records will be <span className="text-[#FF3B3B] font-semibold">permanently deleted</span>.
+                Only your admin account remains. Type <span className="font-mono text-white font-bold">DELETE</span> to confirm.
+              </p>
+              <input
+                type="text"
+                value={resetText}
+                onChange={(e) => setResetText(e.target.value)}
+                placeholder='Type "DELETE" here'
+                autoFocus
+                className="mt-4 w-full bg-black/40 border border-white/15 text-white text-sm px-3 py-2.5 outline-none focus:border-[#FF3B3B] rounded-none font-mono"
+                data-testid="admin-reset-confirm-input"
+              />
+              <div className="flex gap-3 mt-5">
+                <Button
+                  onClick={() => setResetOpen(false)}
+                  disabled={resetBusy}
+                  className="flex-1 bg-transparent hover:bg-white/5 border border-white/20 text-white/80 rounded-none h-11"
+                  data-testid="admin-reset-cancel-btn"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={factoryReset}
+                  disabled={resetBusy || resetText !== "DELETE"}
+                  className="flex-1 bg-[#FF3B3B] hover:bg-[#FF5757] text-white font-bold rounded-none h-11 disabled:opacity-40"
+                  data-testid="admin-reset-confirm-btn"
+                >
+                  {resetBusy ? "Wiping…" : "Delete everything"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Client EA status — 3 buckets */}
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4" data-testid="admin-clients-status">

@@ -2583,6 +2583,33 @@ async def set_maintenance_state(payload: MaintenanceIn, admin: dict = Depends(ge
     return await _get_maintenance_doc()
 
 
+# --------------------- Admin: factory reset (start afresh) ---------------------
+# Wipes every user (except admins) and ALL platform data: licence keys, EAs,
+# broker connections, sessions, pair configs, scans, signals, payment events.
+# app_config (maintenance flag, webhook secret) is preserved.
+class FactoryResetIn(BaseModel):
+    confirm: str
+
+
+@api_router.post("/admin/factory-reset")
+async def admin_factory_reset(payload: FactoryResetIn, admin: dict = Depends(get_admin_user)):
+    if payload.confirm != "DELETE":
+        raise HTTPException(status_code=400, detail='Type "DELETE" to confirm the factory reset.')
+
+    deleted = {}
+    res = await db.users.delete_many({"role": {"$ne": "admin"}})
+    deleted["users"] = res.deleted_count
+    for name in [
+        "license_keys", "eas", "broker_connections", "ea_sessions",
+        "pair_configs", "scans", "scan_purchases", "trade_signals",
+        "login_attempts", "yoco_events", "bridges",
+    ]:
+        res = await db[name].delete_many({})
+        deleted[name] = res.deleted_count
+
+    logger.warning("FACTORY RESET executed by admin %s — deleted: %s", admin.get("email"), deleted)
+    return {"ok": True, "deleted": deleted}
+
 
 # Admin opens /admin/brokers, picks a licence + a symbol the client has configured,
 # fires BUY/SELL/CLOSE. The signal hits the same trade_signals pipeline the mentor

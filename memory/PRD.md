@@ -598,3 +598,18 @@ The lint scan surfaced 13 pre-existing React 19 strict-mode warnings in `MobileA
 ### Tested (iter37)
 - ✓ curl: `/api/app/apk` → 302 to artifact URL.
 - ✓ Playwright screenshot: login → /dashboard/key-stats renders new aesthetic correctly (chips, table header, empty state).
+
+## What's been implemented (2026-06 — Iteration 38 — Admin Factory Reset "Start afresh")
+
+### Backend
+- `POST /api/admin/factory-reset` (admin only, body `{"confirm":"DELETE"}`). Wrong confirm → 400. Deletes all users except `role=admin` and wipes: license_keys, eas, broker_connections, ea_sessions, pair_configs, scans, scan_purchases, trade_signals, login_attempts, yoco_events, bridges. Preserves `app_config` (maintenance flag, webhook secret). Logs a WARNING with per-collection delete counts.
+
+### Frontend (`AdminDashboard.jsx`)
+- New red "Danger zone — Start afresh" card under the Maintenance toggle with `Delete all users` button (`admin-reset-open-btn`).
+- Confirmation modal (`admin-reset-modal`): must type `DELETE` to enable the confirm button (`admin-reset-confirm-btn` stays disabled otherwise); shows per-record toast on success and reloads users + client status.
+- data-testids: `admin-reset-card`, `admin-reset-open-btn`, `admin-reset-modal`, `admin-reset-confirm-input`, `admin-reset-confirm-btn`, `admin-reset-cancel-btn`.
+
+### Tested (iter38)
+- ✓ curl: wrong confirm → 400; `DELETE` → wiped 55 users + 68 related records; `/admin/users` afterwards returns only the admin.
+- ✓ Playwright: modal opens, confirm button disabled until "DELETE" typed, cancel works.
+- ⚠️ Note: the preview DB was genuinely wiped during verification — old test mentors no longer exist (test_credentials.md updated).
