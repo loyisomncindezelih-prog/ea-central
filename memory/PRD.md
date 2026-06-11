@@ -613,3 +613,25 @@ The lint scan surfaced 13 pre-existing React 19 strict-mode warnings in `MobileA
 - ✓ curl: wrong confirm → 400; `DELETE` → wiped 55 users + 68 related records; `/admin/users` afterwards returns only the admin.
 - ✓ Playwright: modal opens, confirm button disabled until "DELETE" typed, cancel works.
 - ⚠️ Note: the preview DB was genuinely wiped during verification — old test mentors no longer exist (test_credentials.md updated).
+
+## What's been implemented (2026-06 — Iteration 39 — EA CENTRAL 3.0: "Obsidian Tactical Luxury" client app redesign)
+
+### Scope: /app client PWA only (MobileApp.jsx) — per user choice. No "3.0" branding text anywhere.
+
+### Visual (design_agent blueprint: Obsidian Tactical Luxury)
+- Void #030303 backgrounds (`.ea3-bg`), Cabinet Grotesk display font (`.ea3-display`, Fontshare CDN link in index.html), gold #F5D061 premium accents (ROBOT label, Powered-by chip, welcome greeting, Sparkles), live-green #00E676 replaces #10B981 across the client app.
+- ALL drawers converted from full-screen overlays to BOTTOM SHEETS (`.ea3-sheet-wrap`/`.ea3-sheet`/`.ea3-handle` in index.css): menu, settings, pairs, trading style, broker connect, buy-scans modal. Backdrop click closes; slide-up cubic-bezier entrance.
+- Pitch-black terminal (`.ea3-term`) with green chrome "ea-central · live feed" + staggered line entrances (`.ea3-line-in`).
+- Obsidian CSS overrides scoped to `[data-testid="mobile-app-page"]` darken all .ea-card/.ea-card-elevated/.ea-dock/.ea-segmented without touching mentor/admin pages.
+- Scanner: glass cards, dashed upload zone over dark texture image, pill buttons with soft glows.
+
+### Perceived speed
+- sessionStorage cache `ea_mobile_eadata_cache`: written on activation AND on every successful resume; hydrates eaData + stage="app" on first paint (stale-while-revalidate; 410/4xx revalidation kicks out and clears cache; network errors keep cached app). Cleared on logout/expire.
+- Skeleton home screen (shimmer blocks) replaces the old "Connecting…" text.
+
+### Tested (iter39 — testing agent, /app/test_reports/iteration_26.json)
+- 12/12 flows PASS on 390x844 viewport: activation, instant reload from cache, all 6 bottom sheets, pairs config CRUD, trading style, broker connect (linking + rolling status), terminal, scanner + buy sheet, visual sanity (no "3.0", Cabinet Grotesk, gold chip), logout clears cache.
+- Note from tester: Start-EA while broker pending shows warning banner (correct gating). MobileApp.jsx (2730 lines) refactor remains P2 backlog.
+
+### Seed data (post factory reset)
+- Mentor test_mentor30@test.com / Passw0rd! (approved), EA "AlphaWave Pro" (EURUSD/XAUUSD/GBPJPY), licence EAC-37F5-CA65-6BD4-A8A6 (unbound at test teardown).

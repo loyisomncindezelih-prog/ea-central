@@ -460,6 +460,7 @@ export default function MobileApp() {
       });
       localStorage.setItem(LS_LICENSE, license.trim().toUpperCase());
       setEaData(data);
+      try { sessionStorage.setItem(SS_EA_CACHE, JSON.stringify(data)); } catch { /* ignore */ }
       toast.success(`Welcome to ${data.ea_name}`);
       setStage("app");
     } catch (err) {
