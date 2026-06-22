@@ -474,3 +474,53 @@ h6,
     100% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0),    0 0 0 0 rgba(0, 230, 118, 0); }
 }
 .ea-trade-flash { animation: ea-trade-flash 1.4s ease-out 1; }
+
+/* ===== Premium toast notifications (sonner) =====
+   - Bottom-center placement so users actually see it (avoids notch / sticky headers)
+   - Tactical-luxury feel: subtle accent bar on the left, glass-morphism panel,
+     larger touch target, distinct color per state. */
+[data-sonner-toaster] { font-family: var(--font-display, inherit); }
+
+.ea-toast {
+    position: relative;
+    overflow: hidden;
+}
+.ea-toast::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: rgba(255, 255, 255, 0.18);
+}
+.ea-toast[data-type="success"]::before { background: #00E676; box-shadow: 0 0 14px rgba(0, 230, 118, 0.55); }
+.ea-toast[data-type="error"]::before   { background: #FF3B3B; box-shadow: 0 0 14px rgba(255, 59, 59, 0.55); }
+.ea-toast[data-type="warning"]::before { background: #F5C150; box-shadow: 0 0 14px rgba(245, 193, 80, 0.55); }
+.ea-toast[data-type="info"]::before    { background: #1E90FF; box-shadow: 0 0 14px rgba(30, 144, 255, 0.55); }
+
+.ea-toast [data-title] {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #fff;
+}
+.ea-toast [data-description] {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 12.5px;
+    margin-top: 2px;
+}
+.ea-toast [data-close-button] {
+    background: transparent !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    color: rgba(255,255,255,0.55) !important;
+}
+.ea-toast [data-close-button]:hover {
+    background: rgba(255,255,255,0.06) !important;
+    color: #fff !important;
+}
+/* sonner's default richColor background is too saturated against our dark theme —
+   force the panel back to glass and let the left bar do the color signalling. */
+.ea-toast[data-styled="true"][data-type] {
+    background: rgba(10, 10, 12, 0.92) !important;
+    color: #fff !important;
+    border: 1px solid rgba(255,255,255,0.10) !important;
+}
+

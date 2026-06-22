@@ -86,13 +86,31 @@ function App() {
           </MaintenanceGate>
           <Toaster
             theme="dark"
-            position="top-right"
+            position="bottom-center"
+            richColors
+            closeButton
+            expand
+            offset={24}
+            visibleToasts={4}
+            duration={4500}
             toastOptions={{
+              // Premium glass-morphism — sits perfectly above the bottom nav on mobile,
+              // clear of the iOS notch / status bar on web. Per-type colors come from
+              // sonner's richColors palette; we just polish the shared chrome.
+              className: "ea-toast",
               style: {
-                background: "#050505",
+                background: "rgba(10, 10, 12, 0.92)",
                 color: "#fff",
-                border: "1px solid rgba(30, 144, 255, 0.4)",
-                borderRadius: 0,
+                border: "1px solid rgba(255, 255, 255, 0.10)",
+                borderRadius: "16px",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+                boxShadow: "0 24px 60px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.04) inset",
+                padding: "14px 16px",
+                fontSize: "13.5px",
+                lineHeight: "1.45",
+                minWidth: "min(420px, calc(100vw - 32px))",
+                maxWidth: "calc(100vw - 32px)",
               },
             }}
           />

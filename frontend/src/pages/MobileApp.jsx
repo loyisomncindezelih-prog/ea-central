@@ -423,10 +423,14 @@ export default function MobileApp() {
             return prev;
           }
           if (prevStatus === "pending_approval" && newStatus === "approved") {
-            toast.success("Broker successfully linked");
+            toast.success("Broker linked", {
+              description: "Your MT account is verified and ready to trade.",
+            });
           }
           if (prevStatus === "pending_approval" && newStatus === "declined") {
-            toast.error(data?.broker?.decision_reason || "Invalid credentials or server");
+            toast.error("Couldn't verify broker", {
+              description: data?.broker?.decision_reason || "Please double-check your login server and account and try again.",
+            });
           }
           return data;
         });
@@ -544,7 +548,9 @@ export default function MobileApp() {
     try {
       await api.post("/mobile/check-email", { email });
       localStorage.setItem(LS_EMAIL, email);
-      toast.success("Email verified");
+      toast.success("Email verified", {
+        description: "Now enter your licence key to unlock the app.",
+      });
       setStage("license");
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
@@ -565,7 +571,9 @@ export default function MobileApp() {
       localStorage.setItem(LS_LICENSE, license.trim().toUpperCase());
       setEaData(data);
       try { sessionStorage.setItem(SS_EA_CACHE, JSON.stringify(data)); } catch { /* ignore */ }
-      toast.success(`Welcome to ${data.ea_name}`);
+      toast.success(`Welcome to ${data.ea_name}`, {
+        description: "Licence locked to this device — you're ready to trade.",
+      });
       setStage("app");
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
@@ -914,7 +922,9 @@ export default function MobileApp() {
                 try { await api.post("/mobile/ea/stop", { email, license_key: license }); } catch { /* ignore */ }
                 setRunning(false);
                 setStartOpen(false);
-                toast.success(`${eaName} stopped`);
+                toast.success("Trading paused", {
+                  description: `${eaName} has stopped — no new trades will be taken.`,
+                });
                 return;
               }
               try {
@@ -922,8 +932,13 @@ export default function MobileApp() {
                 setRunning(true);
                 setStartOpen(true);
                 setEaData((d) => ({ ...(d || {}), ea_session: { status: "running", started_at: data.started_at } }));
+                toast.success("Trading is live", {
+                  description: `${eaName} is now running and copying your mentor.`,
+                });
               } catch (err) {
-                toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+                toast.error("Couldn't start trading", {
+                  description: formatApiErrorDetail(err.response?.data?.detail) || err.message,
+                });
               }
             }} highlight={running} themeSoft={theme.soft} />
           <ActionBtn icon={Info} label="Info" accent={accent} testid="mobile-action-info"
@@ -1376,7 +1391,9 @@ export default function MobileApp() {
                     setBroker({ platform: "mt4", server: "", account: "", password: "" });
                     localStorage.removeItem(LS_BROKER);
                     setEaData((d) => ({ ...(d || {}), broker: null }));
-                    toast.success("Broker unlinked");
+                    toast.success("Broker unlinked", {
+                      description: "You can link a new broker any time.",
+                    });
                     setConnectOpen(false);
                   }}
                   className="text-xs tracking-[0.22em] uppercase text-white/40 hover:text-[#EF4444] py-2 w-full text-center font-semibold ea-tap"
@@ -1403,7 +1420,9 @@ export default function MobileApp() {
                     platform: data.platform, server: data.server, account: data.account, password: "",
                   }));
                   setEaData((d) => ({ ...(d || {}), broker: { platform: data.platform, server: data.server, account: data.account, connected_at: data.connected_at, status: data.status || "pending_approval" } }));
-                  toast.info(`${data.platform.toUpperCase()} linking… securing connection`);
+                  toast.info("Securing your broker", {
+                    description: `Verifying ${data.platform.toUpperCase()} session — this takes a few seconds.`,
+                  });
                   setBrokerRelink(false);
                   setConnectOpen(false);
                 } catch (err) {
@@ -1472,7 +1491,9 @@ export default function MobileApp() {
                     setBroker({ platform: "mt4", server: "", account: "", password: "" });
                     localStorage.removeItem(LS_BROKER);
                     setEaData((d) => ({ ...(d || {}), broker: null }));
-                    toast.success("Broker unlinked");
+                    toast.success("Broker unlinked", {
+                      description: "You can link a new broker any time.",
+                    });
                   }}
                   className="text-xs tracking-[0.22em] uppercase text-white/40 hover:text-white py-2 font-semibold ea-tap"
                   data-testid="broker-unlink"
