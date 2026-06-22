@@ -358,7 +358,8 @@ async def login(payload: LoginIn, request: Request, response: Response):
     # Admins skip the payment gate.
     if status == "pending" and role != "admin" and not paid:
         await clear_failures(identifier)
-        fee = os.environ.get("BANK_AMOUNT_ZAR", "700")
+        cfg = await get_payment_config()
+        fee = cfg["base_amount"]
         raise HTTPException(
             status_code=402,
             detail={
@@ -459,36 +460,62 @@ class VerifyClickIn(BaseModel):
     email: EmailStr
 
 
+# ----------------------- Editable payment config (admin can override env from UI) -----------------------
+PAYMENT_CONFIG_FIELDS = {
+    "whatsapp_number":     ("WHATSAPP_NUMBER",     "+27694495897"),
+    "whatsapp_template":   ("WHATSAPP_TEMPLATE",   "Hi, I just made the payment for ea-central verification. My email: {{email}}. Please verify and activate my account."),
+    "base_amount":         ("BANK_AMOUNT_ZAR",     "700"),
+    "mentorship_amount":   ("MENTORSHIP_AMOUNT_ZAR", "1450"),
+    "bank_name":           ("BANK_NAME",           "Capitec Bank"),
+    "bank_holder":         ("BANK_HOLDER",         "LoyisoFx123$"),
+    "bank_account":        ("BANK_ACCOUNT",        "2195277943"),
+    "bank_branch_code":    ("BANK_BRANCH_CODE",    "470010"),
+    "bank_account_type":   ("BANK_ACCOUNT_TYPE",   "Savings"),
+    "usdt_trc20_address":  ("USDT_TRC20_ADDRESS",  "TEHDtK1J669uogbM5gXESJKRBrbafk3BsY"),
+    "skrill_email":        ("SKRILL_EMAIL",        "loyisomncindezelih@gmail.com"),
+}
+
+
+async def get_payment_config() -> dict:
+    """Returns effective payment config: DB overrides win over env vars, env wins over hard-coded defaults."""
+    doc = await db.app_config.find_one({"key": "payment_config"}, {"_id": 0}) or {}
+    overrides = doc.get("value") or {}
+    out: dict[str, str] = {}
+    for field, (env_key, default) in PAYMENT_CONFIG_FIELDS.items():
+        val = overrides.get(field)
+        if val is None or val == "":
+            val = os.environ.get(env_key, default)
+        out[field] = str(val)
+    return out
+
+
 @api_router.get("/verify-account/config")
 async def verify_account_config():
+    cfg = await get_payment_config()
     return {
         "payment_link": PAYMENT_LINK,
         "yoco_configured": bool(YOCO_SECRET_KEY),
         "amount_cents": YOCO_AMOUNT_CENTS,
         "currency": YOCO_CURRENCY,
         # EFT bank-transfer flow (replaces Yoco UI on /verify-account)
-        # Fallbacks baked in so the UI renders correctly even if VPS .env wasn't updated.
         "eft": {
-            "bank_name":     os.environ.get("BANK_NAME", "Capitec Bank"),
-            "holder":        os.environ.get("BANK_HOLDER", "LoyisoFx123$"),
-            "account":       os.environ.get("BANK_ACCOUNT", "2195277943"),
-            "branch_code":   os.environ.get("BANK_BRANCH_CODE", "470010"),
-            "account_type":  os.environ.get("BANK_ACCOUNT_TYPE", "Savings"),
-            "amount":        os.environ.get("BANK_AMOUNT_ZAR", "700"),
+            "bank_name":     cfg["bank_name"],
+            "holder":        cfg["bank_holder"],
+            "account":       cfg["bank_account"],
+            "branch_code":   cfg["bank_branch_code"],
+            "account_type":  cfg["bank_account_type"],
+            "amount":        cfg["base_amount"],
             "currency":      "ZAR",
         },
         # Optional 1-on-1 mentorship add-on — bumps the verification fee.
-        "mentorship_amount": os.environ.get("MENTORSHIP_AMOUNT_ZAR", "1450"),
+        "mentorship_amount": cfg["mentorship_amount"],
         "whatsapp": {
-            "number":   os.environ.get("WHATSAPP_NUMBER", "+27694495897"),
-            "template": os.environ.get(
-                "WHATSAPP_TEMPLATE",
-                "Hi, I just made the payment for ea-central verification. My email: {{email}}. Please verify and activate my account.",
-            ),
+            "number":   cfg["whatsapp_number"],
+            "template": cfg["whatsapp_template"],
         },
         # iter34 — additional manual payment methods (crypto + Skrill)
-        "usdt_trc20_address": os.environ.get("USDT_TRC20_ADDRESS", "TEHDtK1J669uogbM5gXESJKRBrbafk3BsY"),
-        "skrill_email":       os.environ.get("SKRILL_EMAIL", "loyisomncindezelih@gmail.com"),
+        "usdt_trc20_address": cfg["usdt_trc20_address"],
+        "skrill_email":       cfg["skrill_email"],
     }
 
 
@@ -615,8 +642,8 @@ async def verify_account_proof(request: Request, payload: ProofIn):
         )
     # Snapshot what this user is expected to have paid so admin can reconcile
     # against the bank statement (R700 base, R1450 with the mentorship add-on).
-    expected_amount = os.environ.get("MENTORSHIP_AMOUNT_ZAR", "1450") if payload.wants_mentorship \
-        else os.environ.get("BANK_AMOUNT_ZAR", "700")
+    cfg = await get_payment_config()
+    expected_amount = cfg["mentorship_amount"] if payload.wants_mentorship else cfg["base_amount"]
     submitter_ip = _client_ip(request)
     submitter_ua = (request.headers.get("user-agent") or "")[:300]
     await db.users.update_one(
@@ -3192,6 +3219,86 @@ async def admin_reject_user(user_id: str, admin: dict = Depends(get_admin_user))
 @api_router.get("/")
 async def root():
     return {"service": "ea-central", "status": "ok"}
+
+
+# ----------------------- Admin payment-config editor -----------------------
+class PaymentConfigIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    whatsapp_number:     Optional[str] = Field(default=None, max_length=40)
+    whatsapp_template:   Optional[str] = Field(default=None, max_length=500)
+    base_amount:         Optional[str] = Field(default=None, max_length=12)
+    mentorship_amount:   Optional[str] = Field(default=None, max_length=12)
+    bank_name:           Optional[str] = Field(default=None, max_length=80)
+    bank_holder:         Optional[str] = Field(default=None, max_length=80)
+    bank_account:        Optional[str] = Field(default=None, max_length=40)
+    bank_branch_code:    Optional[str] = Field(default=None, max_length=20)
+    bank_account_type:   Optional[str] = Field(default=None, max_length=20)
+    usdt_trc20_address:  Optional[str] = Field(default=None, max_length=80)
+    skrill_email:        Optional[str] = Field(default=None, max_length=120)
+
+
+@api_router.get("/admin/payment-config")
+async def admin_get_payment_config(_: dict = Depends(get_admin_user)):
+    """Returns the effective payment config plus which fields are DB-overridden vs env."""
+    doc = await db.app_config.find_one({"key": "payment_config"}, {"_id": 0}) or {}
+    overrides = doc.get("value") or {}
+    effective = await get_payment_config()
+    return {
+        "effective": effective,
+        "overrides": {k: v for k, v in overrides.items() if v not in (None, "")},
+        "env_defaults": {
+            k: os.environ.get(env_key, default)
+            for k, (env_key, default) in PAYMENT_CONFIG_FIELDS.items()
+        },
+    }
+
+
+@api_router.put("/admin/payment-config")
+async def admin_put_payment_config(payload: PaymentConfigIn, admin: dict = Depends(get_admin_user)):
+    """Partial update — empty/null values clear the override for that field."""
+    raw = payload.model_dump(exclude_unset=True)
+    # Validate numeric fields parse as positive floats.
+    for k in ("base_amount", "mentorship_amount"):
+        v = raw.get(k)
+        if v is None or v == "":
+            continue
+        try:
+            if float(v) <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail=f"{k} must be a positive number (e.g. 700)")
+    # Light WhatsApp number validation (digits + leading +).
+    wn = raw.get("whatsapp_number")
+    if wn:
+        if not re.fullmatch(r"\+?\d{6,20}", wn.strip()):
+            raise HTTPException(status_code=400, detail="WhatsApp number must be digits with optional leading + (e.g. +27694495897)")
+    existing = await db.app_config.find_one({"key": "payment_config"}, {"_id": 0}) or {}
+    overrides = dict(existing.get("value") or {})
+    for k, v in raw.items():
+        if v is None or v == "":
+            overrides.pop(k, None)
+        else:
+            overrides[k] = str(v).strip()
+    await db.app_config.update_one(
+        {"key": "payment_config"},
+        {"$set": {
+            "key": "payment_config",
+            "value": overrides,
+            "updated_at": now_iso(),
+            "updated_by": admin["id"],
+        }},
+        upsert=True,
+    )
+    effective = await get_payment_config()
+    return {"ok": True, "effective": effective, "overrides": overrides}
+
+
+@api_router.post("/admin/payment-config/reset")
+async def admin_reset_payment_config(_: dict = Depends(get_admin_user)):
+    """Wipe DB overrides so env defaults take over again."""
+    await db.app_config.delete_one({"key": "payment_config"})
+    effective = await get_payment_config()
+    return {"ok": True, "effective": effective}
 
 
 # ----------------------- 2FA endpoints (admin TOTP) -----------------------

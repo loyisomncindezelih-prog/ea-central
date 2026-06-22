@@ -126,6 +126,60 @@ const TRADING_STYLES = [
   },
 ];
 
+// ---------- Real-time trade notification helpers ----------
+// Plays a quick two-tone "ping" so the client knows a trade just hit, even if
+// the screen is off or the page is backgrounded.
+function playTradeBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, now);          // A5
+    osc.frequency.setValueAtTime(1318.51, now + 0.12); // E6
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+    osc.start(now);
+    osc.stop(now + 0.45);
+    osc.onended = () => { try { ctx.close(); } catch { /* ignore */ } };
+  } catch { /* audio blocked — silent fail */ }
+}
+
+// Fires a toast + audio beep + (if granted) a system push notification.
+// The "issued_by" field distinguishes admin-pushed trades from automated EA trades.
+function notifyOfTrade(s) {
+  const act = String(s.action || "").toUpperCase();
+  const sym = s.symbol || "—";
+  const lot = s.lot != null ? `${s.lot} lot` : "";
+  const issuer = s.issued_by === "admin" ? "Mentor took a trade" : "EA took a trade";
+  const titleEmoji = act === "BUY" ? "📈" : act === "SELL" ? "📉" : act === "CLOSE" ? "🔒" : "⚡";
+  const body = [act, sym, lot].filter(Boolean).join(" ");
+  try {
+    toast.success(`${titleEmoji} ${issuer}`, {
+      description: body,
+      duration: 6000,
+    });
+  } catch { /* ignore */ }
+  playTradeBeep();
+  // Native browser notification (only fires if the user granted permission once).
+  try {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      const n = new Notification(`${titleEmoji} ${issuer}`, {
+        body,
+        tag: `trade-${s.id || Date.now()}`,
+        silent: false,
+      });
+      setTimeout(() => { try { n.close(); } catch { /* ignore */ } }, 8000);
+    }
+  } catch { /* ignore */ }
+}
+
 export default function MobileApp() {
   const navigate = useNavigate();
   const [stage, setStage] = useState("loading"); // loading | email | license | app
@@ -403,20 +457,70 @@ export default function MobileApp() {
     return () => clearTimeout(t);
   }, [stage]);
 
+  // Ask the browser once (per device) for permission to show system push
+  // notifications when the mentor pushes a trade. Falls back gracefully on iOS
+  // Safari where Notification.requestPermission() isn't available outside PWA.
+  useEffect(() => {
+    if (stage !== "app") return;
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "default") return;
+    if (localStorage.getItem("ea_notif_asked") === "1") return;
+    // Delay so we don't interrupt the welcome popup.
+    const t = setTimeout(() => {
+      try {
+        Notification.requestPermission().then(() => {
+          localStorage.setItem("ea_notif_asked", "1");
+        });
+      } catch { /* iOS Safari outside PWA */ }
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [stage]);
+
   // Last-3 trade signals (EA status panel) — polls every 3s while running, 8s otherwise.
+  // Detects NEW signals between ticks and fires a beep + toast + (optional) system push,
+  // so the client gets a real-time alert the moment the mentor pushes a trade.
+  const seenSignalIdsRef = useRef(null); // null on first tick → don't notify, just seed
+  const lastFlashRef = useRef(0);
+  const [signalFlash, setSignalFlash] = useState(0); // tick to flash the terminal border
   useEffect(() => {
     if (stage !== "app" || !email || !license) return;
     let cancelled = false;
     const tick = async () => {
       try {
         const { data } = await api.post("/mobile/trade-signals", { email, license_key: license });
-        if (!cancelled) setSignals(data.signals || []);
+        if (cancelled) return;
+        const next = data.signals || [];
+        setSignals(next);
+        // First fetch → seed the set, no notification.
+        const seen = seenSignalIdsRef.current;
+        if (seen === null) {
+          seenSignalIdsRef.current = new Set(next.map((s) => s.id));
+          return;
+        }
+        const fresh = next.filter((s) => s.id && !seen.has(s.id));
+        if (fresh.length) {
+          fresh.forEach((s) => seen.add(s.id));
+          // Most-recent new signal wins the on-screen notification.
+          const s = fresh[0];
+          notifyOfTrade(s);
+          // Throttle the visual flash to once per 1.5s so a burst of signals
+          // doesn't stutter.
+          const now = Date.now();
+          if (now - lastFlashRef.current > 1500) {
+            lastFlashRef.current = now;
+            setSignalFlash((x) => x + 1);
+          }
+        }
       } catch { /* swallow */ }
     };
     tick(); // immediate fetch on mount
     const iv = setInterval(tick, running ? 3000 : 8000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [stage, email, license, running]);
+
+  // Re-seed the "seen" set whenever the user changes accounts so we don't fire
+  // notifications for signals that pre-date their session.
+  useEffect(() => { seenSignalIdsRef.current = null; }, [email, license]);
 
   // Scan balance — refreshed when entering app or scanner tab, and every 15s while on scanner.
   useEffect(() => {
@@ -1016,7 +1120,8 @@ export default function MobileApp() {
           </div>
 
           <div
-            className="rounded-2xl overflow-hidden ea3-term"
+            key={`term-${signalFlash}`}
+            className="rounded-2xl overflow-hidden ea3-term ea-trade-flash"
             data-testid="mobile-ea-terminal"
           >
             {/* Terminal title bar */}

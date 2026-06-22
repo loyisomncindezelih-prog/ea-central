@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 27 — Admin payment-config editor + client trade-notification. Backend pytest 12/12 PASS (admin payment-config GET/PUT/reset, public /verify-account/config reflection, validation errors, override-clear, 2FA gating, security headers, payment-proof duplicate 409, signal/instant push). Frontend admin UI 100% PASS: card+form+all 11 fields render, base→900 save reflects in subtitle and public verify-account config, reset reverts to R700. Client /app trade notification: PASS — sonner toast '📈 EA took a trade · BUY EURUSD 0.1 lot' fires after admin pushes signal/instant; .ea-trade-flash terminal animation (1.4s) confirmed firing on the keyed remount. ONE minor mislabeling: admin endpoint hardcodes issued_by='server' so the toast title says 'EA took a trade' instead of 'Mentor took a trade' even when an admin manually pushed it.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/broker-connections/{license_key}/signal/instant",
+       "issue": "Hardcodes issued_by='server' (server.py line 2866). The client toast logic in MobileApp.jsx notifyOfTrade() switches the label based on issued_by==='admin' → 'Mentor took a trade'. Result: when an admin pushes a manual trade, the user sees 'EA took a trade' instead of 'Mentor took a trade', losing the differentiator the new notification was built for. Fix: change to issued_by='admin' (or keep 'server' and update the client comparator)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Admin push → client trade toast labeling",
+       "issue": "Toast title shows '📈 EA took a trade' instead of '📈 Mentor took a trade' when admin pushes via the broker page. Root cause is backend issued_by value (see backend.minor[0]).",
+       "affected_selectors": ["[data-sonner-toast]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration27_payment_config.py",
+    "/app/test_reports/pytest/iter27_results.xml"
+  ],
+  "action_items": [
+    "Fix labeling: change issued_by='server' → 'admin' on /api/admin/broker-connections/{lk}/signal/instant (server.py:2866) so the client toast renders 'Mentor took a trade' as designed. Tiny one-line change.",
+    "Optional UX: surface the admin's email or 'Manual' badge on the EA Status terminal when issued_by==='admin' so users distinguish mentor-pushed vs EA-auto trades."
+  ],
+  "critical_code_review_comments": [
+    "server.py line 2866 contains a self-aware comment: '# client still sees \"server\", not \"admin\"'. That now conflicts with the new notification logic in MobileApp.jsx notifyOfTrade(). Either align it with the new feature or document why both labels are intentional.",
+    "/app/frontend/src/pages/MobileApp.jsx is still ~2836 lines (was 2729 in iter26) — even more reason to split out PairsDrawer/StartPopup/TradingStyleDrawer/etc. The new notifyOfTrade + playTradeBeep helpers (lines 130-180) are module-level and easy to extract to /utils/notifications.js for unit-testability.",
+    "AdminDashboard PaymentField helper duplicates label+input markup 11 times. Acceptable since it IS a helper, but consider mapping over the PAYMENT_CONFIG_FIELDS schema returned by GET /admin/payment-config to render the form, removing the duplicated JSX."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration27_payment_config.py"
+  ],
+  "success_rate": {"backend": "100% (12/12 pytest)", "frontend": "100% admin payment-config UI, 100% client notification fires; 1 labeling defect (backend-driven)"},
+  "test_credentials": "Admin: admin@ea-central.com / Admin@123 (no 2FA). Mentor: test_mentor30@test.com / Passw0rd! + licence EAC-37F5-CA65-6BD4-A8A6. Licence was UNBOUND at test teardown so next agent can re-pair cleanly.",
+  "seed_data_creation": "Test created and cleaned up: 3 trade_signals (deleted), 2 TEST_proofdup_* mentor users (created during proof-dup test, may persist with status=pending — cleanup attempted), and DB app_config 'payment_config' override (wiped at teardown via reset endpoint). Licence binding and broker_connections cleared. No persistent test data remains.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All admin payment-config endpoints work and the editor UI persists to /api/verify-account/config correctly. Trade notification pipeline works end-to-end (toast + audio + visual flash). ONE small backend tweak needed: server.py:2866 hardcodes issued_by='server' on the admin /signal/instant endpoint, so the client toast label says 'EA took a trade' instead of 'Mentor took a trade' even when admin pushed it. That's the only outstanding item. Licence EAC-37F5-CA65-6BD4-A8A6 was unbound at teardown — ready for next /app flow test. To trigger a client notification for testing, after the client is on mobile-app-screen, POST /api/admin/broker-connections/{lk}/signal/instant with {symbol,action,final_status:'executing',lot} as admin; client polls every few seconds and notifyOfTrade fires on new signal id detection.",
+  "rca of the issue": "Toast-label mismatch RCA: MobileApp.jsx notifyOfTrade() (line 160) branches `s.issued_by === 'admin' ? 'Mentor took a trade' : 'EA took a trade'`. The backend admin push endpoint at server.py:2830 (admin_push_instant_signal) inserts the document with `issued_by='server'` and a code comment explicitly noting 'client still sees server, not admin'. That comment predates the new notification feature. Fix: change line 2866 from `'issued_by': 'server',` to `'issued_by': 'admin',`. Reproduction: login as admin → POST /api/admin/broker-connections/EAC-37F5-CA65-6BD4-A8A6/signal/instant {symbol:'EURUSD',action:'BUY',final_status:'executing',lot:0.10} while a /app client is on mobile-app-screen → toast appears reading '📈 EA took a trade' instead of '📈 Mentor took a trade'."
+}

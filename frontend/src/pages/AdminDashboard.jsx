@@ -34,6 +34,10 @@ import {
   Sparkles,
   Smartphone,
   Globe,
+  Wallet,
+  Edit3,
+  RotateCcw,
+  Save,
 } from "lucide-react";
 
 const TABS = [
@@ -43,6 +47,38 @@ const TABS = [
   { key: "rejected",       label: "Rejected",       icon: XCircle },
   { key: "all",            label: "All",            icon: Users },
 ];
+
+// Editable payment-settings field. Glows green when the current value overrides the
+// `.env` default — gives admin an at-a-glance audit of what's been changed.
+function PaymentField({ label, value, onChange, envValue, isOverride, testid, inputMode, placeholder }) {
+  return (
+    <label className="block">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] tracking-[0.22em] uppercase text-white/45">{label}</span>
+        {isOverride && (
+          <span className="text-[9px] tracking-[0.2em] uppercase text-[#22C55E]">overridden</span>
+        )}
+      </div>
+      <input
+        type="text"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder || envValue || ""}
+        inputMode={inputMode || "text"}
+        className="w-full bg-black/60 border text-white text-sm px-3 py-2 outline-none rounded-none font-mono tracking-wide"
+        style={{
+          borderColor: isOverride ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.10)",
+        }}
+        data-testid={testid}
+      />
+      {envValue && envValue !== value && (
+        <div className="text-[9px] text-white/30 mt-1 font-mono truncate" title={`env default: ${envValue}`}>
+          env default: {envValue}
+        </div>
+      )}
+    </label>
+  );
+}
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -88,6 +124,11 @@ export default function AdminDashboard() {
   const [twoFaCode, setTwoFaCode] = useState("");
   const [twoFaBackups, setTwoFaBackups] = useState(null); // [strings] — shown ONCE right after enable
   const [twoFaDisableCode, setTwoFaDisableCode] = useState("");
+  // Payment settings (admin can override env vars at runtime)
+  const [payCfg, setPayCfg] = useState(null);    // { effective, overrides, env_defaults }
+  const [payForm, setPayForm] = useState(null);  // working copy bound to inputs
+  const [payOpen, setPayOpen] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
 
   const refreshClient = useCallback(async (lk) => {
     try {
@@ -294,15 +335,59 @@ export default function AdminDashboard() {
     } finally { setTwoFaBusy(false); }
   };
 
+  const loadPaymentConfig = useCallback(async () => {
+    try {
+      const { data } = await api.get("/admin/payment-config");
+      setPayCfg(data);
+      setPayForm(data.effective);
+    } catch { /* ignore */ }
+  }, []);
+
+  const savePaymentConfig = async () => {
+    if (!payForm) return;
+    setPayBusy(true);
+    try {
+      // Only PUT fields that differ from env defaults — sending the same value as env
+      // is harmless but keeps the overrides map clean.
+      const env = payCfg?.env_defaults || {};
+      const payload = {};
+      Object.keys(payForm).forEach((k) => {
+        const v = (payForm[k] ?? "").toString().trim();
+        if (v !== (env[k] ?? "")) payload[k] = v;
+        else payload[k] = ""; // clear override → fall back to env
+      });
+      const { data } = await api.put("/admin/payment-config", payload);
+      setPayCfg({ effective: data.effective, overrides: data.overrides, env_defaults: payCfg?.env_defaults || {} });
+      setPayForm(data.effective);
+      toast.success("Payment settings saved. Live for all visitors now.");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally { setPayBusy(false); }
+  };
+
+  const resetPaymentConfig = async () => {
+    if (!window.confirm("Reset all payment settings to env defaults (the VPS .env values)?")) return;
+    setPayBusy(true);
+    try {
+      const { data } = await api.post("/admin/payment-config/reset");
+      setPayCfg((c) => ({ ...(c || {}), effective: data.effective, overrides: {} }));
+      setPayForm(data.effective);
+      toast.success("Payment settings reset to .env defaults.");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally { setPayBusy(false); }
+  };
+
   useEffect(() => {
     load();
     loadYoco();
     loadClients();
     loadMaintenance();
     load2Fa();
+    loadPaymentConfig();
     const iv = setInterval(loadClients, 10000); // refresh client status every 10s
     return () => clearInterval(iv);
-  }, [load, loadYoco, loadClients, loadMaintenance, load2Fa]);
+  }, [load, loadYoco, loadClients, loadMaintenance, load2Fa, loadPaymentConfig]);
 
   const unlinkBroker = async (license_key, email) => {
     if (!window.confirm(`Unlink ${email}'s broker (${license_key})? They will need to re-link a broker before trading again.`)) return;
@@ -672,6 +757,184 @@ export default function AdminDashboard() {
               >
                 Disable
               </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Payment settings — admin can override env-vars from the UI */}
+        <div
+          className="mt-4 ea-glass p-4 sm:p-5"
+          data-testid="admin-payment-config-card"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-3 shrink-0">
+              <div
+                className="w-11 h-11 flex items-center justify-center border"
+                style={{ borderColor: "rgba(245,193,80,0.5)", backgroundColor: "rgba(245,193,80,0.10)", color: "#F5C150" }}
+              >
+                <Wallet className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Payment settings</div>
+                <div className="font-display text-lg font-bold text-[#F5C150]" data-testid="admin-payment-config-state">
+                  R{Number(payCfg?.effective?.base_amount || 0).toFixed(0)} · {payCfg?.effective?.whatsapp_number || "—"}
+                </div>
+              </div>
+            </div>
+            <p className="flex-1 text-xs text-white/55 leading-relaxed">
+              Edit prices, EFT bank details, WhatsApp number, USDT wallet, and Skrill email here.
+              Changes go live instantly — no SSH or .env edits needed.
+              {Object.keys(payCfg?.overrides || {}).length > 0 && (
+                <span className="ml-1.5 text-[10px] tracking-[0.22em] uppercase text-[#22C55E]">
+                  · {Object.keys(payCfg?.overrides || {}).length} field{Object.keys(payCfg?.overrides || {}).length === 1 ? "" : "s"} overridden
+                </span>
+              )}
+            </p>
+            <Button
+              onClick={() => setPayOpen((v) => !v)}
+              className="bg-[#F5C150] hover:bg-[#F5D080] text-black font-bold rounded-none h-11 px-5 shrink-0 tracking-[0.15em] uppercase text-xs"
+              data-testid="admin-payment-config-toggle"
+            >
+              <Edit3 className="w-4 h-4 mr-2" /> {payOpen ? "Close" : "Edit"}
+            </Button>
+          </div>
+
+          {payOpen && payForm && (
+            <div className="mt-5 border-t border-white/10 pt-5 space-y-5" data-testid="admin-payment-config-form">
+              {/* Pricing row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <PaymentField
+                  label="Base price (R)"
+                  testid="paycfg-base-amount"
+                  value={payForm.base_amount}
+                  onChange={(v) => setPayForm({ ...payForm, base_amount: v })}
+                  envValue={payCfg?.env_defaults?.base_amount}
+                  isOverride={!!(payCfg?.overrides || {}).base_amount}
+                  inputMode="decimal"
+                />
+                <PaymentField
+                  label="EA + Mentorship price (R)"
+                  testid="paycfg-mentorship-amount"
+                  value={payForm.mentorship_amount}
+                  onChange={(v) => setPayForm({ ...payForm, mentorship_amount: v })}
+                  envValue={payCfg?.env_defaults?.mentorship_amount}
+                  isOverride={!!(payCfg?.overrides || {}).mentorship_amount}
+                  inputMode="decimal"
+                />
+              </div>
+
+              {/* WhatsApp row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <PaymentField
+                  label="WhatsApp number (with +country)"
+                  testid="paycfg-whatsapp-number"
+                  value={payForm.whatsapp_number}
+                  onChange={(v) => setPayForm({ ...payForm, whatsapp_number: v })}
+                  envValue={payCfg?.env_defaults?.whatsapp_number}
+                  isOverride={!!(payCfg?.overrides || {}).whatsapp_number}
+                  placeholder="+27694495897"
+                />
+                <PaymentField
+                  label="WhatsApp message template"
+                  testid="paycfg-whatsapp-template"
+                  value={payForm.whatsapp_template}
+                  onChange={(v) => setPayForm({ ...payForm, whatsapp_template: v })}
+                  envValue={payCfg?.env_defaults?.whatsapp_template}
+                  isOverride={!!(payCfg?.overrides || {}).whatsapp_template}
+                />
+              </div>
+
+              {/* EFT bank block */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <PaymentField
+                  label="Bank name"
+                  testid="paycfg-bank-name"
+                  value={payForm.bank_name}
+                  onChange={(v) => setPayForm({ ...payForm, bank_name: v })}
+                  envValue={payCfg?.env_defaults?.bank_name}
+                  isOverride={!!(payCfg?.overrides || {}).bank_name}
+                />
+                <PaymentField
+                  label="Account holder"
+                  testid="paycfg-bank-holder"
+                  value={payForm.bank_holder}
+                  onChange={(v) => setPayForm({ ...payForm, bank_holder: v })}
+                  envValue={payCfg?.env_defaults?.bank_holder}
+                  isOverride={!!(payCfg?.overrides || {}).bank_holder}
+                />
+                <PaymentField
+                  label="Account number"
+                  testid="paycfg-bank-account"
+                  value={payForm.bank_account}
+                  onChange={(v) => setPayForm({ ...payForm, bank_account: v })}
+                  envValue={payCfg?.env_defaults?.bank_account}
+                  isOverride={!!(payCfg?.overrides || {}).bank_account}
+                />
+                <PaymentField
+                  label="Branch code"
+                  testid="paycfg-bank-branch"
+                  value={payForm.bank_branch_code}
+                  onChange={(v) => setPayForm({ ...payForm, bank_branch_code: v })}
+                  envValue={payCfg?.env_defaults?.bank_branch_code}
+                  isOverride={!!(payCfg?.overrides || {}).bank_branch_code}
+                />
+                <PaymentField
+                  label="Account type"
+                  testid="paycfg-bank-type"
+                  value={payForm.bank_account_type}
+                  onChange={(v) => setPayForm({ ...payForm, bank_account_type: v })}
+                  envValue={payCfg?.env_defaults?.bank_account_type}
+                  isOverride={!!(payCfg?.overrides || {}).bank_account_type}
+                />
+              </div>
+
+              {/* Crypto + Skrill */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <PaymentField
+                  label="USDT TRC20 wallet address"
+                  testid="paycfg-usdt"
+                  value={payForm.usdt_trc20_address}
+                  onChange={(v) => setPayForm({ ...payForm, usdt_trc20_address: v })}
+                  envValue={payCfg?.env_defaults?.usdt_trc20_address}
+                  isOverride={!!(payCfg?.overrides || {}).usdt_trc20_address}
+                />
+                <PaymentField
+                  label="Skrill email"
+                  testid="paycfg-skrill"
+                  value={payForm.skrill_email}
+                  onChange={(v) => setPayForm({ ...payForm, skrill_email: v })}
+                  envValue={payCfg?.env_defaults?.skrill_email}
+                  isOverride={!!(payCfg?.overrides || {}).skrill_email}
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  onClick={savePaymentConfig}
+                  disabled={payBusy}
+                  className="bg-[#22C55E] hover:bg-[#34D67A] text-black font-bold rounded-none h-11 px-5 tracking-[0.15em] uppercase text-xs disabled:opacity-50"
+                  data-testid="admin-payment-config-save"
+                >
+                  <Save className="w-4 h-4 mr-2" /> {payBusy ? "Saving…" : "Save changes"}
+                </Button>
+                <Button
+                  onClick={resetPaymentConfig}
+                  disabled={payBusy || Object.keys(payCfg?.overrides || {}).length === 0}
+                  variant="ghost"
+                  className="border border-white/15 text-white/70 hover:bg-white/5 rounded-none h-11 px-4 text-xs tracking-[0.15em] uppercase disabled:opacity-30"
+                  data-testid="admin-payment-config-reset"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" /> Reset to .env
+                </Button>
+                <Button
+                  onClick={() => { setPayForm(payCfg?.effective); }}
+                  variant="ghost"
+                  className="text-white/45 hover:text-white/80 rounded-none h-11 px-3 text-[10px] tracking-[0.18em] uppercase"
+                  data-testid="admin-payment-config-revert"
+                >
+                  Revert edits
+                </Button>
+              </div>
             </div>
           )}
         </div>
