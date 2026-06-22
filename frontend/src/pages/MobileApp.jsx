@@ -38,6 +38,8 @@ import {
   Coins,
   Volume2,
   VolumeX,
+  RefreshCcw,
+  Link2,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -198,6 +200,14 @@ export default function MobileApp() {
   const [signals, setSignals] = useState([]); // Rolling 5-min EA Status terminal feed
   // Bottom-nav tabs: 'home' (default) | 'connect' | 'scanner'
   const [tab, setTab] = useState("home");
+  // Scroll container ref — used to reset scroll-to-top when the user switches tabs
+  // so each tab opens at the top of its content (no half-scrolled landing).
+  const appScrollRef = useRef(null);
+  useEffect(() => {
+    if (appScrollRef.current) {
+      appScrollRef.current.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [tab]);
   // Chart Scanner state
   const [scanBusy, setScanBusy] = useState(false);
   const [scanResult, setScanResult] = useState(null);
@@ -814,7 +824,7 @@ export default function MobileApp() {
 
   return (
     <PhoneFrame standalone={isStandalone} accent={accent}>
-      <div className="flex-1 flex flex-col overflow-y-auto relative ea-mobile" data-testid="mobile-app-screen" style={{ "--ea-accent": accent }}>
+      <div ref={appScrollRef} className="flex-1 flex flex-col overflow-y-auto relative ea-mobile" data-testid="mobile-app-screen" style={{ "--ea-accent": accent }}>
         {/* === LUXURY MESH BACKGROUND (no neon halos) === */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div
@@ -1199,19 +1209,37 @@ export default function MobileApp() {
           />
         )}
 
-        <div className="flex-1 min-h-[80px]" />
+        {tab === "connect" && (
+          <ConnectTab
+            eaData={eaData}
+            accent={accent}
+            onOpenForm={() => { setBrokerRelink(false); setConnectOpen(true); }}
+            onUnlink={async () => {
+              if (!window.confirm("Unlink this broker? You can link a new one straight away.")) return;
+              try {
+                await api.post("/mobile/disconnect-broker", { email, license_key: license });
+                setEaData((d) => ({ ...(d || {}), broker: null }));
+                toast.success("Broker unlinked", { description: "You can link a new broker any time." });
+              } catch (err) {
+                toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+              }
+            }}
+          />
+        )}
 
-        {/* Floating dock — Home · Connect · Scanner */}
-        <div
-          className="relative z-10 mx-4 mb-4 mt-2 rounded-2xl p-1.5 flex items-center gap-1 ea-dock"
-          data-testid="mobile-bottom-nav"
-        >
-          <NavBtn icon={Home} label="Home" active={tab === "home"} accent={accent} themeSoft={theme.soft} testid="mobile-nav-home"
-            onClick={() => setTab("home")} />
-          <NavBtn icon={Server} label="Connect" active={tab === "connect"} accent={accent} testid="mobile-nav-connect"
-            onClick={() => { setTab("connect"); setConnectOpen(true); }} />
-          <NavBtn icon={Sparkles} label="Scanner" active={tab === "scanner"} accent={accent} themeSoft={theme.soft} testid="mobile-nav-scanner"
-            onClick={() => setTab("scanner")} />
+        {/* Sticky bottom dock — Home · Connect · Scanner */}
+        <div className="ea-dock-wrap mt-auto" data-testid="mobile-bottom-nav-wrap">
+          <div
+            className="rounded-2xl p-1.5 flex items-center gap-1 ea-dock"
+            data-testid="mobile-bottom-nav"
+          >
+            <NavBtn icon={Home} label="Home" active={tab === "home"} accent={accent} themeSoft={theme.soft} testid="mobile-nav-home"
+              onClick={() => setTab("home")} />
+            <NavBtn icon={Server} label="Connect" active={tab === "connect"} accent={accent} testid="mobile-nav-connect"
+              onClick={() => setTab("connect")} />
+            <NavBtn icon={Sparkles} label="Scanner" active={tab === "scanner"} accent={accent} themeSoft={theme.soft} testid="mobile-nav-scanner"
+              onClick={() => setTab("scanner")} />
+          </div>
         </div>
 
         {/* Menu drawer */}
@@ -2533,6 +2561,129 @@ const TerminalLine = ({ s, accent }) => {
     </div>
   );
 };
+
+
+// ============ Connect panel (Connect tab) — full-card broker status, fits one viewport ============
+const ConnectTab = ({ eaData, accent, onOpenForm, onUnlink }) => {
+  const broker = eaData?.broker;
+  const status = broker?.status;
+  const isApproved = status === "approved";
+  const isPending = status === "pending_approval";
+  const isDeclined = status === "declined";
+  const statusColor = isApproved ? "#00E676" : isDeclined ? "#EF4444" : isPending ? "#EAB308" : accent;
+  const statusLabel = !broker ? "Not linked" : isApproved ? "Approved" : isDeclined ? "Declined" : isPending ? "Linking…" : "Configured";
+  return (
+    <div className="relative z-10 px-4 mt-3 space-y-3" data-testid="mobile-connect-panel">
+      {/* Hero header card */}
+      <div
+        className="rounded-3xl p-4 ea-card flex items-center gap-3"
+        style={{ borderColor: `${statusColor}3D` }}
+      >
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+          style={{ backgroundColor: `${statusColor}1F`, color: statusColor, border: `1px solid ${statusColor}40` }}
+        >
+          <Server className="w-5 h-5" strokeWidth={1.7} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] tracking-[0.28em] uppercase text-white/45">Broker bridge</div>
+          <div className="ea3-display text-lg text-white truncate">
+            {broker ? `${broker.platform?.toUpperCase()} · #${broker.account}` : "Not linked yet"}
+          </div>
+        </div>
+        <div
+          className="text-[10px] tracking-[0.22em] uppercase font-bold px-2.5 py-1 rounded-md flex items-center gap-1.5"
+          style={{ color: statusColor, backgroundColor: `${statusColor}1A`, border: `1px solid ${statusColor}33` }}
+          data-testid="mobile-connect-status-pill"
+        >
+          {isPending && <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ background: statusColor }} />}
+          {statusLabel}
+        </div>
+      </div>
+
+      {/* Linked-broker detail card (only when a broker exists) */}
+      {broker && (
+        <div className="rounded-3xl p-4 ea-card space-y-3" data-testid="mobile-connect-detail">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+            <DetailRow label="Platform" value={broker.platform?.toUpperCase() || "—"} />
+            <DetailRow label="Account #" value={`#${broker.account || "—"}`} />
+            <DetailRow label="Server" value={broker.server || "—"} mono />
+            <DetailRow label="Linked" value={broker.connected_at ? new Date(broker.connected_at).toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "—"} />
+          </div>
+
+          {isPending && (
+            <div className="rounded-xl p-3 flex items-start gap-2.5"
+              style={{ border: "1px solid rgba(234,179,8,0.30)", backgroundColor: "rgba(234,179,8,0.06)" }}
+              data-testid="mobile-connect-pending-banner">
+              <RefreshCcw className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#EAB308" }} />
+              <div className="text-[11px] text-white/75 leading-relaxed">
+                Verifying your MT session with the broker. This usually takes a few seconds — feel free to leave the page open.
+              </div>
+            </div>
+          )}
+
+          {isDeclined && (
+            <div className="rounded-xl p-3 flex items-start gap-2.5"
+              style={{ border: "1px solid rgba(239,68,68,0.40)", backgroundColor: "rgba(239,68,68,0.08)" }}
+              data-testid="mobile-connect-decline-banner">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#EF4444" }} />
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] tracking-[0.22em] uppercase font-bold" style={{ color: "#EF4444" }}>Couldn&apos;t link</div>
+                <div className="text-[11px] text-white/85 mt-0.5 leading-relaxed">
+                  {broker.decision_reason || "Please double-check the server name and account number."}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Empty-state hint when no broker is linked yet */}
+      {!broker && (
+        <div className="rounded-3xl p-4 ea-card text-center" data-testid="mobile-connect-empty">
+          <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-3" style={{ backgroundColor: `${accent}14`, color: accent, border: `1px solid ${accent}33` }}>
+            <Link2 className="w-6 h-6" strokeWidth={1.7} />
+          </div>
+          <div className="ea3-display text-base text-white">Link your MT account</div>
+          <p className="text-[12px] text-white/55 mt-1.5 leading-relaxed">
+            Connect MetaTrader 4 or MetaTrader 5 so your EA can mirror your mentor&apos;s trades. Only takes a moment.
+          </p>
+        </div>
+      )}
+
+      {/* Primary action — opens the connect drawer (form) */}
+      <button
+        type="button"
+        onClick={onOpenForm}
+        className="w-full rounded-2xl py-3.5 font-bold text-sm tracking-[0.05em] flex items-center justify-center gap-2 text-black ea-tap"
+        style={{ backgroundColor: accent, boxShadow: `0 10px 28px ${accent}45` }}
+        data-testid="mobile-connect-open-form"
+      >
+        <Server className="w-4 h-4" />
+        {broker ? (isApproved ? "Re-link broker" : "Update broker") : "Link broker"}
+      </button>
+
+      {/* Unlink — only when a broker exists */}
+      {broker && (
+        <button
+          type="button"
+          onClick={onUnlink}
+          className="w-full text-[11px] tracking-[0.22em] uppercase text-white/45 hover:text-[#FF3B3B] transition py-2"
+          data-testid="mobile-connect-unlink"
+        >
+          Unlink current broker
+        </button>
+      )}
+    </div>
+  );
+};
+
+const DetailRow = ({ label, value, mono }) => (
+  <div className="min-w-0">
+    <div className="text-[9px] tracking-[0.22em] uppercase text-white/35 mb-0.5">{label}</div>
+    <div className={`text-[12px] text-white truncate ${mono ? "font-mono" : "font-semibold"}`} title={value}>{value}</div>
+  </div>
+);
 
 
 // ============ Scanner panel (Chart Scanner tab) ============

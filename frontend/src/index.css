@@ -176,6 +176,18 @@ h6,
         inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
+/* Sticky bottom-nav wrapper: keeps Home/Connect/Scanner always reachable
+   without scrolling, with safe-area padding for iPhones. */
+.ea-dock-wrap {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(3,3,3,0) 0%, rgba(3,3,3,0.85) 35%, #030303 100%);
+    pointer-events: none;
+}
+.ea-dock-wrap > * { pointer-events: auto; }
+
 /* Dynamic Island segmented action row */
 .ea-segmented {
     background: rgba(18, 18, 20, 0.85);
