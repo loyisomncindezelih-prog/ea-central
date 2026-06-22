@@ -32,7 +32,10 @@ export const Footer = () => {
       <div className="border-t border-white/5">
         <div className="max-w-7xl mx-auto px-6 md:px-10 py-5 flex flex-col md:flex-row gap-3 justify-between text-xs text-white/40">
           <span>© {new Date().getFullYear()} ea-central — all rights reserved.</span>
-          <span className="tracking-[0.2em] uppercase">Trading involves risk · use responsibly</span>
+          <span className="tracking-[0.2em] uppercase flex items-center gap-3">
+            <span>Trading involves risk · use responsibly</span>
+            <span className="text-white/35" data-testid="site-version">EA-CENTRAL 3.1</span>
+          </span>
         </div>
       </div>
     </footer>

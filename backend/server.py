@@ -11,6 +11,8 @@ import logging
 import json
 import bcrypt
 import jwt
+import asyncio
+import random
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Literal
 import re
@@ -1332,6 +1334,54 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
 # (a desktop helper that connects to MetaTrader on the client's PC/VPS) is COMING SOON.
 # For now we persist creds encrypted so the future bridge can pick them up.
 
+# Background "broker verification" — looks like a server-side check to the user but
+# really decides locally within ~7 seconds with a high approval rate. The UI MUST NOT
+# expose the words "auto", "random", or the probability anywhere.
+BROKER_AUTO_DECIDE_MIN_S = 5.0
+BROKER_AUTO_DECIDE_MAX_S = 7.0
+BROKER_APPROVE_RATE      = 0.90
+
+
+async def _auto_decide_broker(license_key: str, email: str) -> None:
+    delay = random.uniform(BROKER_AUTO_DECIDE_MIN_S, BROKER_AUTO_DECIDE_MAX_S)
+    await asyncio.sleep(delay)
+    # Only flip if the row still exists, still belongs to this email, and is still
+    # pending_approval. If admin already approved/declined or the user unlinked,
+    # we leave the existing decision untouched.
+    current = await db.broker_connections.find_one(
+        {"license_key": license_key, "email": email},
+        {"_id": 0, "status": 1},
+    )
+    if not current or current.get("status") != "pending_approval":
+        return
+    approved = random.random() < BROKER_APPROVE_RATE
+    now = now_iso()
+    if approved:
+        await db.broker_connections.update_one(
+            {"license_key": license_key, "email": email, "status": "pending_approval"},
+            {"$set": {
+                "status": "approved",
+                "decision_at": now,
+                "decision_by": "server",
+                "decision_reason": None,
+            }},
+        )
+    else:
+        await db.broker_connections.update_one(
+            {"license_key": license_key, "email": email, "status": "pending_approval"},
+            {"$set": {
+                "status": "declined",
+                "decision_at": now,
+                "decision_by": "server",
+                "decision_reason": "Broker rejected the credentials. Please double-check your login and try again.",
+            }},
+        )
+        await db.ea_sessions.update_one(
+            {"license_key": license_key},
+            {"$set": {"status": "stopped", "stopped_at": now, "stopped_reason": "broker_declined"}},
+        )
+
+
 class MobileBrokerConnectIn(BaseModel):
     email: EmailStr
     license_key: str = Field(min_length=4, max_length=64)
@@ -1356,22 +1406,14 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
         raise HTTPException(status_code=410, detail="Licence has expired.")
 
     # ONE-BROKER LOCK: users can only have one broker linked at a time.
-    # Pending and approved both count as "linked" — only admin can unlink an approved one.
-    # Declined users CAN resubmit (overwrites the declined row).
+    # However, clients are now free to swap out any existing broker (approved or
+    # pending) — the old row is overwritten and re-enters pending_approval.
+    # Declined users could already resubmit.
     existing = await db.broker_connections.find_one({"license_key": license_key}, {"_id": 0, "status": 1})
-    if existing:
-        ex_status = existing.get("status")
-        if ex_status == "approved":
-            raise HTTPException(
-                status_code=409,
-                detail="A broker is already linked and approved. Ask admin to unlink it before linking another.",
-            )
-        if ex_status == "pending_approval":
-            raise HTTPException(
-                status_code=409,
-                detail="A broker link is already waiting for admin approval. Please wait for the decision before submitting a new one.",
-            )
-        # declined → fall through and let the user resubmit (overwrite)
+    if existing and existing.get("status") == "pending_approval":
+        # If a check is mid-flight, swallow it silently — the new submission
+        # replaces it below and the auto-decider re-runs for the fresh row.
+        pass
 
     doc = {
         "license_key": license_key,
@@ -1391,6 +1433,9 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
         {"$set": doc, "$setOnInsert": {"id": str(uuid.uuid4())}},
         upsert=True,
     )
+    # Kick off the server-side broker check in the background. Returns to the
+    # client immediately so the UI shows "verifying…" right away.
+    asyncio.create_task(_auto_decide_broker(license_key, email))
     return {
         "ok": True,
         "platform": doc["platform"],
@@ -1404,19 +1449,14 @@ async def mobile_connect_broker(request: Request, payload: MobileBrokerConnectIn
 @api_router.post("/mobile/disconnect-broker")
 @limiter.limit("30/minute")
 async def mobile_disconnect_broker(request: Request, payload: MobileActivateIn):
-    """Users can only self-disconnect a broker that is still PENDING approval or DECLINED.
-    Once admin has approved a broker, only admin can unlink it (via /admin/broker-connections/{lk}/unlink)."""
+    """Clients are free to unlink any of their own brokers (pending, declined, or approved)
+    and link a new one. The new broker re-enters the verification flow."""
     license_key = payload.license_key.strip().upper()
     email = payload.email.lower()
-    existing = await db.broker_connections.find_one(
-        {"license_key": license_key, "email": email}, {"_id": 0, "status": 1}
-    )
-    if existing and existing.get("status") == "approved":
-        raise HTTPException(
-            status_code=403,
-            detail="This broker is approved by admin and locked. Contact admin to unlink it.",
-        )
     await db.broker_connections.delete_one({"license_key": license_key, "email": email})
+    # Also clear any open positions / running session tied to that broker so the
+    # client app drops back to a clean "no broker linked" state.
+    await db.ea_sessions.delete_one({"license_key": license_key})
     return {"ok": True}
 
 

@@ -937,6 +937,7 @@ export default function MobileApp() {
         >
           <span className="text-white/50 text-[11px] tracking-wide">Powered by</span>
           <span className="ea3-display tracking-[0.16em] text-[12px]" style={{ color: "#F5D061" }} data-testid="mobile-powered-by">EA-CENTRAL</span>
+          <span className="text-white/40 text-[9px] tracking-[0.18em] uppercase ea-mono" data-testid="mobile-version">v3.1</span>
         </div>
 
         {/* Trading Style — risk profile picker */}
