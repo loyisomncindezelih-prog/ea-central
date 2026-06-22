@@ -25,6 +25,19 @@ export const Footer = () => {
             <li><a href="/signup" className="hover:text-[#1E90FF]">Become a mentor</a></li>
             <li><a href="/login" className="hover:text-[#1E90FF]">Mentor login</a></li>
             <li><a href="/terms" className="hover:text-[#1E90FF]" data-testid="footer-terms-link">Terms & Conditions</a></li>
+            <li>
+              <a
+                href="https://whatsapp.com/channel/0029VbCShIPLtOjJBZDKZM1y"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 hover:text-[#25D366] transition"
+                data-testid="footer-whatsapp-link"
+                style={{ color: "#25D366" }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ background: "#25D366" }} />
+                WhatsApp updates channel
+              </a>
+            </li>
             <li><span className="text-white/40">support@ea-central.com</span></li>
           </ul>
         </div>

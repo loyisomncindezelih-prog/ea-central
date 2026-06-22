@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
@@ -14,7 +15,12 @@ import {
   CircuitBoard,
   Star,
   Quote,
+  MessageCircle,
+  Bell,
 } from "lucide-react";
+
+const WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029VbCShIPLtOjJBZDKZM1y";
+const WHATSAPP_PROMPT_KEY  = "ea_whatsapp_prompt_seen";
 
 const MOBILE_EA_IMG =
   "https://customer-assets.emergentagent.com/job_copy-trading-hub-2/artifacts/ukmwnbqz_ChatGPT%20Image%20May%2013%2C%202026%2C%2009_34_45%20PM.png";
@@ -86,9 +92,96 @@ const TESTIMONIALS = [
 ];
 
 export default function Landing() {
+  // WhatsApp channel join prompt — fires once per device, ~600ms after the hero
+  // paints so it doesn't fight the page entrance animation. Dismissable, but
+  // "Join channel" is the primary CTA so most visitors will tap through.
+  const [waOpen, setWaOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem(WHATSAPP_PROMPT_KEY) === "1") return;
+    const t = setTimeout(() => setWaOpen(true), 600);
+    return () => clearTimeout(t);
+  }, []);
+  const dismissWa = () => {
+    localStorage.setItem(WHATSAPP_PROMPT_KEY, "1");
+    setWaOpen(false);
+  };
+  const joinWa = () => {
+    localStorage.setItem(WHATSAPP_PROMPT_KEY, "1");
+    window.open(WHATSAPP_CHANNEL_URL, "_blank", "noopener,noreferrer");
+    setWaOpen(false);
+  };
+
   return (
     <div className="min-h-screen text-white ea-mobile ea-mesh-bg" data-testid="landing-page">
       <Header />
+
+      {/* WhatsApp channel — required join popup (dismissable once per device) */}
+      {waOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center px-4 py-6"
+          style={{ background: "rgba(2,4,8,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+          role="dialog"
+          aria-modal="true"
+          data-testid="whatsapp-prompt"
+        >
+          <div
+            className="relative w-full max-w-md ea-card-elevated rounded-3xl p-6 sm:p-8 overflow-hidden ea-card-enter"
+            style={{ borderColor: "rgba(37, 211, 102, 0.30)" }}
+          >
+            {/* Ambient halo */}
+            <div className="absolute -top-20 -right-20 w-56 h-56 rounded-full blur-3xl pointer-events-none opacity-50" style={{ backgroundColor: "rgba(37,211,102,0.18)" }} />
+
+            <div className="relative">
+              <div className="flex items-center gap-2 text-[10px] sm:text-xs tracking-[0.32em] uppercase" style={{ color: "#25D366" }}>
+                <span className="w-1.5 h-1.5 rounded-full ea-pulse-dot" style={{ background: "#25D366" }} />
+                / live updates channel
+              </div>
+              <h2 className="ea-mobile-display text-3xl sm:text-4xl mt-3 leading-[1.05]">
+                Join us on
+                <br />
+                <span style={{ color: "#25D366" }}>WhatsApp.</span>
+              </h2>
+              <p className="text-white/65 text-sm leading-relaxed mt-4">
+                Get every EA-CENTRAL update the second it ships — new pairs, mentor signals, app upgrades and exclusive client tips. Free, private, no spam.
+              </p>
+
+              <div className="mt-5 space-y-2.5">
+                <div className="flex items-start gap-2.5 text-xs text-white/70">
+                  <Bell className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#25D366" }} />
+                  Instant alerts when the EA pushes a trade
+                </div>
+                <div className="flex items-start gap-2.5 text-xs text-white/70">
+                  <MessageCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#25D366" }} />
+                  Direct line to support — no email queues
+                </div>
+                <div className="flex items-start gap-2.5 text-xs text-white/70">
+                  <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#25D366" }} />
+                  Read-only channel — your number stays private
+                </div>
+              </div>
+
+              <Button
+                onClick={joinWa}
+                className="w-full mt-6 font-bold h-12 tracking-wide text-sm rounded-xl text-black"
+                style={{ background: "#25D366", boxShadow: "0 8px 28px rgba(37,211,102,0.55)" }}
+                data-testid="whatsapp-prompt-join"
+              >
+                Join the WhatsApp channel
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <button
+                type="button"
+                onClick={dismissWa}
+                className="w-full mt-3 text-[11px] tracking-[0.22em] uppercase text-white/45 hover:text-white/80 transition"
+                data-testid="whatsapp-prompt-skip"
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HERO */}
       <section className="relative overflow-hidden">
