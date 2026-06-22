@@ -2800,7 +2800,7 @@ async def admin_push_trade_signal(
         "lot_mult": float(rules["lot_mult"]),
         "martingale_streak": int(key_doc.get("martingale_streak") or 0) if rules["martingale"] else 0,
         # Audit
-        "issued_by": "server",   # client app shows "by server" never "by admin"
+        "issued_by": "admin",   # client toast renders "Mentor took a trade"
         "issued_by_email": admin.get("email"),
     }
     await db.trade_signals.insert_one(doc)
@@ -2863,7 +2863,7 @@ async def admin_push_instant_signal(
             "note": payload.note,
         },
         "trading_style": key_doc.get("trading_style") or "day_trading",
-        "issued_by": "server",                 # client still sees "server", not "admin"
+        "issued_by": "admin",                  # surfaced to client as "Mentor took a trade"
         "issued_by_email": admin.get("email"),
         "instant": True,
     }
