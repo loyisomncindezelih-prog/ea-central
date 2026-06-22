@@ -32,6 +32,8 @@ import {
   PowerOff,
   Trash2,
   Sparkles,
+  Smartphone,
+  Globe,
 } from "lucide-react";
 
 const TABS = [
@@ -79,6 +81,13 @@ export default function AdminDashboard() {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetText, setResetText] = useState("");
   const [resetBusy, setResetBusy] = useState(false);
+  // Admin TOTP 2FA — local UI state only (server holds the secret + backup hashes).
+  const [twoFa, setTwoFa] = useState({ enabled: false, backup_codes_remaining: 0 });
+  const [twoFaBusy, setTwoFaBusy] = useState(false);
+  const [twoFaSetup, setTwoFaSetup] = useState(null); // { secret, qr_data_url } during enrolment
+  const [twoFaCode, setTwoFaCode] = useState("");
+  const [twoFaBackups, setTwoFaBackups] = useState(null); // [strings] — shown ONCE right after enable
+  const [twoFaDisableCode, setTwoFaDisableCode] = useState("");
 
   const refreshClient = useCallback(async (lk) => {
     try {
@@ -234,14 +243,66 @@ export default function AdminDashboard() {
     }
   };
 
+  const load2Fa = useCallback(async () => {
+    try {
+      const { data } = await api.get("/admin/2fa/status");
+      setTwoFa({
+        enabled: !!data.enabled,
+        backup_codes_remaining: data.backup_codes_remaining || 0,
+      });
+    } catch { /* ignore */ }
+  }, []);
+
+  const start2FaSetup = async () => {
+    setTwoFaBusy(true);
+    try {
+      const { data } = await api.post("/admin/2fa/setup");
+      setTwoFaSetup({ secret: data.secret, qr_data_url: data.qr_data_url });
+      setTwoFaCode("");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally { setTwoFaBusy(false); }
+  };
+
+  const confirm2FaEnable = async () => {
+    if (!twoFaCode.trim()) return;
+    setTwoFaBusy(true);
+    try {
+      const { data } = await api.post("/admin/2fa/enable", { code: twoFaCode.trim() });
+      setTwoFaBackups(data.backup_codes || []);
+      setTwoFaSetup(null);
+      setTwoFaCode("");
+      await load2Fa();
+      toast.success("Two-factor authentication is now ON. Save your backup codes!");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally { setTwoFaBusy(false); }
+  };
+
+  const disable2Fa = async () => {
+    if (!twoFaDisableCode.trim()) return;
+    if (!window.confirm("Turn OFF two-factor authentication? Your admin account will only be protected by the password after this.")) return;
+    setTwoFaBusy(true);
+    try {
+      await api.post("/admin/2fa/disable", { code: twoFaDisableCode.trim() });
+      setTwoFaDisableCode("");
+      setTwoFaBackups(null);
+      await load2Fa();
+      toast.success("Two-factor authentication disabled.");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally { setTwoFaBusy(false); }
+  };
+
   useEffect(() => {
     load();
     loadYoco();
     loadClients();
     loadMaintenance();
+    load2Fa();
     const iv = setInterval(loadClients, 10000); // refresh client status every 10s
     return () => clearInterval(iv);
-  }, [load, loadYoco, loadClients, loadMaintenance]);
+  }, [load, loadYoco, loadClients, loadMaintenance, load2Fa]);
 
   const unlinkBroker = async (license_key, email) => {
     if (!window.confirm(`Unlink ${email}'s broker (${license_key})? They will need to re-link a broker before trading again.`)) return;
@@ -442,6 +503,177 @@ export default function AdminDashboard() {
           >
             {maintBusy ? "..." : maintenance.enabled ? "TURN SITE BACK ON" : "TURN SITE OFF"}
           </Button>
+        </div>
+
+        {/* Security — Admin TOTP 2FA */}
+        <div
+          className="mt-4 ea-glass p-4 sm:p-5"
+          style={{ borderColor: twoFa.enabled ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.10)" }}
+          data-testid="admin-2fa-card"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-3 shrink-0">
+              <div
+                className="w-11 h-11 flex items-center justify-center border"
+                style={{
+                  borderColor: twoFa.enabled ? "rgba(34,197,94,0.6)" : "rgba(30,144,255,0.4)",
+                  backgroundColor: twoFa.enabled ? "rgba(34,197,94,0.10)" : "rgba(30,144,255,0.10)",
+                  color: twoFa.enabled ? "#22C55E" : "#1E90FF",
+                }}
+              >
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-[10px] tracking-[0.25em] uppercase text-white/55">Admin two-factor auth</div>
+                <div
+                  className="font-display text-lg font-bold"
+                  style={{ color: twoFa.enabled ? "#22C55E" : "#F5C150" }}
+                  data-testid="admin-2fa-state"
+                >
+                  {twoFa.enabled ? "PROTECTED · 2FA ON" : "Password-only · 2FA OFF"}
+                </div>
+              </div>
+            </div>
+            <p className="flex-1 text-xs text-white/55 leading-relaxed">
+              {twoFa.enabled ? (
+                <>
+                  Every admin login now demands a 6-digit code from your authenticator app
+                  (Google Authenticator / Authy / 1Password). <span className="text-white">{twoFa.backup_codes_remaining}</span> backup code{twoFa.backup_codes_remaining === 1 ? "" : "s"} left.
+                </>
+              ) : (
+                <>
+                  Add a second lock on the admin account so a stolen password isn&apos;t enough
+                  to log in. Takes 60 seconds with Google Authenticator.
+                </>
+              )}
+            </p>
+            {!twoFa.enabled && !twoFaSetup && (
+              <Button
+                onClick={start2FaSetup}
+                disabled={twoFaBusy}
+                className="bg-[#1E90FF] hover:bg-[#2A8BFF] text-black font-bold rounded-none h-11 px-5 shrink-0 tracking-[0.15em] uppercase text-xs"
+                data-testid="admin-2fa-enable-btn"
+              >
+                <ShieldCheck className="w-4 h-4 mr-2" /> Enable 2FA
+              </Button>
+            )}
+          </div>
+
+          {/* Setup wizard — show QR + code field while pending */}
+          {!twoFa.enabled && twoFaSetup && (
+            <div
+              className="mt-5 border border-white/10 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row gap-5 bg-black/40"
+              data-testid="admin-2fa-setup"
+            >
+              <div className="flex flex-col items-center gap-3 shrink-0">
+                <div className="bg-white p-3 rounded-lg">
+                  <img src={twoFaSetup.qr_data_url} alt="2FA QR" className="w-40 h-40" />
+                </div>
+                <div className="text-[10px] tracking-[0.22em] uppercase text-white/50 text-center">scan with authenticator</div>
+              </div>
+              <div className="flex-1 min-w-0 space-y-3">
+                <div>
+                  <div className="text-[10px] tracking-[0.28em] uppercase text-white/45 mb-1">Or enter manually</div>
+                  <div className="font-mono text-xs text-white bg-black/60 border border-white/10 rounded px-2.5 py-2 break-all select-all" data-testid="admin-2fa-secret">
+                    {twoFaSetup.secret}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] tracking-[0.28em] uppercase text-white/45 mb-1">Then type the current 6-digit code</div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={twoFaCode}
+                      onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="123456"
+                      className="bg-black/60 border border-white/15 text-white text-base px-3 py-2 outline-none focus:border-[#1E90FF] rounded-none font-mono tracking-[0.4em] text-center w-36"
+                      data-testid="admin-2fa-code-input"
+                    />
+                    <Button
+                      onClick={confirm2FaEnable}
+                      disabled={twoFaBusy || twoFaCode.length !== 6}
+                      className="bg-[#22C55E] hover:bg-[#34D67A] text-black font-bold rounded-none h-11 px-5 tracking-[0.15em] uppercase text-xs disabled:opacity-40"
+                      data-testid="admin-2fa-confirm"
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      onClick={() => { setTwoFaSetup(null); setTwoFaCode(""); }}
+                      variant="ghost"
+                      className="border border-white/15 text-white/70 hover:bg-white/5 rounded-none h-11 px-4 text-xs tracking-[0.15em] uppercase"
+                      data-testid="admin-2fa-setup-cancel"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Backup codes — surfaced ONCE right after enable */}
+          {twoFaBackups && (
+            <div
+              className="mt-5 border rounded-xl p-4 sm:p-5 bg-black/60"
+              style={{ borderColor: "rgba(34,197,94,0.45)" }}
+              data-testid="admin-2fa-backup-codes"
+            >
+              <div className="flex items-center gap-2 text-[#22C55E]">
+                <KeyRound className="w-4 h-4" />
+                <div className="font-display text-sm font-bold uppercase tracking-[0.2em]">Save these backup codes now</div>
+              </div>
+              <p className="text-[11px] text-white/55 mt-2 leading-relaxed">
+                Each code works once and only once. Store them in a password manager — they&apos;re your only way back in if you lose your phone. We won&apos;t show them again.
+              </p>
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {twoFaBackups.map((c) => (
+                  <code key={c} className="font-mono text-xs bg-black/70 border border-white/10 rounded px-2 py-1.5 text-center text-white/90 select-all">{c}</code>
+                ))}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  onClick={() => { navigator.clipboard.writeText(twoFaBackups.join("\n")); toast.success("Backup codes copied"); }}
+                  className="bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-none h-9 px-3 text-xs tracking-[0.15em] uppercase"
+                  data-testid="admin-2fa-copy-backups"
+                >
+                  <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy all
+                </Button>
+                <Button
+                  onClick={() => setTwoFaBackups(null)}
+                  className="bg-[#22C55E] hover:bg-[#34D67A] text-black font-bold rounded-none h-9 px-4 text-xs tracking-[0.15em] uppercase"
+                  data-testid="admin-2fa-backup-done"
+                >
+                  I saved them
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Disable form — only when 2FA is on */}
+          {twoFa.enabled && (
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center" data-testid="admin-2fa-disable-row">
+              <div className="text-[10px] tracking-[0.28em] uppercase text-white/40 shrink-0">turn 2FA off:</div>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={twoFaDisableCode}
+                onChange={(e) => setTwoFaDisableCode(e.target.value.toUpperCase().replace(/[^0-9A-Z-]/g, "").slice(0, 11))}
+                placeholder="code or backup"
+                className="bg-black/60 border border-white/15 text-white text-xs px-3 py-2 outline-none focus:border-[#FF3B3B] rounded-none font-mono tracking-[0.3em] w-44"
+                data-testid="admin-2fa-disable-input"
+              />
+              <Button
+                onClick={disable2Fa}
+                disabled={twoFaBusy || twoFaDisableCode.length < 6}
+                variant="ghost"
+                className="border border-[#FF3B3B]/50 hover:border-[#FF3B3B] text-[#FF3B3B] rounded-none h-9 px-4 text-xs tracking-[0.15em] uppercase disabled:opacity-40"
+                data-testid="admin-2fa-disable-btn"
+              >
+                Disable
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Danger zone — factory reset */}
@@ -760,6 +992,22 @@ export default function AdminDashboard() {
                   {u.status === "pending" && u.verification_amount_zar && (
                     <div className="mt-1 text-[9px] tracking-[0.2em] uppercase text-white/45" data-testid={`admin-expected-amount-${u.id}`}>
                       expects R{Number(u.verification_amount_zar).toFixed(2)}
+                    </div>
+                  )}
+                  {u.status === "pending" && u.has_payment_proof && (u.payment_proof_ip || u.payment_proof_ua) && (
+                    <div className="mt-1.5 space-y-0.5" data-testid={`admin-proof-fingerprint-${u.id}`}>
+                      {u.payment_proof_ip && (
+                        <div className="flex items-center gap-1 text-[9px] tracking-[0.15em] uppercase text-white/40 font-mono">
+                          <Globe className="w-2.5 h-2.5" />
+                          <span className="truncate" title={u.payment_proof_ip}>{u.payment_proof_ip}</span>
+                        </div>
+                      )}
+                      {u.payment_proof_ua && (
+                        <div className="flex items-center gap-1 text-[9px] tracking-[0.15em] text-white/35 truncate" title={u.payment_proof_ua}>
+                          <Smartphone className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate">{(u.payment_proof_ua || "").split(") ")[0].replace(/^Mozilla\/[\d.]+\s*\(/, "").slice(0, 40)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

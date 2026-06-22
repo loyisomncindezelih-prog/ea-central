@@ -29,6 +29,9 @@ import base64
 import hashlib
 from fastapi.responses import FileResponse, RedirectResponse
 import httpx
+import pyotp
+import qrcode
+import io
 
 
 # ----------------------- DB -----------------------
@@ -151,6 +154,7 @@ def public_user(doc: dict) -> dict:
         "approved_at": doc.get("approved_at"),
         "payment_clicked": bool(doc.get("payment_clicked", False)),
         "payment_clicked_at": doc.get("payment_clicked_at"),
+        "totp_enabled": bool(doc.get("totp_enabled", False)),
     }
 
 
@@ -183,6 +187,51 @@ async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+# ----------------------- TOTP / 2FA helpers -----------------------
+TOTP_ISSUER = "ea-central"
+TWO_FA_CHALLENGE_TTL_MIN = 5  # 5-minute window to enter the 6-digit code after password
+
+
+def create_2fa_challenge_token(user_id: str) -> str:
+    payload = {
+        "sub": user_id,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=TWO_FA_CHALLENGE_TTL_MIN),
+        "type": "2fa_challenge",
+    }
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+
+def verify_2fa_challenge_token(token: str) -> str:
+    """Returns the user_id on success, raises HTTPException otherwise."""
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="2FA session expired. Please sign in again.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid 2FA session.")
+    if payload.get("type") != "2fa_challenge":
+        raise HTTPException(status_code=401, detail="Invalid 2FA session.")
+    return payload["sub"]
+
+
+def _generate_backup_codes(n: int = 10) -> list[str]:
+    """Generates n human-friendly 10-char backup codes (XXXXX-XXXXX)."""
+    out: list[str] = []
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I confusion
+    for _ in range(n):
+        raw = "".join(secrets.choice(alphabet) for _ in range(10))
+        out.append(f"{raw[:5]}-{raw[5:]}")
+    return out
+
+
+def _make_qr_data_url(otpauth_url: str) -> str:
+    img = qrcode.make(otpauth_url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
 
 
 # ----------------------- Pydantic schemas -----------------------
@@ -328,6 +377,17 @@ async def login(payload: LoginIn, request: Request, response: Response):
         raise HTTPException(status_code=403, detail="Your account has been rejected. Please contact support.")
 
     await clear_failures(identifier)
+    # ---- Admin 2FA gate ----
+    # If this user is an admin and has TOTP enabled, do NOT issue tokens yet.
+    # Return a short-lived challenge token; the client must call /auth/2fa/verify
+    # with the 6-digit code before getting access cookies.
+    if user.get("role") == "admin" and user.get("totp_enabled"):
+        challenge = create_2fa_challenge_token(user["id"])
+        return {
+            "requires_2fa": True,
+            "challenge_token": challenge,
+            "user": {"email": user["email"], "role": "admin"},
+        }
     access = create_access_token(user["id"], email, user.get("role", "mentor"))
     refresh = create_refresh_token(user["id"])
     set_auth_cookies(response, access, refresh)
@@ -541,16 +601,33 @@ async def verify_account_proof(request: Request, payload: ProofIn):
     head = payload.proof_data_url.split(",", 1)[0]
     if not any(t in head for t in ("image/", "application/pdf")):
         raise HTTPException(status_code=400, detail="Only image or PDF files are accepted")
+    # Anti-tampering: reject if this exact proof image was already submitted by a
+    # different account. Same user re-uploading their own proof is fine.
+    proof_hash = hashlib.sha256(payload.proof_data_url.encode("utf-8")).hexdigest()
+    duplicate = await db.users.find_one(
+        {"payment_proof_hash": proof_hash, "email": {"$ne": email}},
+        {"_id": 0, "email": 1},
+    )
+    if duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail="This exact proof of payment has already been submitted by another account. Upload your own original screenshot/PDF.",
+        )
     # Snapshot what this user is expected to have paid so admin can reconcile
     # against the bank statement (R700 base, R1450 with the mentorship add-on).
     expected_amount = os.environ.get("MENTORSHIP_AMOUNT_ZAR", "1450") if payload.wants_mentorship \
         else os.environ.get("BANK_AMOUNT_ZAR", "700")
+    submitter_ip = _client_ip(request)
+    submitter_ua = (request.headers.get("user-agent") or "")[:300]
     await db.users.update_one(
         {"email": email},
         {"$set": {
             "payment_proof_data_url": payload.proof_data_url,
             "payment_proof_filename": payload.filename or "proof",
             "payment_proof_uploaded_at": now_iso(),
+            "payment_proof_hash": proof_hash,
+            "payment_proof_ip": submitter_ip,
+            "payment_proof_ua": submitter_ua,
             "payment_clicked": True,
             "payment_clicked_at": user.get("payment_clicked_at") or now_iso(),
             "wants_mentorship": payload.wants_mentorship,
@@ -3049,7 +3126,16 @@ async def admin_list_users(
     # Surface proof-of-payment fields so admin can verify the EFT before approving.
     # `payment_proof_data_url` can be large (image base64) — only return for pending users
     # to keep the response lean for /approved and /rejected tabs.
-    users = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
+    users = await db.users.find(
+        query,
+        {
+            "_id": 0,
+            "password_hash": 0,
+            "totp_secret": 0,
+            "totp_pending_secret": 0,
+            "totp_backup_codes": 0,
+        },
+    ).sort("created_at", -1).to_list(500)
     for u in users:
         u.setdefault("status", "approved")
         # For non-pending users, strip the heavy base64 to keep the list responsive —
@@ -3108,6 +3194,155 @@ async def root():
     return {"service": "ea-central", "status": "ok"}
 
 
+# ----------------------- 2FA endpoints (admin TOTP) -----------------------
+class TwoFAVerifyIn(BaseModel):
+    challenge_token: str = Field(min_length=10, max_length=2000)
+    code: str = Field(min_length=6, max_length=20)
+
+
+def _check_totp_code(secret: str, code: str) -> bool:
+    """Accepts 6-digit TOTP. Window=1 tolerates ±30s clock skew."""
+    if not secret:
+        return False
+    digits = "".join(ch for ch in code if ch.isdigit())
+    if len(digits) != 6:
+        return False
+    return pyotp.TOTP(secret).verify(digits, valid_window=1)
+
+
+def _consume_backup_code(stored_hashes: list[str], code: str) -> Optional[str]:
+    """If `code` matches one of the bcrypt-hashed backup codes, return that hash
+    so the caller can remove it. Returns None on no match."""
+    if not stored_hashes:
+        return None
+    candidate = code.strip().upper()
+    if "-" not in candidate or len(candidate) != 11:
+        return None
+    for h in stored_hashes:
+        try:
+            if bcrypt.checkpw(candidate.encode("utf-8"), h.encode("utf-8")):
+                return h
+        except Exception:
+            continue
+    return None
+
+
+@api_router.post("/auth/2fa/verify")
+@limiter.limit("10/minute")
+async def auth_2fa_verify(request: Request, response: Response, payload: TwoFAVerifyIn):
+    """Exchanges a 2FA challenge token + TOTP/backup code for real auth cookies."""
+    user_id = verify_2fa_challenge_token(payload.challenge_token)
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user or user.get("role") != "admin" or not user.get("totp_enabled"):
+        raise HTTPException(status_code=401, detail="2FA not configured for this account.")
+    secret = user.get("totp_secret", "")
+    code = payload.code.strip()
+    ok = _check_totp_code(secret, code)
+    used_backup_hash: Optional[str] = None
+    if not ok:
+        used_backup_hash = _consume_backup_code(user.get("totp_backup_codes", []), code)
+        ok = used_backup_hash is not None
+    if not ok:
+        # Reuse brute-force lockout shared with login.
+        await record_failure(f"{_client_ip(request)}:{user['email']}")
+        raise HTTPException(status_code=401, detail="Invalid or expired 2FA code.")
+    # Burn the used backup code so it can't be replayed.
+    if used_backup_hash:
+        await db.users.update_one(
+            {"id": user_id},
+            {"$pull": {"totp_backup_codes": used_backup_hash}},
+        )
+    await clear_failures(f"{_client_ip(request)}:{user['email']}")
+    access = create_access_token(user["id"], user["email"], "admin")
+    refresh = create_refresh_token(user["id"])
+    set_auth_cookies(response, access, refresh)
+    return {"user": public_user(user), "access_token": access}
+
+
+@api_router.get("/admin/2fa/status")
+async def admin_2fa_status(admin: dict = Depends(get_admin_user)):
+    user = await db.users.find_one({"id": admin["id"]}, {"_id": 0, "totp_enabled": 1, "totp_enabled_at": 1, "totp_backup_codes": 1})
+    return {
+        "enabled": bool((user or {}).get("totp_enabled")),
+        "enabled_at": (user or {}).get("totp_enabled_at"),
+        "backup_codes_remaining": len((user or {}).get("totp_backup_codes") or []),
+    }
+
+
+@api_router.post("/admin/2fa/setup")
+async def admin_2fa_setup(admin: dict = Depends(get_admin_user)):
+    """Generate a fresh TOTP secret and QR code. Stored as pending_secret until
+    the admin proves possession via /admin/2fa/enable."""
+    secret = pyotp.random_base32()
+    otpauth = pyotp.TOTP(secret).provisioning_uri(name=admin["email"], issuer_name=TOTP_ISSUER)
+    qr = _make_qr_data_url(otpauth)
+    await db.users.update_one(
+        {"id": admin["id"]},
+        {"$set": {"totp_pending_secret": secret, "totp_pending_at": now_iso()}},
+    )
+    return {"secret": secret, "otpauth_url": otpauth, "qr_data_url": qr}
+
+
+class TwoFAEnableIn(BaseModel):
+    code: str = Field(min_length=6, max_length=8)
+
+
+@api_router.post("/admin/2fa/enable")
+async def admin_2fa_enable(payload: TwoFAEnableIn, admin: dict = Depends(get_admin_user)):
+    user = await db.users.find_one({"id": admin["id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    pending = user.get("totp_pending_secret")
+    if not pending:
+        raise HTTPException(status_code=400, detail="Run /admin/2fa/setup first.")
+    if not _check_totp_code(pending, payload.code):
+        raise HTTPException(status_code=400, detail="Incorrect code. Open Google Authenticator and re-try.")
+    backup_codes = _generate_backup_codes(10)
+    hashed = [hash_password(c) for c in backup_codes]
+    await db.users.update_one(
+        {"id": admin["id"]},
+        {
+            "$set": {
+                "totp_secret": pending,
+                "totp_enabled": True,
+                "totp_enabled_at": now_iso(),
+                "totp_backup_codes": hashed,
+            },
+            "$unset": {"totp_pending_secret": "", "totp_pending_at": ""},
+        },
+    )
+    # Return plaintext backup codes ONCE — admin must save them now.
+    return {"ok": True, "backup_codes": backup_codes}
+
+
+class TwoFADisableIn(BaseModel):
+    code: str = Field(min_length=6, max_length=20)
+
+
+@api_router.post("/admin/2fa/disable")
+async def admin_2fa_disable(payload: TwoFADisableIn, admin: dict = Depends(get_admin_user)):
+    user = await db.users.find_one({"id": admin["id"]}, {"_id": 0})
+    if not user or not user.get("totp_enabled"):
+        raise HTTPException(status_code=400, detail="2FA isn't currently enabled.")
+    code = payload.code.strip()
+    ok = _check_totp_code(user.get("totp_secret", ""), code) or \
+         (_consume_backup_code(user.get("totp_backup_codes", []), code) is not None)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Incorrect code. Cannot disable 2FA without a valid code.")
+    await db.users.update_one(
+        {"id": admin["id"]},
+        {"$unset": {
+            "totp_secret": "",
+            "totp_pending_secret": "",
+            "totp_pending_at": "",
+            "totp_enabled": "",
+            "totp_enabled_at": "",
+            "totp_backup_codes": "",
+        }},
+    )
+    return {"ok": True}
+
+
 # ----------------------- App wiring -----------------------
 app.include_router(api_router)
 
@@ -3119,6 +3354,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ----------------------- Security headers -----------------------
+# Hardens every HTTP response with defence-in-depth headers (HSTS, clickjacking,
+# MIME sniffing, referrer policy, permissions policy).
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    resp = await call_next(request)
+    # 2 years HSTS, includeSubDomains, preload — safe because the app is HTTPS-only on the VPS.
+    resp.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+    # No framing → blocks clickjacking. The client app is a top-level PWA.
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    # Stop browsers from MIME-sniffing image/script confusions.
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    # Don't leak full URLs to third parties on outbound clicks.
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # Disable powerful APIs we don't use anywhere in the app.
+    resp.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), fullscreen=(self)",
+    )
+    # Legacy XSS auditor (still respected by older Safari).
+    resp.headers.setdefault("X-XSS-Protection", "0")
+    return resp
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("ea-central")

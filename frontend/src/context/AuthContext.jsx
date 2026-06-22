@@ -24,6 +24,17 @@ export function AuthProvider({ children }) {
 
   const login = async ({ email, password }) => {
     const { data } = await api.post("/auth/login", { email, password });
+    if (data?.requires_2fa) {
+      // Caller must show the 2FA challenge UI and then call verify2FA.
+      return { requires_2fa: true, challenge_token: data.challenge_token, user_hint: data.user };
+    }
+    if (data.access_token) localStorage.setItem("ea_access_token", data.access_token);
+    setUser(data.user);
+    return data.user;
+  };
+
+  const verify2FA = async ({ challenge_token, code }) => {
+    const { data } = await api.post("/auth/2fa/verify", { challenge_token, code });
     if (data.access_token) localStorage.setItem("ea_access_token", data.access_token);
     setUser(data.user);
     return data.user;
@@ -52,7 +63,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile, refresh: fetchMe }}>
+    <AuthContext.Provider value={{ user, loading, login, verify2FA, register, logout, updateProfile, refresh: fetchMe }}>
       {children}
     </AuthContext.Provider>
   );
