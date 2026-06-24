@@ -3261,6 +3261,28 @@ async def admin_reject_user(user_id: str, admin: dict = Depends(get_admin_user))
     return {"ok": True, "user_id": user_id, "status": "rejected"}
 
 
+class SetMentorshipIn(BaseModel):
+    enabled: bool
+
+
+@api_router.post("/admin/users/{user_id}/set-mentorship")
+async def admin_set_mentorship(user_id: str, payload: SetMentorshipIn, admin: dict = Depends(get_admin_user)):
+    """Flip the user's pricing tier between 'EA Access Only' and 'EA + Mentorship Access'.
+    Used after the admin reconciles a R700 top-up EFT — one click upgrades the client.
+    """
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "wants_mentorship": bool(payload.enabled),
+            "mentorship_updated_at": now_iso(),
+            "mentorship_updated_by": admin["id"],
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True, "user_id": user_id, "wants_mentorship": bool(payload.enabled)}
+
+
 @api_router.get("/")
 async def root():
     return {"service": "ea-central", "status": "ok"}

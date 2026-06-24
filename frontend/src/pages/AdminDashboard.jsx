@@ -38,6 +38,7 @@ import {
   Edit3,
   RotateCcw,
   Save,
+  Crown,
 } from "lucide-react";
 
 const TABS = [
@@ -443,6 +444,31 @@ export default function AdminDashboard() {
       load();
     } catch (err) {
       // Roll back optimistic change.
+      setUsers(previousUsers);
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  // Flip the user's pricing tier — "EA Access Only" ↔ "EA + Mentorship Access".
+  // Used after admin reconciles a R700 top-up EFT.
+  const toggleMentorship = async (u) => {
+    const next = !u.wants_mentorship;
+    if (!window.confirm(
+      next
+        ? `Upgrade ${u.email} to "EA + Mentorship Access"? Their badge will flip on next dashboard / /app refresh.`
+        : `Downgrade ${u.email} back to "EA Access Only"?`
+    )) return;
+    setActingId(u.id);
+    const previousUsers = users;
+    setUsers((rows) => rows.map((x) => (x.id === u.id ? { ...x, wants_mentorship: next } : x)));
+    try {
+      await api.post(`/admin/users/${u.id}/set-mentorship`, { enabled: next });
+      toast.success(next ? "Upgraded to Mentorship" : "Reverted to EA Access Only", {
+        description: u.email,
+      });
+    } catch (err) {
       setUsers(previousUsers);
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message);
     } finally {
@@ -1316,6 +1342,24 @@ export default function AdminDashboard() {
                     >
                       <XCircle className="w-4 h-4 mr-1.5" />
                       Reject
+                    </Button>
+                  )}
+                  {/* Mentorship tier toggle — only for approved mentors (post-approval upsell flow) */}
+                  {u.status === "approved" && u.role !== "admin" && (
+                    <Button
+                      disabled={actingId === u.id}
+                      onClick={() => toggleMentorship(u)}
+                      variant="ghost"
+                      className={
+                        u.wants_mentorship
+                          ? "border border-[#F5C150]/60 hover:border-[#F5C150] text-[#F5C150] rounded-none h-9 px-3 text-xs tracking-wide disabled:opacity-50"
+                          : "border border-white/20 hover:border-[#F5C150]/60 hover:text-[#F5C150] text-white/70 rounded-none h-9 px-3 text-xs tracking-wide disabled:opacity-50"
+                      }
+                      data-testid={`admin-mentorship-toggle-${u.id}`}
+                      title={u.wants_mentorship ? "Downgrade to EA Access Only" : "Upgrade to EA + Mentorship Access"}
+                    >
+                      <Crown className="w-4 h-4 mr-1.5" />
+                      {u.wants_mentorship ? "Mentorship ON" : "Mark Mentorship"}
                     </Button>
                   )}
                 </div>
