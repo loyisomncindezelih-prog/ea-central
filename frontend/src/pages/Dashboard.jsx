@@ -12,8 +12,9 @@ import {
   IdCard,
   Calendar,
   ArrowRight,
-  Clock,
   Sparkles,
+  Crown,
+  GraduationCap,
 } from "lucide-react";
 
 const CACHE_KEY = "ea_mentor_stats_cache";
@@ -107,29 +108,8 @@ export default function Dashboard() {
           </span>
         </div>
 
-        {/* Verify status (only when payment already clicked) */}
-        {user?.payment_clicked && (
-          <div
-            className="mt-3 rounded-xl px-4 py-4 sm:px-5 flex items-center gap-3 ea-card-enter"
-            style={{
-              animationDelay: "0.08s",
-              border: "1px solid rgba(234,179,8,0.30)",
-              backgroundColor: "rgba(234,179,8,0.06)",
-            }}
-            data-testid="verify-status-card"
-          >
-            <div className="relative w-5 h-5 shrink-0">
-              <span className="absolute inset-0 rounded-full ea-pulse-ring" style={{ border: "2px solid #EAB308" }} />
-              <Clock className="absolute inset-0 w-5 h-5" style={{ color: "#EAB308" }} />
-            </div>
-            <div className="flex-1 text-sm">
-              <div className="text-white font-semibold">Payment link clicked — admin is verifying</div>
-              <div className="text-white/55 text-xs mt-0.5">
-                Your dashboard will fully unlock once payment confirms.
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Access tier badge — "EA Access Only" vs "EA + Mentorship Access" with upsell */}
+        <TierBadge user={user} />
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 mt-6">
@@ -251,3 +231,60 @@ export default function Dashboard() {
     </MentorLayout>
   );
 }
+
+// ===== Access-tier badge + mentorship upsell =====
+// Shows "EA Access Only" (amber) or "EA + Mentorship Access" (green/gold) based on the
+// user.wants_mentorship flag. When the user is on the base tier we surface a tasteful
+// upgrade card: pay an extra R700 to the existing bank details to unlock 1-on-1
+// mentorship — no separate flow, admin reconciles the second proof manually.
+function TierBadge({ user }) {
+  const hasMentorship = !!user?.wants_mentorship;
+  const color = hasMentorship ? "#F5C150" : "#1E90FF";
+  const Icon = hasMentorship ? Crown : KeyRound;
+  const label = hasMentorship ? "EA + Mentorship Access" : "EA Access Only";
+  const sub = hasMentorship
+    ? "You're on the full tier — direct mentor guidance unlocked."
+    : "Base EA copy-trading is active on your account.";
+
+  return (
+    <div
+      className="mt-3 rounded-2xl px-4 py-4 sm:px-5 sm:py-5 flex flex-col sm:flex-row sm:items-center gap-4 ea-card-enter"
+      style={{
+        animationDelay: "0.08s",
+        border: `1px solid ${color}3D`,
+        background: hasMentorship
+          ? "linear-gradient(135deg, rgba(245,193,80,0.10) 0%, rgba(0,0,0,0) 70%)"
+          : "linear-gradient(135deg, rgba(30,144,255,0.08) 0%, rgba(0,0,0,0) 70%)",
+      }}
+      data-testid="tier-badge"
+    >
+      <div className="flex items-center gap-3 shrink-0">
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+          style={{ backgroundColor: `${color}1A`, color, border: `1px solid ${color}33` }}
+        >
+          <Icon className="w-5 h-5" strokeWidth={1.7} />
+        </div>
+        <div>
+          <div className="text-[10px] tracking-[0.28em] uppercase text-white/45">Access tier</div>
+          <div className="font-display text-lg font-bold text-white tracking-tight">
+            <span data-testid="tier-badge-label">{label}</span>
+          </div>
+        </div>
+      </div>
+      <p className="text-sm text-white/65 flex-1 leading-relaxed">{sub}</p>
+      {!hasMentorship && (
+        <Link
+          to="/upgrade-mentorship"
+          className="inline-flex items-center justify-center gap-2 px-4 h-11 rounded-xl text-black font-bold text-xs tracking-[0.12em] uppercase shrink-0"
+          style={{ background: "#F5C150", boxShadow: "0 8px 22px rgba(245,193,80,0.45)" }}
+          data-testid="tier-upgrade-btn"
+        >
+          <GraduationCap className="w-4 h-4" /> Upgrade · +R700
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      )}
+    </div>
+  );
+}
+

@@ -40,6 +40,10 @@ import {
   VolumeX,
   RefreshCcw,
   Link2,
+  Crown,
+  Copy as CopyIcon,
+  CheckCircle2 as CheckIcon,
+  MessageCircle,
 } from "lucide-react";
 
 const ROBOT_IMG =
@@ -193,6 +197,13 @@ export default function MobileApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  // Live payment config — used by the in-app mentorship upgrade modal.
+  const [payCfg, setPayCfg] = useState(null);
+  useEffect(() => {
+    if (!upgradeOpen || payCfg) return;
+    api.get("/verify-account/config").then((r) => setPayCfg(r.data)).catch(() => {});
+  }, [upgradeOpen, payCfg]);
   const [pairsOpen, setPairsOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
@@ -965,6 +976,50 @@ export default function MobileApp() {
           <span className="text-white/40 text-[9px] tracking-[0.18em] uppercase ea-mono" data-testid="mobile-version">v3.1</span>
         </div>
 
+        {/* Access tier badge — small pill always visible, upsell card only when on base */}
+        {(() => {
+          const hasM = !!eaData?.wants_mentorship;
+          const color = hasM ? "#F5C150" : "#1E90FF";
+          return (
+            <div
+              className="relative z-10 mx-5 mt-3 rounded-2xl px-4 py-3 ea-card ea-card-enter"
+              style={{ animationDelay: "0.17s", borderColor: `${color}3D` }}
+              data-testid="mobile-tier-card"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${color}1A`, color, border: `1px solid ${color}33` }}
+                >
+                  {hasM ? <Crown className="w-4 h-4" strokeWidth={1.8} /> : <KeyRound className="w-4 h-4" strokeWidth={1.8} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[9px] tracking-[0.22em] uppercase text-white/40">Access tier</div>
+                  <div className="text-sm font-bold text-white truncate" data-testid="mobile-tier-label">
+                    {hasM ? "EA + Mentorship Access" : "EA Access Only"}
+                  </div>
+                </div>
+                {!hasM && (
+                  <button
+                    type="button"
+                    onClick={() => setUpgradeOpen(true)}
+                    className="px-3 h-8 rounded-lg text-black font-bold text-[10px] tracking-[0.18em] uppercase shrink-0 ea-tap"
+                    style={{ background: "#F5C150", boxShadow: "0 4px 14px rgba(245,193,80,0.4)" }}
+                    data-testid="mobile-tier-upgrade-btn"
+                  >
+                    Upgrade
+                  </button>
+                )}
+              </div>
+              {!hasM && (
+                <p className="text-[11px] text-white/55 mt-2.5 leading-relaxed">
+                  Top up <span className="text-white font-semibold">R700</span> to upgrade — get 1-on-1 mentor guidance for better results.
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Trading Style — risk profile picker */}
         {(() => {
           const currentStyle = TRADING_STYLES.find((s) => s.key === eaData?.trading_style);
@@ -1369,8 +1424,18 @@ export default function MobileApp() {
             </div>
           </div>
         )}
-
         {/* Connect (broker) drawer */}
+
+        {/* Mentorship upgrade drawer — same bank details as the original payment,
+            R700 top-up upgrades them to "EA + Mentorship Access". */}
+        {upgradeOpen && (
+          <UpgradeSheet
+            payCfg={payCfg}
+            email={email}
+            onClose={() => setUpgradeOpen(false)}
+          />
+        )}
+
         {connectOpen && (
           <div className="ea3-sheet-wrap ea-mobile" onClick={() => setConnectOpen(false)} data-testid="mobile-connect-drawer">
             <div className="ea3-sheet overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -2683,6 +2748,96 @@ const DetailRow = ({ label, value, mono }) => (
     <div className="text-[9px] tracking-[0.22em] uppercase text-white/35 mb-0.5">{label}</div>
     <div className={`text-[12px] text-white truncate ${mono ? "font-mono" : "font-semibold"}`} title={value}>{value}</div>
   </div>
+);
+
+
+// ============ Mentorship upgrade bottom-sheet ============
+// Surfaces the same bank details from /verify-account/config so the user can copy
+// each field with one tap. R700 top-up — admin reconciles the proof manually.
+const UpgradeSheet = ({ payCfg, email, onClose }) => {
+  const [copied, setCopied] = useState("");
+  const bank = payCfg?.eft || {};
+  const waNumber = payCfg?.whatsapp?.number || "";
+  const waMsg = encodeURIComponent(`Hi, I just topped up R700 for the EA + Mentorship upgrade. My email: ${email}. Please verify and upgrade my access.`);
+  const copyField = (label, value) => {
+    if (!value) return;
+    try { navigator.clipboard.writeText(value); } catch { /* ignore */ }
+    setCopied(label);
+    toast.success(`${label} copied`);
+    setTimeout(() => setCopied(""), 1600);
+  };
+  return (
+    <div className="ea3-sheet-wrap ea-mobile" onClick={onClose} data-testid="mobile-upgrade-drawer">
+      <div className="ea3-sheet overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="ea3-handle" />
+        <div className="flex items-center justify-between px-5 pt-2 pb-3 sticky top-0 z-10" style={{ backgroundColor: "rgba(14,14,16,0.95)", backdropFilter: "blur(20px)" }}>
+          <div className="flex items-center gap-2">
+            <Crown className="w-4 h-4" style={{ color: "#F5C150" }} strokeWidth={1.8} />
+            <h2 className="ea3-display text-base text-white">Upgrade to Mentorship</h2>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-white/55 hover:text-white" data-testid="mobile-upgrade-close">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 pb-7 space-y-4">
+          <div
+            className="rounded-2xl p-4"
+            style={{ border: "1px solid rgba(245,193,80,0.40)", background: "linear-gradient(135deg, rgba(245,193,80,0.10) 0%, rgba(0,0,0,0) 70%)" }}
+          >
+            <div className="text-[10px] tracking-[0.28em] uppercase" style={{ color: "#F5C150" }}>+ R700 top-up</div>
+            <div className="ea3-display text-xl text-white mt-1">EA + Mentorship Access</div>
+            <p className="text-[12px] text-white/65 mt-2 leading-relaxed">
+              1-on-1 mentor guidance, hand-picked setups, and risk reviews. Pay the difference to the same bank details — admin reconciles manually.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <BankCopyRow label="Bank"           value={bank.bank_name}    copied={copied === "Bank"}           onCopy={() => copyField("Bank", bank.bank_name)} />
+            <BankCopyRow label="Account holder" value={bank.holder}       copied={copied === "Account holder"} onCopy={() => copyField("Account holder", bank.holder)} />
+            <BankCopyRow label="Account #"      value={bank.account}      copied={copied === "Account #"}      onCopy={() => copyField("Account #", bank.account)} mono />
+            <BankCopyRow label="Branch code"    value={bank.branch_code}  copied={copied === "Branch code"}    onCopy={() => copyField("Branch code", bank.branch_code)} mono />
+            <BankCopyRow label="Reference"      value={`MENTOR-${email}`} copied={copied === "Reference"}      onCopy={() => copyField("Reference", `MENTOR-${email}`)} mono />
+            <BankCopyRow label="Amount"         value="R700.00"           copied={copied === "Amount"}         onCopy={() => copyField("Amount", "700.00")} mono accent />
+          </div>
+
+          <p className="text-[10px] text-white/45 leading-relaxed">
+            Use the reference so admin can match the EFT to your account. Your tier flips to <span className="text-white">EA + Mentorship Access</span> automatically once verified.
+          </p>
+
+          {waNumber && (
+            <a
+              href={`https://wa.me/${waNumber.replace(/\D/g, "")}?text=${waMsg}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full inline-flex items-center justify-center gap-2 h-12 rounded-2xl text-black font-bold text-sm tracking-[0.05em]"
+              style={{ background: "#25D366", boxShadow: "0 8px 22px rgba(37,211,102,0.45)" }}
+              data-testid="mobile-upgrade-whatsapp"
+            >
+              <MessageCircle className="w-4 h-4" /> Send proof on WhatsApp
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BankCopyRow = ({ label, value, onCopy, copied, mono, accent }) => (
+  <button
+    type="button"
+    onClick={onCopy}
+    className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border text-left ea-tap"
+    style={{
+      borderColor: accent ? "rgba(245,193,80,0.40)" : "rgba(255,255,255,0.08)",
+      backgroundColor: accent ? "rgba(245,193,80,0.08)" : "rgba(255,255,255,0.02)",
+    }}
+  >
+    <div className="min-w-0">
+      <div className="text-[9px] tracking-[0.22em] uppercase text-white/40">{label}</div>
+      <div className={`text-sm text-white mt-0.5 truncate ${mono ? "ea-mono" : "font-semibold"}`} title={value || ""}>{value || "—"}</div>
+    </div>
+    {copied ? <CheckIcon className="w-4 h-4 shrink-0" style={{ color: "#22C55E" }} /> : <CopyIcon className="w-4 h-4 text-white/40 shrink-0" />}
+  </button>
 );
 
 

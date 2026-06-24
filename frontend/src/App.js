@@ -10,6 +10,7 @@ import Landing from "@/pages/Landing";
 import Signup from "@/pages/Signup";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import UpgradeMentorship from "@/pages/UpgradeMentorship";
 import GenerateKey from "@/pages/GenerateKey";
 import GenerateKeySuccess from "@/pages/GenerateKeySuccess";
 import ManageEAs from "@/pages/ManageEAs";
@@ -54,6 +55,7 @@ function App() {
             <Route path="/payment-cancelled" element={<PaymentCancelled />} />
 
             <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+            <Route path="/upgrade-mentorship" element={<Protected><UpgradeMentorship /></Protected>} />
             <Route path="/dashboard/generate-key" element={<Protected><GenerateKey /></Protected>} />
             <Route path="/dashboard/generate-key/success/:id" element={<Protected><GenerateKeySuccess /></Protected>} />
             <Route path="/dashboard/manage-eas" element={<Protected><ManageEAs /></Protected>} />

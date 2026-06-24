@@ -157,6 +157,9 @@ def public_user(doc: dict) -> dict:
         "payment_clicked": bool(doc.get("payment_clicked", False)),
         "payment_clicked_at": doc.get("payment_clicked_at"),
         "totp_enabled": bool(doc.get("totp_enabled", False)),
+        # Pricing tier — drives the "EA Access Only" vs "EA + Mentorship Access"
+        # badge + the upsell card on the mentor dashboard and /app.
+        "wants_mentorship": bool(doc.get("wants_mentorship", False)),
     }
 
 
@@ -1326,6 +1329,8 @@ async def mobile_activate_license(request: Request, payload: MobileActivateIn):
         "pair_configs": pair_configs,
         "trading_style": key_doc.get("trading_style"),
         "trading_style_label": TRADING_STYLES.get(key_doc.get("trading_style") or "", {}).get("label"),
+        # Tier badge — true = paid for EA + Mentorship (R1450), false = EA Access only (R700)
+        "wants_mentorship": bool(user.get("wants_mentorship", False)),
     }
 
 
